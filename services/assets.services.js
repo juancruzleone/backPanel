@@ -34,11 +34,23 @@ async function getAssetById(id) {
 }
 
 const addAsset = async (activo) => {
-  // Añadir fecha de creación y estado por defecto si no se proporciona
+  // Crear activo con campos básicos y valores por defecto
   const assetToInsert = {
-    ...activo,
+    nombre: activo.nombre,
+    marca: activo.marca,
+    modelo: activo.modelo,
+    numeroSerie: activo.numeroSerie,
+    // Valores por defecto
+    estado: "Activo",
     fechaCreacion: new Date(),
-    estado: activo.estado || "Activo",
+    // Campos opcionales que pueden venir en el body
+    ...(activo.categoria && { categoria: activo.categoria }),
+    ...(activo.ubicacion && { ubicacion: activo.ubicacion }),
+    ...(activo.templateId && { templateId: activo.templateId }),
+    ...(activo.fechaAdquisicion && { fechaAdquisicion: activo.fechaAdquisicion }),
+    ...(activo.responsable && { responsable: activo.responsable }),
+    ...(activo.notas && { notas: activo.notas }),
+    ...(activo.especificaciones && { especificaciones: activo.especificaciones }),
   }
 
   // Verificar si se proporcionó un templateId y si es válido

@@ -121,7 +121,6 @@ function getDefaultFormFields() {
       required: true,
     },
     { name: "fechaRevision", type: "date", label: "Fecha de revisión", required: true },
-    { name: "responsable", type: "text", label: "Responsable de la revisión", required: true },
     { name: "observaciones", type: "textarea", label: "Observaciones", required: false },
   ]
 }

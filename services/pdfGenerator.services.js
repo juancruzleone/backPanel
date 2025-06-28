@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit"
 
-export async function generatePDF(formResponses, device) {
+export async function generatePDF(formResponses, device, locationData = null, formattedDateTime = null) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument()
     const buffers = []
@@ -14,13 +14,14 @@ export async function generatePDF(formResponses, device) {
     // Generar el contenido del PDF
     doc.fontSize(18).text(`Mantenimiento - ${device.nombre}`, { align: "center" })
     doc.moveDown()
-    doc.fontSize(14).text(`Ubicación: ${device.ubicacion}`)
+    doc.fontSize(14).text(`Ubicación del dispositivo: ${device.ubicacion}`)
     doc.fontSize(14).text(`Categoría: ${device.categoria}`)
     doc.moveDown()
 
     // Añadir fecha y hora del mantenimiento
-    const fechaActual = new Date().toLocaleString()
+    const fechaActual = formattedDateTime || new Date().toLocaleString()
     doc.fontSize(12).text(`Fecha de mantenimiento: ${fechaActual}`)
+    
     doc.moveDown()
 
     // Verificar si formResponses es un objeto o un array
@@ -30,6 +31,12 @@ export async function generatePDF(formResponses, device) {
       })
     } else if (typeof formResponses === "object" && formResponses !== null) {
       Object.entries(formResponses).forEach(([key, value]) => {
+        // Ignorar los campos que ya se mostraron o que son de uso interno
+        if (key === 'fechaRevision' || key === 'horaRevision' || 
+            key === 'userId' || key === 'userEmail' || key === 'userRole') {
+          return;
+        }
+        
         // Formatear la clave para que sea más legible (convertir camelCase a palabras)
         const formattedKey = key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase())
 

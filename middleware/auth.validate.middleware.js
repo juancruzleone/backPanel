@@ -8,7 +8,7 @@ async function validateAccountRegistro(req, res, next) {
         next();
     } catch (err) {
         const errorMessages = err.inner.map(e => e.message);
-        res.status(400).json({ error: { message: 'Validation error', details: errorMessages } });
+        res.status(400).json({ error: { message: 'Error de validación', details: errorMessages } });
     }
 }
 
@@ -19,27 +19,32 @@ async function validateAccountLogin(req, res, next) {
         next();
     } catch (err) {
         const errorMessages = err.inner.map(e => e.message);
-        res.status(400).json({ error: { message: 'Validation error', details: errorMessages } });
+        res.status(400).json({ error: { message: 'Error de validación', details: errorMessages } });
     }
 }
 
 async function validateToken(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-        return res.status(401).json({ error: { message: 'Authorization header missing' } });
+        return res.status(401).json({ error: { message: 'Token de autorización requerido' } });
     }
 
     const token = authHeader.split(' ')[1];
+    if (!token) {
+        return res.status(401).json({ error: { message: 'Token de autorización inválido' } });
+    }
+
     try {
         const user = await tokenServiceValidateToken(token);
         if (!user) {
-            return res.status(401).json({ error: { message: 'Invalid or expired token' } });
+            return res.status(401).json({ error: { message: 'Token inválido o expirado' } });
         }
 
         req.user = user;
         next();
     } catch (err) {
-        res.status(500).json({ error: { message: 'Server error' } });
+        console.error('Error validando token:', err);
+        res.status(401).json({ error: { message: 'Token inválido o expirado' } });
     }
 }
 

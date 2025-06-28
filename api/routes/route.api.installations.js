@@ -1,33 +1,71 @@
-import { Router } from 'express';
-import * as controllers from '../controllers/controller.api.installations.js';
-import { validateToken } from '../../middleware/auth.validate.middleware.js';
-import { validateInstallations, validateDevice, validateTemplateAssignment } from '../../middleware/installations.validate.middleware.js';
-import { isAdmin } from '../../middleware/auth.role.middleware.js'; 
-import { validateAssetId } from '../../middleware/asset.validate.middleware.js';
+import { Router } from "express"
+import * as controllers from "../controllers/controller.api.installations.js"
+import { validateToken } from "../../middleware/auth.validate.middleware.js"
+import {
+  validateInstallations,
+  validateDevice,
+  validateTemplateAssignment,
+  validateMaintenanceSubmission,
+  validateAssetAssignment,
+} from "../../middleware/installations.validate.middleware.js"
+import { isAdmin } from "../../middleware/auth.role.middleware.js"
 
-const route = Router();
+const route = Router()
 
-route.get('/instalaciones', [validateToken, isAdmin], controllers.getInstallations); 
-route.post('/instalaciones', [validateToken, isAdmin, validateInstallations], controllers.createInstallation);
-route.put('/instalaciones/:id', [validateToken, isAdmin, validateInstallations], controllers.updateInstallation);
-route.delete('/instalaciones/:id', [validateToken, isAdmin], controllers.deleteInstallation);
+// Rutas principales de instalaciones
+route.get("/installations", [validateToken, isAdmin], controllers.getInstallations)
+route.get("/installations/:id", [validateToken, isAdmin], controllers.getInstallationById) // NUEVA RUTA AGREGADA
+route.post("/installations", [validateToken, isAdmin, validateInstallations], controllers.createInstallation)
+route.put("/installations/:id", [validateToken, isAdmin, validateInstallations], controllers.updateInstallation)
+route.delete("/installations/:id", [validateToken, isAdmin], controllers.deleteInstallation)
 
-route.get('/instalaciones/:id/dispositivos', [validateToken, isAdmin], controllers.getDevicesFromInstallation); 
-route.post('/instalaciones/:id/dispositivos', [validateToken, isAdmin, validateDevice], controllers.addDeviceToInstallation);
+// Rutas de dispositivos en instalaciones
+route.get("/installations/:id/dispositivos", [validateToken, isAdmin], controllers.getDevicesFromInstallation)
+route.post(
+  "/installations/:id/dispositivos",
+  [validateToken, isAdmin, validateDevice],
+  controllers.addDeviceToInstallation,
+)
+route.put(
+  "/installations/:id/dispositivos/:deviceId",
+  [validateToken, isAdmin, validateDevice],
+  controllers.updateDeviceInInstallation,
+)
+route.delete(
+  "/installations/:id/dispositivos/:deviceId",
+  [validateToken, isAdmin],
+  controllers.deleteDeviceFromInstallation,
+)
 
-// Ruta para actualización completa de dispositivos (requiere todos los campos)
-route.put('/instalaciones/:id/dispositivos/:deviceId', [validateToken, isAdmin, validateDevice], controllers.updateDeviceInInstallation);
+// Ruta para asignar activos existentes a instalaciones
+route.post(
+  "/installations/:id/activos",
+  [validateToken, isAdmin, validateAssetAssignment],
+  controllers.assignAssetToInstallation,
+)
 
-// Nueva ruta específica para asignar plantilla a un dispositivo
-route.patch('/instalaciones/:id/dispositivos/:deviceId/plantilla', [validateToken, isAdmin, validateTemplateAssignment], controllers.assignTemplateToDevice);
+// Ruta específica para asignar plantilla a un dispositivo
+route.patch(
+  "/installations/:id/dispositivos/:deviceId/plantilla",
+  [validateToken, isAdmin, validateTemplateAssignment],
+  controllers.assignTemplateToDevice,
+)
 
-route.delete('/instalaciones/:id/dispositivos/:deviceId', [validateToken, isAdmin], controllers.deleteDeviceFromInstallation);
+// Rutas de mantenimiento
+route.post(
+  "/installations/:installationId/dispositivos/:deviceId/mantenimiento",
+  [validateToken, isAdmin, validateMaintenanceSubmission],
+  controllers.handleMaintenanceSubmission,
+)
+route.get(
+  "/installations/:installationId/dispositivos/:deviceId/ultimo-mantenimiento",
+  [validateToken, isAdmin],
+  controllers.getLastMaintenanceForDevice,
+)
+route.get(
+  "/installations/:installationId/dispositivos/:deviceId/formulario",
+  [validateToken, isAdmin],
+  controllers.getDeviceForm,
+)
 
-// Nueva ruta para agregar un activo existente a una instalación
-route.post('/instalaciones/:id/activos', [validateToken, isAdmin, validateAssetId], controllers.addExistingAssetToInstallation);
-
-route.post('/instalaciones/:installationId/dispositivos/:deviceId/mantenimiento', [validateToken, isAdmin], controllers.handleMaintenanceSubmission);
-route.get('/instalaciones/:installationId/dispositivos/:deviceId/ultimo-mantenimiento', controllers.getLastMaintenanceForDevice);
-route.get('/instalaciones/:installationId/dispositivos/:deviceId/formulario', [validateToken, isAdmin],  controllers.getDeviceForm);
-
-export default route;
+export default route

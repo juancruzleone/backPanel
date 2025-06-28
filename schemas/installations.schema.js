@@ -42,4 +42,17 @@ const deviceSchema = Yup.object().shape({
   numeroSerie: Yup.string(),
 })
 
-export { installationSchema, deviceSchema }
+// Actualizar el esquema de mantenimiento para NO requerir datos de responsable
+const maintenanceSchema = Yup.object().shape({
+  // Campos existentes para el mantenimiento
+  estado: Yup.string().oneOf(
+    ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
+    "El estado debe ser válido"
+  ),
+  // Campos de fecha y hora (ahora opcionales en la validación)
+  // ya que se generarán automáticamente en el servidor
+  fechaRevision: Yup.string(),
+  horaRevision: Yup.string()
+})
+
+export { installationSchema, deviceSchema, maintenanceSchema }

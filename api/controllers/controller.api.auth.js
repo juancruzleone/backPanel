@@ -1,9 +1,10 @@
 import * as services from "../../services/auth.services.js"
+
 import * as tokenService from "../../services/token.service.js"
 
 async function createAccount(req, res) {
   try {
-    const result = await services.createAccount(req.body)
+    const result = await services.createAccount(req.body, req.user)
     res.status(201).json(result)
   } catch (err) {
     console.error("Error al crear la cuenta:", err)
@@ -15,7 +16,11 @@ async function login(req, res) {
   try {
     const cuenta = await services.login(req.body)
     const token = await tokenService.createToken(cuenta)
-    res.status(200).json({ token, cuenta })
+    res.status(200).json({
+      message: "Inicio de sesión exitoso",
+      token,
+      cuenta,
+    })
   } catch (err) {
     res.status(400).json({ error: { message: err.message } })
   }
@@ -53,4 +58,19 @@ async function getAccountById(req, res) {
   }
 }
 
-export { createAccount, login, logout, getAllAccounts, getAccountById }
+// ✅ FUNCIÓN CORREGIDA: obtener cuentas con rol técnico
+async function getTechnicians(req, res) {
+  try {
+    const tecnicos = await services.getAccountsByRole("tecnico")
+    res.status(200).json({
+      message: "Técnicos obtenidos exitosamente",
+      count: tecnicos.length,
+      tecnicos,
+    })
+  } catch (err) {
+    console.error("Error al obtener técnicos:", err)
+    res.status(400).json({ error: { message: err.message } })
+  }
+}
+
+export { createAccount, login, logout, getAllAccounts, getAccountById, getTechnicians }
