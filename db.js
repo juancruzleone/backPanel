@@ -13,10 +13,11 @@ const options = {
   w: "majority",
 }
 
-// Agregar opciones SSL específicas para producción
+// Agregar opciones TLS específicas para producción (opciones correctas)
 if (process.env.NODE_ENV === "production") {
-  options.ssl = true
-  options.sslValidate = false // Para Render
+  options.tls = true
+  options.tlsAllowInvalidCertificates = true // Reemplaza sslValidate
+  options.tlsAllowInvalidHostnames = true
   options.authSource = "admin"
 }
 
