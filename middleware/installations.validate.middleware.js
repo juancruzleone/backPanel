@@ -20,7 +20,7 @@ const installationSchema = Yup.object().shape({
     .max(100, "El tipo de instalación no puede tener más de 100 caracteres"),
 })
 
-// Esquema para asignar activo a instalación con templateId y estado
+// Esquema para asignar activo a instalación (FUNCIÓN PRINCIPAL)
 const assetAssignmentSchema = Yup.object().shape({
   assetId: Yup.string().required("El ID del activo es requerido"),
   ubicacion: Yup.string()
@@ -30,21 +30,19 @@ const assetAssignmentSchema = Yup.object().shape({
   categoria: Yup.string()
     .required("La categoría es requerida para la asignación")
     .max(100, "La categoría no puede tener más de 100 caracteres"),
-  templateId: Yup.string()
-    .required("El ID de la plantilla de formulario es obligatorio"),
   estado: Yup.string()
-    .required("El estado es obligatorio")
     .oneOf(
       ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
-      "El estado debe ser válido"
+      "El estado debe ser válido",
     )
+    .default("Activo"),
 })
 
+// Esquema para dispositivos (AHORA REQUIERE ACTIVO)
 const deviceSchema = Yup.object().shape({
-  nombre: Yup.string()
-    .required("El nombre del dispositivo es un campo requerido")
-    .min(1, "El nombre debe tener al menos 1 carácter")
-    .max(100, "El nombre no puede tener más de 100 caracteres"),
+  assetId: Yup.string().required(
+    "El ID del activo es requerido. Los dispositivos deben basarse en activos existentes.",
+  ),
   ubicacion: Yup.string()
     .required("La ubicación del dispositivo es un campo requerido")
     .min(1, "La ubicación debe tener al menos 1 carácter")
@@ -52,27 +50,28 @@ const deviceSchema = Yup.object().shape({
   categoria: Yup.string()
     .required("La categoría del dispositivo es un campo requerido")
     .max(100, "La categoría no puede tener más de 100 caracteres"),
-  templateId: Yup.string().nullable(), // ID de la plantilla de formulario
+  estado: Yup.string()
+    .oneOf(
+      ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
+      "El estado debe ser válido",
+    )
+    .default("Activo"),
+  // Campos que se heredan del activo (opcionales en la validación)
+  nombre: Yup.string(),
+  marca: Yup.string(),
+  modelo: Yup.string(),
+  numeroSerie: Yup.string(),
+  templateId: Yup.string(),
+})
+
+// Esquema de mantenimiento
+const maintenanceSchema = Yup.object().shape({
   estado: Yup.string().oneOf(
     ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
     "El estado debe ser válido",
   ),
-  marca: Yup.string(),
-  modelo: Yup.string(),
-  numeroSerie: Yup.string(),
-})
-
-// Actualizar el esquema de mantenimiento para NO requerir datos de responsable
-const maintenanceSchema = Yup.object().shape({
-  // Campos existentes para el mantenimiento
-  estado: Yup.string().oneOf(
-    ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
-    "El estado debe ser válido"
-  ),
-  // Campos de fecha y hora (ahora opcionales en la validación)
-  // ya que se generarán automáticamente en el servidor
   fechaRevision: Yup.string(),
-  horaRevision: Yup.string()
+  horaRevision: Yup.string(),
 })
 
 // Middleware de validación para asignación de activos
@@ -108,9 +107,9 @@ function validateDevice(req, res, next) {
 
 function validateTemplateAssignment(req, res, next) {
   const templateAssignmentSchema = Yup.object().shape({
-    templateId: Yup.string().required("El ID de la plantilla es requerido")
+    templateId: Yup.string().required("El ID de la plantilla es requerido"),
   })
-  
+
   templateAssignmentSchema
     .validate(req.body, { abortEarly: false, stripUnknown: true })
     .then((data) => {
@@ -130,13 +129,13 @@ function validateMaintenanceSubmission(req, res, next) {
     .catch((error) => res.status(400).json({ error: error.errors }))
 }
 
-export { 
-  installationSchema, 
-  deviceSchema, 
-  maintenanceSchema, 
-  validateInstallations, 
-  validateDevice, 
-  validateTemplateAssignment, 
+export {
+  installationSchema,
+  deviceSchema,
+  maintenanceSchema,
+  validateInstallations,
+  validateDevice,
+  validateTemplateAssignment,
   validateMaintenanceSubmission,
-  validateAssetAssignment
+  validateAssetAssignment,
 }

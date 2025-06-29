@@ -14,12 +14,11 @@ async function getInstallations(req, res) {
   }
 }
 
-// NUEVA FUNCIÓN: Obtener instalación por ID
+// Obtener instalación por ID
 async function getInstallationById(req, res) {
   try {
     const { id } = req.params
     const installation = await service.getInstallationById(id)
-
     res.status(200).json({
       success: true,
       data: installation,
@@ -38,7 +37,6 @@ async function createInstallation(req, res) {
   try {
     const installationData = req.body
     const newInstallation = await service.createInstallation(installationData)
-
     res.status(201).json({
       success: true,
       message: "Instalación creada exitosamente",
@@ -59,7 +57,6 @@ async function updateInstallation(req, res) {
     const { id } = req.params
     const installationData = req.body
     const updatedInstallation = await service.updateInstallation(id, installationData)
-
     res.status(200).json({
       success: true,
       message: "Instalación actualizada exitosamente",
@@ -79,7 +76,6 @@ async function deleteInstallation(req, res) {
   try {
     const { id } = req.params
     await service.deleteInstallation(id)
-
     res.status(200).json({
       success: true,
       message: "Instalación eliminada exitosamente",
@@ -93,12 +89,13 @@ async function deleteInstallation(req, res) {
   }
 }
 
-// Asignar activo a instalación
+// FUNCIÓN PRINCIPAL: Asignar activo a instalación
 async function assignAssetToInstallation(req, res) {
   try {
     const { id } = req.params
-    const { assetId, ubicacion, categoria, templateId, estado } = req.body
-    const result = await service.assignAssetToInstallation(id, assetId, ubicacion, categoria, templateId, estado)
+    const { assetId, ubicacion, categoria, estado } = req.body
+
+    const result = await service.assignAssetToInstallation(id, assetId, ubicacion, categoria, estado)
 
     res.status(201).json({
       success: true,
@@ -114,11 +111,20 @@ async function assignAssetToInstallation(req, res) {
   }
 }
 
-// Agregar dispositivo a instalación
+// Agregar dispositivo a instalación (AHORA REQUIERE ACTIVO)
 async function addDeviceToInstallation(req, res) {
   try {
     const { id } = req.params
     const deviceData = req.body
+
+    // Verificar que se proporcione assetId
+    if (!deviceData.assetId) {
+      return res.status(400).json({
+        success: false,
+        error: "Se requiere assetId. Los dispositivos deben basarse en activos existentes.",
+      })
+    }
+
     const result = await service.addDeviceToInstallation(id, deviceData)
 
     res.status(201).json({
@@ -140,6 +146,7 @@ async function updateDeviceInInstallation(req, res) {
   try {
     const { id, deviceId } = req.params
     const deviceData = req.body
+
     const result = await service.updateDeviceInInstallation(id, deviceId, deviceData)
 
     res.status(200).json({
@@ -202,7 +209,6 @@ async function handleMaintenanceSubmission(req, res) {
     const formResponses = req.body
 
     console.log("Mantenimiento registrado")
-
     const result = await service.handleMaintenanceSubmission(installationId, deviceId, formResponses)
 
     res.status(201).json({
@@ -264,7 +270,7 @@ async function getDevicesFromInstallation(req, res) {
   }
 }
 
-// Asignar plantilla a dispositivo
+// Asignar plantilla a dispositivo (DEPRECADA)
 async function assignTemplateToDevice(req, res) {
   try {
     const { id, deviceId } = req.params
@@ -275,6 +281,7 @@ async function assignTemplateToDevice(req, res) {
     res.status(200).json({
       success: true,
       message: "Plantilla asignada exitosamente",
+      warning: "Considera actualizar la plantilla del activo directamente",
       data: result,
     })
   } catch (error) {
@@ -288,7 +295,7 @@ async function assignTemplateToDevice(req, res) {
 
 export {
   getInstallations,
-  getInstallationById, // NUEVA FUNCIÓN EXPORTADA
+  getInstallationById,
   createInstallation,
   updateInstallation,
   deleteInstallation,
@@ -299,6 +306,6 @@ export {
   handleMaintenanceSubmission,
   getLastMaintenanceForDevice,
   getDevicesFromInstallation,
-  assignAssetToInstallation,
+  assignAssetToInstallation, // FUNCIÓN PRINCIPAL
   assignTemplateToDevice,
 }

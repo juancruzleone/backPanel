@@ -70,17 +70,20 @@ async function getInstallations() {
   }
 }
 
-// NUEVA FUNCIÓN: Obtener instalación por ID
+// Obtener instalación por ID
 async function getInstallationById(id) {
   try {
     if (!ObjectId.isValid(id)) {
       throw new Error("El ID de la instalación no es válido")
     }
+
     const objectId = new ObjectId(id)
     const installation = await installationsCollection.findOne({ _id: objectId })
+
     if (!installation) {
       throw new Error("Instalación no encontrada")
     }
+
     return installation
   } catch (error) {
     console.error("Error en getInstallationById:", error)
@@ -92,6 +95,7 @@ async function getInstallationById(id) {
 async function createInstallation(installationData) {
   try {
     const { company, address, floorSector, postalCode, city, province, installationType } = installationData
+
     const newInstallation = {
       company,
       address,
@@ -103,8 +107,10 @@ async function createInstallation(installationData) {
       devices: [],
       fechaCreacion: new Date(),
     }
+
     const result = await installationsCollection.insertOne(newInstallation)
     const insertedId = result.insertedId.toString()
+
     return { ...newInstallation, _id: insertedId }
   } catch (error) {
     console.error("Error en createInstallation:", error)
@@ -118,19 +124,23 @@ async function updateInstallation(id, installationData) {
     if (!ObjectId.isValid(id)) {
       throw new Error("El ID de la instalación no es válido")
     }
+
     const objectId = new ObjectId(id)
     const dataToUpdate = {
       ...installationData,
       fechaActualizacion: new Date(),
     }
+
     const result = await installationsCollection.findOneAndUpdate(
       { _id: objectId },
       { $set: dataToUpdate },
       { returnDocument: "after" },
     )
+
     if (!result) {
       throw new Error("No se encontró la instalación para actualizar")
     }
+
     return result
   } catch (error) {
     console.error("Error en updateInstallation:", error)
@@ -144,11 +154,14 @@ async function deleteInstallation(id) {
     if (!ObjectId.isValid(id)) {
       throw new Error("El ID de la instalación no es válido")
     }
+
     const objectId = new ObjectId(id)
     const result = await installationsCollection.deleteOne({ _id: objectId })
+
     if (result.deletedCount === 0) {
       throw new Error("No se pudo eliminar la instalación")
     }
+
     return { message: "Instalación eliminada correctamente" }
   } catch (error) {
     console.error("Error en deleteInstallation:", error)
@@ -156,16 +169,15 @@ async function deleteInstallation(id) {
   }
 }
 
-// Asignar activo a instalación
-async function assignAssetToInstallation(installationId, assetId, ubicacion, categoria, templateId, estado) {
+// Asignar activo a instalación (FUNCIÓN PRINCIPAL PARA AGREGAR DISPOSITIVOS)
+async function assignAssetToInstallation(installationId, assetId, ubicacion, categoria, estado = "Activo") {
   try {
-    if (!ObjectId.isValid(installationId) || !ObjectId.isValid(assetId) || !ObjectId.isValid(templateId)) {
-      throw new Error("El ID de la instalación, del activo o de la plantilla no es válido")
+    if (!ObjectId.isValid(installationId) || !ObjectId.isValid(assetId)) {
+      throw new Error("El ID de la instalación o del activo no es válido")
     }
 
     const installationObjectId = new ObjectId(installationId)
     const assetObjectId = new ObjectId(assetId)
-    const templateObjectId = new ObjectId(templateId)
 
     // Verificar que la instalación existe
     const installation = await installationsCollection.findOne({ _id: installationObjectId })
@@ -179,10 +191,15 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       throw new Error("El activo no existe")
     }
 
+    // Verificar que el activo tiene una plantilla asignada
+    if (!asset.templateId) {
+      throw new Error("El activo debe tener una plantilla de formulario asignada")
+    }
+
     // Verificar que la plantilla existe
-    const template = await getFormTemplateById(templateId)
+    const template = await getFormTemplateById(asset.templateId.toString())
     if (!template) {
-      throw new Error("La plantilla de formulario especificada no existe")
+      throw new Error("La plantilla de formulario del activo no existe")
     }
 
     // Validar que el estado sea válido
@@ -193,8 +210,6 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
 
     // Crear un nuevo dispositivo basado en el activo
     const deviceId = new ObjectId()
-
-    // CAMBIO PRINCIPAL: Usar FRONTEND_URL en lugar de CLIENT_URL
     const frontendUrl = process.env.FRONTEND_URL || "https://panelmantenimiento.netlify.app"
     const formUrl = `${frontendUrl.replace(/\/$/, "")}/formulario/${installationId}/${deviceId}`
 
@@ -202,15 +217,15 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       _id: deviceId,
       assetId: assetObjectId,
       nombre: asset.nombre,
-      ubicacion: ubicacion,
-      categoria: categoria,
-      templateId: templateObjectId,
-      codigoQR: formUrl,
-      maintenanceHistory: [],
-      estado: estado,
       marca: asset.marca,
       modelo: asset.modelo,
       numeroSerie: asset.numeroSerie,
+      ubicacion: ubicacion,
+      categoria: categoria,
+      templateId: asset.templateId, // Heredar la plantilla del activo
+      codigoQR: formUrl,
+      maintenanceHistory: [],
+      estado: estado,
       fechaCreacion: new Date(),
     }
 
@@ -227,6 +242,12 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       message: "Activo asignado correctamente a la instalación",
       device: newDevice,
       templateName: template.nombre,
+      assetInfo: {
+        nombre: asset.nombre,
+        marca: asset.marca,
+        modelo: asset.modelo,
+        numeroSerie: asset.numeroSerie,
+      },
     }
   } catch (error) {
     console.error("Error en assignAssetToInstallation:", error)
@@ -234,58 +255,16 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
   }
 }
 
-// Agregar dispositivo a instalación
+// FUNCIÓN DEPRECADA - Ahora todos los dispositivos deben basarse en activos
 async function addDeviceToInstallation(installationId, deviceData) {
-  try {
-    const { nombre, ubicacion, categoria, templateId } = deviceData
+  // Redirigir a assignAssetToInstallation
+  const { assetId, ubicacion, categoria, estado } = deviceData
 
-    if (!ObjectId.isValid(installationId)) {
-      throw new Error("El ID de la instalación no es válido")
-    }
-
-    const installationObjectId = new ObjectId(installationId)
-    const installation = await installationsCollection.findOne({ _id: installationObjectId })
-    if (!installation) {
-      throw new Error("La instalación no existe")
-    }
-
-    // Verificar si se proporcionó un templateId y si es válido
-    if (templateId && !ObjectId.isValid(templateId)) {
-      throw new Error("El ID de la plantilla no es válido")
-    }
-
-    const deviceId = new ObjectId()
-
-    // CAMBIO PRINCIPAL: Usar FRONTEND_URL en lugar de CLIENT_URL
-    const frontendUrl = process.env.FRONTEND_URL || "https://panelmantenimiento.netlify.app"
-    const formUrl = `${frontendUrl.replace(/\/$/, "")}/formulario/${installationId}/${deviceId}`
-
-    const newDevice = {
-      _id: deviceId,
-      nombre,
-      ubicacion,
-      categoria,
-      templateId: templateId ? new ObjectId(templateId) : null,
-      codigoQR: formUrl,
-      maintenanceHistory: [],
-      estado: "Activo",
-      fechaCreacion: new Date(),
-    }
-
-    const result = await installationsCollection.updateOne(
-      { _id: installationObjectId },
-      { $push: { devices: newDevice } },
-    )
-
-    if (result.modifiedCount === 0) {
-      throw new Error("No se pudo agregar el dispositivo a la instalación")
-    }
-
-    return { message: "Dispositivo agregado correctamente", device: newDevice }
-  } catch (error) {
-    console.error("Error en addDeviceToInstallation:", error)
-    throw error
+  if (!assetId) {
+    throw new Error("Se requiere un assetId. Los dispositivos deben basarse en activos existentes.")
   }
+
+  return await assignAssetToInstallation(installationId, assetId, ubicacion, categoria, estado)
 }
 
 // Actualizar dispositivo en instalación
@@ -298,12 +277,7 @@ async function updateDeviceInInstallation(installationId, deviceId, deviceData) 
     const installationObjectId = new ObjectId(installationId)
     const deviceObjectId = new ObjectId(deviceId)
 
-    // Verificar si se proporcionó un templateId y si es válido
-    if (deviceData.templateId && !ObjectId.isValid(deviceData.templateId)) {
-      throw new Error("El ID de la plantilla no es válido")
-    }
-
-    // Obtener el dispositivo actual para preservar datos importantes
+    // Obtener el dispositivo actual
     const installation = await installationsCollection.findOne(
       { _id: installationObjectId, "devices._id": deviceObjectId },
       { projection: { "devices.$": 1 } },
@@ -315,12 +289,35 @@ async function updateDeviceInInstallation(installationId, deviceId, deviceData) 
 
     const currentDevice = installation.devices[0]
 
+    // Si se está cambiando el assetId, verificar que el nuevo activo existe
+    if (deviceData.assetId && deviceData.assetId !== currentDevice.assetId?.toString()) {
+      if (!ObjectId.isValid(deviceData.assetId)) {
+        throw new Error("El ID del activo no es válido")
+      }
+
+      const newAsset = await assetsCollection.findOne({ _id: new ObjectId(deviceData.assetId) })
+      if (!newAsset) {
+        throw new Error("El nuevo activo no existe")
+      }
+
+      if (!newAsset.templateId) {
+        throw new Error("El nuevo activo debe tener una plantilla de formulario asignada")
+      }
+
+      // Actualizar con información del nuevo activo
+      deviceData.nombre = newAsset.nombre
+      deviceData.marca = newAsset.marca
+      deviceData.modelo = newAsset.modelo
+      deviceData.numeroSerie = newAsset.numeroSerie
+      deviceData.templateId = newAsset.templateId
+      deviceData.assetId = new ObjectId(deviceData.assetId)
+    }
+
     // Crear el dispositivo actualizado preservando datos importantes
     const updatedDevice = {
       ...currentDevice,
       ...deviceData,
       _id: deviceObjectId,
-      templateId: deviceData.templateId ? new ObjectId(deviceData.templateId) : currentDevice.templateId,
       maintenanceHistory: currentDevice.maintenanceHistory || [],
       fechaActualizacion: new Date(),
     }
@@ -334,7 +331,7 @@ async function updateDeviceInInstallation(installationId, deviceId, deviceData) 
       throw new Error("No se pudo actualizar el dispositivo en la instalación")
     }
 
-    return { message: "Dispositivo actualizado correctamente" }
+    return { message: "Dispositivo actualizado correctamente", device: updatedDevice }
   } catch (error) {
     console.error("Error en updateDeviceInInstallation:", error)
     throw error
@@ -387,14 +384,31 @@ async function getDeviceForm(installationId, deviceId) {
     }
 
     const device = result.devices[0]
-    const formFields = await getFormFieldsByCategory(device.categoria, device.templateId)
+
+    // Usar la plantilla del dispositivo (que viene del activo)
+    let formFields = []
+    if (device.templateId) {
+      const template = await getFormTemplateById(device.templateId.toString())
+      if (template) {
+        formFields = await getFormFieldsByCategory(template.categoria, device.templateId.toString())
+      }
+    } else {
+      // Fallback a campos por categoría
+      formFields = await getFormFieldsByCategory(device.categoria)
+    }
 
     return {
       deviceInfo: {
+        _id: device._id,
+        assetId: device.assetId,
         nombre: device.nombre,
+        marca: device.marca,
+        modelo: device.modelo,
+        numeroSerie: device.numeroSerie,
         ubicacion: device.ubicacion,
         categoria: device.categoria,
         templateId: device.templateId,
+        estado: device.estado,
       },
       formFields,
     }
@@ -424,7 +438,17 @@ async function handleMaintenanceSubmission(installationId, deviceId, formRespons
     }
 
     const device = installation.devices[0]
-    const formFields = await getFormFieldsByCategory(device.categoria, device.templateId)
+
+    // Obtener campos del formulario basados en la plantilla del dispositivo
+    let formFields = []
+    if (device.templateId) {
+      const template = await getFormTemplateById(device.templateId.toString())
+      if (template) {
+        formFields = await getFormFieldsByCategory(template.categoria, device.templateId.toString())
+      }
+    } else {
+      formFields = await getFormFieldsByCategory(device.categoria)
+    }
 
     // Usar directamente la fecha del servidor
     const currentDateTime = new Date()
@@ -540,6 +564,7 @@ async function getDevicesFromInstallation(installationId) {
     }
 
     const installationObjectId = new ObjectId(installationId)
+
     const installation = await installationsCollection.findOne(
       { _id: installationObjectId },
       { projection: { devices: 1 } },
@@ -556,7 +581,7 @@ async function getDevicesFromInstallation(installationId) {
   }
 }
 
-// Asignar plantilla a dispositivo
+// Asignar plantilla a dispositivo (DEPRECADA - la plantilla viene del activo)
 async function assignTemplateToDevice(installationId, deviceId, templateId) {
   try {
     if (!ObjectId.isValid(installationId) || !ObjectId.isValid(deviceId) || !ObjectId.isValid(templateId)) {
@@ -583,6 +608,11 @@ async function assignTemplateToDevice(installationId, deviceId, templateId) {
       throw new Error("La plantilla de formulario especificada no existe")
     }
 
+    // ADVERTENCIA: Esto sobrescribe la plantilla del activo
+    console.warn(
+      "ADVERTENCIA: Se está sobrescribiendo la plantilla del activo. Considera actualizar el activo directamente.",
+    )
+
     // Actualizar solo el campo templateId del dispositivo
     const result = await installationsCollection.updateOne(
       { _id: installationObjectId, "devices._id": deviceObjectId },
@@ -595,6 +625,7 @@ async function assignTemplateToDevice(installationId, deviceId, templateId) {
 
     return {
       message: "Plantilla asignada correctamente al dispositivo",
+      warning: "La plantilla del dispositivo ahora es diferente a la del activo original",
       installationId,
       deviceId,
       templateId,
@@ -608,17 +639,17 @@ async function assignTemplateToDevice(installationId, deviceId, templateId) {
 
 export {
   getInstallations,
-  getInstallationById, // NUEVA FUNCIÓN EXPORTADA
+  getInstallationById,
   createInstallation,
   updateInstallation,
   deleteInstallation,
-  addDeviceToInstallation,
+  addDeviceToInstallation, // Ahora redirige a assignAssetToInstallation
   updateDeviceInInstallation,
   deleteDeviceFromInstallation,
   getDeviceForm,
   handleMaintenanceSubmission,
   getLastMaintenanceForDevice,
   getDevicesFromInstallation,
-  assignAssetToInstallation,
-  assignTemplateToDevice,
+  assignAssetToInstallation, // FUNCIÓN PRINCIPAL
+  assignTemplateToDevice, // DEPRECADA
 }
