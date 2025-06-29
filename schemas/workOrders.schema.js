@@ -44,16 +44,17 @@ const workOrderStatusUpdateSchema = yup.object({
   observaciones: yup.string().max(500, "Las observaciones no pueden tener más de 500 caracteres"),
 })
 
+// Schema corregido para completar orden de trabajo
 const workOrderCompletionSchema = yup.object({
   observaciones: yup
     .string()
-    .required("Las observaciones de finalización son obligatorias")
-    .min(10, "Las observaciones deben tener al menos 10 caracteres")
+    .required("Las observaciones son obligatorias")
+    .min(5, "Las observaciones deben tener al menos 5 caracteres") // Reducido de 10 a 5
     .max(1000, "Las observaciones no pueden tener más de 1000 caracteres"),
   trabajoRealizado: yup
     .string()
     .required("La descripción del trabajo realizado es obligatoria")
-    .min(10, "La descripción debe tener al menos 10 caracteres")
+    .min(5, "La descripción debe tener al menos 5 caracteres") // Reducido de 10 a 5
     .max(1000, "La descripción no puede tener más de 1000 caracteres"),
   materialesUtilizados: yup
     .array()
@@ -71,24 +72,13 @@ const workOrderCompletionSchema = yup.object({
     .required("El tiempo de trabajo es obligatorio"),
   estadoDispositivo: yup
     .string()
+    .nullable() // Permitir null
     .oneOf(
-      ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
+      [null, "Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
       "El estado del dispositivo debe ser válido",
     ),
-  // NUEVO: Campo para las respuestas del formulario personalizado
-  formularioRespuestas: yup
-    .object()
-    .default({})
-    .test(
-      "formulario-requerido-si-hay-dispositivo",
-      "Se requieren las respuestas del formulario del dispositivo",
-      function (value) {
-        // Si hay un dispositivo en la orden de trabajo, se requiere el formulario
-        const { parent } = this
-        // Esta validación se puede hacer más específica según las necesidades
-        return true // Por ahora permitimos que sea opcional
-      },
-    ),
+  // Campo opcional para las respuestas del formulario personalizado
+  formularioRespuestas: yup.object().default({}).nullable(), // Hacer completamente opcional
 })
 
 export { workOrderSchema, workOrderAssignmentSchema, workOrderStatusUpdateSchema, workOrderCompletionSchema }

@@ -28,7 +28,6 @@ function formatDateTime(date) {
   const year = date.getFullYear()
   const hours = String(date.getHours()).padStart(2, "0")
   const minutes = String(date.getMinutes()).padStart(2, "0")
-
   return {
     formattedDate: `${day}/${month}/${year}`,
     formattedTime: `${hours}:${minutes}`,
@@ -41,7 +40,6 @@ async function uploadWorkOrderPDFToCloudinary(buffer, workOrderId, timestamp) {
   return new Promise((resolve, reject) => {
     const stream = Readable.from(buffer)
     const folder = `ordenes-trabajo/${workOrderId}`
-
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: folder,
@@ -58,24 +56,20 @@ async function uploadWorkOrderPDFToCloudinary(buffer, workOrderId, timestamp) {
         }
       },
     )
-
     stream.pipe(uploadStream)
   })
 }
 
-// Obtener todas las órdenes de trabajo con filtros - FUNCIÓN MODIFICADA
+// Obtener todas las órdenes de trabajo con filtros
 async function getAllWorkOrders(filters = {}) {
   try {
     const query = {}
-
     if (filters.estado) {
       query.estado = filters.estado
     }
-
     if (filters.tecnicoId) {
       query.tecnicoAsignado = new ObjectId(filters.tecnicoId)
     }
-
     if (filters.instalacionId) {
       query.instalacionId = new ObjectId(filters.instalacionId)
     }
@@ -203,7 +197,6 @@ async function createWorkOrder(workOrderData, adminUser) {
       if (!ObjectId.isValid(dispositivoId)) {
         throw new Error("ID de dispositivo inválido")
       }
-
       // Buscar el dispositivo en la instalación
       dispositivo = installation.devices?.find((device) => device._id.toString() === dispositivoId)
       if (!dispositivo) {
@@ -221,7 +214,7 @@ async function createWorkOrder(workOrderData, adminUser) {
             nombre: dispositivo.nombre,
             ubicacion: dispositivo.ubicacion,
             categoria: dispositivo.categoria,
-            templateId: dispositivo.templateId, // IMPORTANTE: Incluir el templateId
+            templateId: dispositivo.templateId,
           }
         : null,
       estado: "pendiente",
@@ -244,7 +237,6 @@ async function createWorkOrder(workOrderData, adminUser) {
     }
 
     const result = await workOrdersCollection.insertOne(newWorkOrder)
-
     return {
       ...newWorkOrder,
       _id: result.insertedId,
@@ -291,18 +283,16 @@ async function updateWorkOrder(id, workOrderData, adminUser) {
       const installation = await installationsCollection.findOne({
         _id: updateData.instalacionId || workOrder.instalacionId,
       })
-
       const dispositivo = installation.devices?.find((device) => device._id.toString() === workOrderData.dispositivoId)
       if (!dispositivo) {
         throw new Error("El dispositivo especificado no existe en la instalación")
       }
-
       updateData.dispositivoId = new ObjectId(workOrderData.dispositivoId)
       updateData.dispositivo = {
         nombre: dispositivo.nombre,
         ubicacion: dispositivo.ubicacion,
         categoria: dispositivo.categoria,
-        templateId: dispositivo.templateId, // IMPORTANTE: Incluir el templateId
+        templateId: dispositivo.templateId,
       }
     }
 
@@ -377,7 +367,6 @@ async function assignWorkOrder(id, tecnicoId, adminUser) {
       role: "tecnico",
       status: "active",
     })
-
     if (!tecnico) {
       throw new Error("Técnico no encontrado o inactivo")
     }
@@ -467,7 +456,6 @@ async function updateWorkOrderStatus(id, estado, observaciones, adminUser) {
 async function getTechnicianWorkOrders(tecnicoId, estado = null) {
   try {
     const query = { tecnicoAsignado: new ObjectId(tecnicoId) }
-
     if (estado) {
       query.estado = estado
     }
@@ -571,7 +559,7 @@ async function getWorkOrderById(id, user) {
   }
 }
 
-// NUEVA FUNCIÓN: Obtener formulario para orden de trabajo
+// Obtener formulario para orden de trabajo
 async function getWorkOrderForm(id, user) {
   try {
     if (!ObjectId.isValid(id)) {
@@ -599,7 +587,7 @@ async function getWorkOrderForm(id, user) {
           descripcion: workOrder.descripcion,
           tipoTrabajo: workOrder.tipoTrabajo,
         },
-        formFields: [], // Sin campos específicos del dispositivo
+        formFields: [],
       }
     }
 
@@ -641,7 +629,7 @@ async function getWorkOrderForm(id, user) {
   }
 }
 
-// Completar orden de trabajo (MODIFICADO para manejar formularios personalizados)
+// Completar orden de trabajo (MODIFICADO para validaciones más flexibles)
 async function completeWorkOrder(id, completionData, user) {
   try {
     if (!ObjectId.isValid(id)) {
@@ -669,14 +657,18 @@ async function completeWorkOrder(id, completionData, user) {
     const currentDateTime = new Date()
     const formattedDateTime = formatDateTime(currentDateTime)
 
-    // VALIDAR FORMULARIO PERSONALIZADO si hay dispositivo
+    // VALIDACIÓN OPCIONAL del formulario personalizado (solo advertencias, no errores)
     if (workOrder.dispositivoId && completionData.formularioRespuestas) {
-      await validateCustomFormResponses(workOrder, completionData.formularioRespuestas)
+      try {
+        await validateCustomFormResponses(workOrder, completionData.formularioRespuestas)
+      } catch (validationError) {
+        // Solo registrar la advertencia, no fallar la operación
+        console.warn("Advertencia en formulario personalizado:", validationError.message)
+      }
     }
 
     // Generar PDF con la información de la orden completada
     const pdfBuffer = await generateWorkOrderPDF(workOrder, completionData, user, formattedDateTime.fullDateTime)
-
     if (!pdfBuffer || pdfBuffer.length === 0) {
       throw new Error("Error al generar el PDF de la orden de trabajo")
     }
@@ -724,7 +716,7 @@ async function completeWorkOrder(id, completionData, user) {
       materialesUtilizados: completionData.materialesUtilizados || [],
       tiempoTrabajo: completionData.tiempoTrabajo,
       estadoDispositivo: completionData.estadoDispositivo,
-      formularioRespuestas: completionData.formularioRespuestas || {}, // NUEVO: Guardar respuestas del formulario
+      formularioRespuestas: completionData.formularioRespuestas || {},
       pdfUrl: pdfUrl,
     }
 
@@ -750,10 +742,10 @@ async function completeWorkOrder(id, completionData, user) {
   }
 }
 
-// NUEVA FUNCIÓN: Validar respuestas del formulario personalizado
+// Validar respuestas del formulario personalizado (MODIFICADO para ser más flexible)
 async function validateCustomFormResponses(workOrder, formularioRespuestas) {
   try {
-    if (!workOrder.dispositivoId) return // No hay dispositivo, no hay formulario que validar
+    if (!workOrder.dispositivoId) return
 
     // Obtener el dispositivo actual
     const installation = await installationsCollection.findOne(
@@ -765,7 +757,7 @@ async function validateCustomFormResponses(workOrder, formularioRespuestas) {
     )
 
     if (!installation || !installation.devices || installation.devices.length === 0) {
-      return // No se puede validar sin el dispositivo
+      return
     }
 
     const device = installation.devices[0]
@@ -773,46 +765,40 @@ async function validateCustomFormResponses(workOrder, formularioRespuestas) {
     // Obtener los campos del formulario
     const formFields = await getFormFieldsByCategory(device.categoria, device.templateId)
 
-    // Validar campos requeridos
-    const missingFields = formFields
-      .filter(
-        (field) => field.required && (!formularioRespuestas[field.name] || formularioRespuestas[field.name] === ""),
-      )
+    // Solo validar campos críticos (no todos los requeridos)
+    const criticalFields = formFields.filter(
+      (field) => field.required && field.critical === true, // Solo si está marcado como crítico
+    )
+
+    const missingCriticalFields = criticalFields
+      .filter((field) => !formularioRespuestas[field.name] || formularioRespuestas[field.name] === "")
       .map((field) => field.label || field.name)
 
-    if (missingFields.length > 0) {
-      throw new Error(`Los siguientes campos del formulario son obligatorios: ${missingFields.join(", ")}`)
+    if (missingCriticalFields.length > 0) {
+      console.warn(`Campos críticos faltantes: ${missingCriticalFields.join(", ")}`)
+      // No lanzar error, solo advertir
     }
 
-    // Validaciones adicionales por tipo de campo
+    // Validaciones básicas por tipo de campo (solo para campos completados)
     for (const field of formFields) {
       const value = formularioRespuestas[field.name]
-
       if (value !== null && value !== undefined && value !== "") {
         // Validar según el tipo de campo
         switch (field.type) {
           case "number":
             if (isNaN(Number(value))) {
-              throw new Error(`El campo "${field.label}" debe ser un número válido`)
-            }
-            if (field.min !== undefined && Number(value) < field.min) {
-              throw new Error(`El campo "${field.label}" debe ser mayor o igual a ${field.min}`)
-            }
-            if (field.max !== undefined && Number(value) > field.max) {
-              throw new Error(`El campo "${field.label}" debe ser menor o igual a ${field.max}`)
+              console.warn(`El campo "${field.label}" debe ser un número válido`)
             }
             break
-
           case "date":
             if (isNaN(Date.parse(value))) {
-              throw new Error(`El campo "${field.label}" debe ser una fecha válida`)
+              console.warn(`El campo "${field.label}" debe ser una fecha válida`)
             }
             break
-
           case "select":
           case "radio":
             if (field.options && Array.isArray(field.options) && !field.options.includes(value)) {
-              throw new Error(`El valor seleccionado para "${field.label}" no es válido`)
+              console.warn(`El valor seleccionado para "${field.label}" no es válido`)
             }
             break
         }
@@ -820,7 +806,7 @@ async function validateCustomFormResponses(workOrder, formularioRespuestas) {
     }
   } catch (error) {
     console.error("Error validando formulario personalizado:", error)
-    throw error
+    // No lanzar error, solo registrar
   }
 }
 
@@ -915,7 +901,7 @@ export {
   updateWorkOrderStatus,
   getTechnicianWorkOrders,
   getWorkOrderById,
-  getWorkOrderForm, // NUEVA FUNCIÓN EXPORTADA
+  getWorkOrderForm,
   completeWorkOrder,
   startWorkOrder,
   getWorkOrderHistory,
