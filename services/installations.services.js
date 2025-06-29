@@ -170,7 +170,7 @@ async function deleteInstallation(id) {
 }
 
 // Asignar activo a instalación (FUNCIÓN PRINCIPAL PARA AGREGAR DISPOSITIVOS)
-async function assignAssetToInstallation(installationId, assetId, ubicacion, categoria, estado = "Activo") {
+async function assignAssetToInstallation(installationId, assetId, ubicacion, categoria) {
   try {
     if (!ObjectId.isValid(installationId) || !ObjectId.isValid(assetId)) {
       throw new Error("El ID de la instalación o del activo no es válido")
@@ -202,12 +202,6 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       throw new Error("La plantilla de formulario del activo no existe")
     }
 
-    // Validar que el estado sea válido
-    const estadosValidos = ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"]
-    if (!estadosValidos.includes(estado)) {
-      throw new Error("El estado proporcionado no es válido")
-    }
-
     // Crear un nuevo dispositivo basado en el activo
     const deviceId = new ObjectId()
     const frontendUrl = process.env.FRONTEND_URL || "https://panelmantenimiento.netlify.app"
@@ -225,7 +219,6 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       templateId: asset.templateId, // Heredar la plantilla del activo
       codigoQR: formUrl,
       maintenanceHistory: [],
-      estado: estado,
       fechaCreacion: new Date(),
     }
 
@@ -258,13 +251,13 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
 // FUNCIÓN DEPRECADA - Ahora todos los dispositivos deben basarse en activos
 async function addDeviceToInstallation(installationId, deviceData) {
   // Redirigir a assignAssetToInstallation
-  const { assetId, ubicacion, categoria, estado } = deviceData
+  const { assetId, ubicacion, categoria } = deviceData
 
   if (!assetId) {
     throw new Error("Se requiere un assetId. Los dispositivos deben basarse en activos existentes.")
   }
 
-  return await assignAssetToInstallation(installationId, assetId, ubicacion, categoria, estado)
+  return await assignAssetToInstallation(installationId, assetId, ubicacion, categoria)
 }
 
 // Actualizar dispositivo en instalación
@@ -408,7 +401,6 @@ async function getDeviceForm(installationId, deviceId) {
         ubicacion: device.ubicacion,
         categoria: device.categoria,
         templateId: device.templateId,
-        estado: device.estado,
       },
       formFields,
     }
@@ -508,7 +500,6 @@ async function handleMaintenanceSubmission(installationId, deviceId, formRespons
         $push: { "devices.$.maintenanceHistory": maintenanceRecord },
         $set: {
           "devices.$.fechaUltimoMantenimiento": currentDateTime,
-          "devices.$.estado": formResponses.estado || "Activo",
         },
       },
     )

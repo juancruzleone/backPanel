@@ -93,9 +93,9 @@ async function deleteInstallation(req, res) {
 async function assignAssetToInstallation(req, res) {
   try {
     const { id } = req.params
-    const { assetId, ubicacion, categoria, estado } = req.body
+    const { assetId, ubicacion, categoria } = req.body
 
-    const result = await service.assignAssetToInstallation(id, assetId, ubicacion, categoria, estado)
+    const result = await service.assignAssetToInstallation(id, assetId, ubicacion, categoria)
 
     res.status(201).json({
       success: true,

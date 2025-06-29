@@ -30,12 +30,6 @@ const assetAssignmentSchema = Yup.object().shape({
   categoria: Yup.string()
     .required("La categoría es requerida para la asignación")
     .max(100, "La categoría no puede tener más de 100 caracteres"),
-  estado: Yup.string()
-    .oneOf(
-      ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
-      "El estado debe ser válido",
-    )
-    .default("Activo"),
 })
 
 // Esquema para dispositivos (AHORA REQUIERE ACTIVO)
@@ -50,12 +44,6 @@ const deviceSchema = Yup.object().shape({
   categoria: Yup.string()
     .required("La categoría del dispositivo es un campo requerido")
     .max(100, "La categoría no puede tener más de 100 caracteres"),
-  estado: Yup.string()
-    .oneOf(
-      ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
-      "El estado debe ser válido",
-    )
-    .default("Activo"),
   // Campos que se heredan del activo (opcionales en la validación)
   nombre: Yup.string(),
   marca: Yup.string(),
@@ -64,12 +52,8 @@ const deviceSchema = Yup.object().shape({
   templateId: Yup.string(),
 })
 
-// Esquema de mantenimiento
+// Esquema de mantenimiento (sin estado)
 const maintenanceSchema = Yup.object().shape({
-  estado: Yup.string().oneOf(
-    ["Activo", "Inactivo", "En mantenimiento", "Fuera de servicio", "Pendiente de revisión"],
-    "El estado debe ser válido",
-  ),
   fechaRevision: Yup.string(),
   horaRevision: Yup.string(),
 })

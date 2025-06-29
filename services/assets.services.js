@@ -7,9 +7,6 @@ const assetsCollection = db.collection("activos")
 async function getAssets(filter = {}) {
   const filterMongo = { eliminado: { $ne: true } }
 
-  if (filter.estado) {
-    filterMongo.estado = filter.estado
-  }
   if (filter.nombre) {
     filterMongo.nombre = { $regex: filter.nombre, $options: "i" }
   }
@@ -31,7 +28,7 @@ async function getAssetById(id) {
 }
 
 const addAsset = async (activo) => {
-  // Validar que se proporcionó templateId (ahora obligatorio)
+  // Validar que se proporcionó templateId (obligatorio)
   if (!activo.templateId) {
     throw new Error("La plantilla de formulario es obligatoria")
   }
@@ -46,15 +43,13 @@ const addAsset = async (activo) => {
     throw new Error("La plantilla especificada no existe")
   }
 
-  // Crear activo con campos básicos y valores por defecto
+  // Crear activo con campos básicos
   const assetToInsert = {
     nombre: activo.nombre,
     marca: activo.marca,
     modelo: activo.modelo,
     numeroSerie: activo.numeroSerie,
     templateId: new ObjectId(activo.templateId),
-    // Valores por defecto
-    estado: activo.estado || "Activo",
     fechaCreacion: new Date(),
   }
 
@@ -88,7 +83,6 @@ const putAsset = async (id, activo) => {
     marca: activo.marca,
     modelo: activo.modelo,
     numeroSerie: activo.numeroSerie,
-    estado: activo.estado || existingAsset.estado || "Activo",
     fechaCreacion: existingAsset.fechaCreacion || new Date(),
     fechaActualizacion: new Date(),
     // Convertir templateId a ObjectId si existe
