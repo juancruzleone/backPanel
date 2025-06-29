@@ -27,7 +27,6 @@ function formatDateTime(date) {
   const year = date.getFullYear()
   const hours = String(date.getHours()).padStart(2, "0")
   const minutes = String(date.getMinutes()).padStart(2, "0")
-
   return {
     formattedDate: `${day}/${month}/${year}`,
     formattedTime: `${hours}:${minutes}`,
@@ -40,7 +39,6 @@ async function uploadBufferToCloudinary(buffer, installationId, deviceId, timest
   return new Promise((resolve, reject) => {
     const stream = Readable.from(buffer)
     const folder = `instalaciones/${installationId}/dispositivos/${deviceId}`
-
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: folder,
@@ -57,7 +55,6 @@ async function uploadBufferToCloudinary(buffer, installationId, deviceId, timest
         }
       },
     )
-
     stream.pipe(uploadStream)
   })
 }
@@ -79,14 +76,11 @@ async function getInstallationById(id) {
     if (!ObjectId.isValid(id)) {
       throw new Error("El ID de la instalación no es válido")
     }
-
     const objectId = new ObjectId(id)
     const installation = await installationsCollection.findOne({ _id: objectId })
-
     if (!installation) {
       throw new Error("Instalación no encontrada")
     }
-
     return installation
   } catch (error) {
     console.error("Error en getInstallationById:", error)
@@ -98,7 +92,6 @@ async function getInstallationById(id) {
 async function createInstallation(installationData) {
   try {
     const { company, address, floorSector, postalCode, city, province, installationType } = installationData
-
     const newInstallation = {
       company,
       address,
@@ -110,10 +103,8 @@ async function createInstallation(installationData) {
       devices: [],
       fechaCreacion: new Date(),
     }
-
     const result = await installationsCollection.insertOne(newInstallation)
     const insertedId = result.insertedId.toString()
-
     return { ...newInstallation, _id: insertedId }
   } catch (error) {
     console.error("Error en createInstallation:", error)
@@ -127,23 +118,19 @@ async function updateInstallation(id, installationData) {
     if (!ObjectId.isValid(id)) {
       throw new Error("El ID de la instalación no es válido")
     }
-
     const objectId = new ObjectId(id)
     const dataToUpdate = {
       ...installationData,
       fechaActualizacion: new Date(),
     }
-
     const result = await installationsCollection.findOneAndUpdate(
       { _id: objectId },
       { $set: dataToUpdate },
       { returnDocument: "after" },
     )
-
     if (!result) {
       throw new Error("No se encontró la instalación para actualizar")
     }
-
     return result
   } catch (error) {
     console.error("Error en updateInstallation:", error)
@@ -157,14 +144,11 @@ async function deleteInstallation(id) {
     if (!ObjectId.isValid(id)) {
       throw new Error("El ID de la instalación no es válido")
     }
-
     const objectId = new ObjectId(id)
     const result = await installationsCollection.deleteOne({ _id: objectId })
-
     if (result.deletedCount === 0) {
       throw new Error("No se pudo eliminar la instalación")
     }
-
     return { message: "Instalación eliminada correctamente" }
   } catch (error) {
     console.error("Error en deleteInstallation:", error)
@@ -209,7 +193,10 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
 
     // Crear un nuevo dispositivo basado en el activo
     const deviceId = new ObjectId()
-    const formUrl = `${process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, "") : ""}/formulario/${installationId}/${deviceId}`
+
+    // CAMBIO PRINCIPAL: Usar FRONTEND_URL en lugar de CLIENT_URL
+    const frontendUrl = process.env.FRONTEND_URL || "https://panelmantenimiento.netlify.app"
+    const formUrl = `${frontendUrl.replace(/\/$/, "")}/formulario/${installationId}/${deviceId}`
 
     const newDevice = {
       _id: deviceId,
@@ -258,7 +245,6 @@ async function addDeviceToInstallation(installationId, deviceData) {
 
     const installationObjectId = new ObjectId(installationId)
     const installation = await installationsCollection.findOne({ _id: installationObjectId })
-
     if (!installation) {
       throw new Error("La instalación no existe")
     }
@@ -269,7 +255,10 @@ async function addDeviceToInstallation(installationId, deviceData) {
     }
 
     const deviceId = new ObjectId()
-    const formUrl = `${process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/$/, "") : ""}/formulario/${installationId}/${deviceId}`
+
+    // CAMBIO PRINCIPAL: Usar FRONTEND_URL en lugar de CLIENT_URL
+    const frontendUrl = process.env.FRONTEND_URL || "https://panelmantenimiento.netlify.app"
+    const formUrl = `${frontendUrl.replace(/\/$/, "")}/formulario/${installationId}/${deviceId}`
 
     const newDevice = {
       _id: deviceId,
