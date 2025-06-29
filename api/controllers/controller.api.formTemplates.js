@@ -16,11 +16,9 @@ async function getFormTemplateById(req, res) {
   try {
     const { id } = req.params
     const template = await service.getFormTemplateById(id)
-
     if (!template) {
       return res.status(404).json({ error: "Plantilla no encontrada" })
     }
-
     res.status(200).json(template)
   } catch (error) {
     console.error("Error al obtener plantilla:", error)
@@ -36,11 +34,9 @@ function validateFormTemplateData(templateData) {
   if (!templateData.nombre) {
     errors.push("El nombre de la plantilla es obligatorio")
   }
-
   if (!templateData.categoria) {
     errors.push("La categoría es obligatoria")
   }
-
   if (!templateData.campos || !Array.isArray(templateData.campos) || templateData.campos.length === 0) {
     errors.push("Debe proporcionar al menos un campo")
     return errors
@@ -51,13 +47,11 @@ function validateFormTemplateData(templateData) {
     if (!campo.name) {
       errors.push(`El campo ${index + 1} debe tener un nombre`)
     }
-
     if (!campo.type) {
       errors.push(`El campo ${index + 1} debe tener un tipo`)
     } else if (!["text", "textarea", "number", "date", "select", "checkbox", "radio", "file"].includes(campo.type)) {
       errors.push(`El tipo "${campo.type}" del campo ${index + 1} no es válido`)
     }
-
     if (!campo.label) {
       errors.push(`El campo ${index + 1} debe tener una etiqueta`)
     }
@@ -104,6 +98,16 @@ async function updateFormTemplate(req, res) {
   try {
     const { id } = req.params
     const templateData = req.body
+
+    // Validación manual
+    const validationErrors = validateFormTemplateData(templateData)
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        error: "Error de validación",
+        details: validationErrors,
+      })
+    }
+
     const updatedTemplate = await service.updateFormTemplate(id, templateData)
     res.status(200).json(updatedTemplate)
   } catch (error) {

@@ -30,19 +30,34 @@ function validateAssetPatch(req, res, next) {
     .catch((error) => res.status(400).json({ error: error.errors }))
 }
 
-// Nuevo middleware para validar el assetId
+// Middleware para validar el assetId
 function validateAssetId(req, res, next) {
-  const { assetId } = req.body;
-  
+  const { assetId } = req.body
+
   if (!assetId) {
-    return res.status(400).json({ error: { message: 'Se requiere el ID del activo' } });
+    return res.status(400).json({ error: { message: "Se requiere el ID del activo" } })
   }
-  
+
   if (!ObjectId.isValid(assetId)) {
-    return res.status(400).json({ error: { message: 'El ID del activo no es válido' } });
+    return res.status(400).json({ error: { message: "El ID del activo no es válido" } })
   }
-  
-  next();
+
+  next()
 }
 
-export { validateAsset, validateAssetPatch, validateAssetId }
+// Middleware para validar el templateId
+function validateTemplateId(req, res, next) {
+  const { templateId } = req.body
+
+  if (!templateId) {
+    return res.status(400).json({ error: { message: "Se requiere el ID de la plantilla" } })
+  }
+
+  if (!ObjectId.isValid(templateId)) {
+    return res.status(400).json({ error: { message: "El ID de la plantilla no es válido" } })
+  }
+
+  next()
+}
+
+export { validateAsset, validateAssetPatch, validateAssetId, validateTemplateId }

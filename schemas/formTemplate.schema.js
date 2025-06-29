@@ -10,7 +10,7 @@ const formFieldSchema = Yup.object().shape({
     .oneOf(["text", "textarea", "number", "date", "select", "checkbox", "radio", "file"], "Tipo de campo no válido"),
   label: Yup.string().required("La etiqueta del campo es obligatoria"),
   required: Yup.boolean().default(false),
-  // Corregimos la validación condicional para options
+  // Validación condicional para options
   options: Yup.mixed().when("type", {
     is: (val) => val === "select" || val === "radio",
     then: Yup.array()

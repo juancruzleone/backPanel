@@ -30,9 +30,12 @@ async function createFormTemplate(templateData) {
       throw new Error("Todos los campos deben tener nombre, tipo y etiqueta")
     }
 
-    // Validar que los campos de tipo select tengan opciones
-    if (campo.type === "select" && (!Array.isArray(campo.options) || campo.options.length === 0)) {
-      throw new Error(`El campo ${campo.label} es de tipo select pero no tiene opciones`)
+    // Validar que los campos de tipo select y radio tengan opciones
+    if (
+      (campo.type === "select" || campo.type === "radio") &&
+      (!Array.isArray(campo.options) || campo.options.length === 0)
+    ) {
+      throw new Error(`El campo ${campo.label} es de tipo ${campo.type} pero no tiene opciones`)
     }
   }
 
@@ -67,9 +70,12 @@ async function updateFormTemplate(id, templateData) {
       throw new Error("Todos los campos deben tener nombre, tipo y etiqueta")
     }
 
-    // Validar que los campos de tipo select tengan opciones
-    if (campo.type === "select" && (!Array.isArray(campo.options) || campo.options.length === 0)) {
-      throw new Error(`El campo ${campo.label} es de tipo select pero no tiene opciones`)
+    // Validar que los campos de tipo select y radio tengan opciones
+    if (
+      (campo.type === "select" || campo.type === "radio") &&
+      (!Array.isArray(campo.options) || campo.options.length === 0)
+    ) {
+      throw new Error(`El campo ${campo.label} es de tipo ${campo.type} pero no tiene opciones`)
     }
   }
 
@@ -96,6 +102,16 @@ async function deleteFormTemplate(id) {
     throw new Error("ID de plantilla no válido")
   }
 
+  // Verificar si la plantilla está siendo usada por algún activo
+  const assetsCollection = db.collection("activos")
+  const assetsUsingTemplate = await assetsCollection.countDocuments({
+    templateId: new ObjectId(id),
+  })
+
+  if (assetsUsingTemplate > 0) {
+    throw new Error(`No se puede eliminar la plantilla porque está siendo usada por ${assetsUsingTemplate} activo(s)`)
+  }
+
   const result = await formTemplatesCollection.deleteOne({ _id: new ObjectId(id) })
 
   if (result.deletedCount === 0) {
@@ -114,18 +130,44 @@ async function getFormTemplatesByCategory(categoria) {
 function getDefaultFormFields() {
   return [
     {
-      name: "estado",
+      name: "estado_revision",
       type: "select",
       options: ["Operativo", "No operativo", "Requiere mantenimiento"],
-      label: "Estado",
+      label: "Estado de la revisión",
       required: true,
     },
-    { name: "fechaRevision", type: "date", label: "Fecha de revisión", required: true },
-    { name: "observaciones", type: "textarea", label: "Observaciones", required: false },
+    {
+      name: "fecha_revision",
+      type: "date",
+      label: "Fecha de revisión",
+      required: true,
+    },
+    {
+      name: "observaciones_generales",
+      type: "textarea",
+      label: "Observaciones generales",
+      required: false,
+    },
   ]
 }
 
-// Obtener campos de formulario según la categoría y/o plantilla
+// Obtener campos de formulario según la plantilla
+async function getFormFieldsByTemplate(templateId) {
+  // Campos comunes para cualquier tipo de dispositivo
+  const commonFields = getDefaultFormFields()
+
+  if (templateId && ObjectId.isValid(templateId)) {
+    const template = await getFormTemplateById(templateId)
+    if (template) {
+      return [...commonFields, ...template.campos]
+    }
+  }
+
+  // Si no hay plantilla, devolver solo los campos comunes
+  return commonFields
+}
+
+// Obtener campos de formulario según la categoría (función de compatibilidad)
 async function getFormFieldsByCategory(categoria, templateId = null) {
   // Campos comunes para cualquier tipo de dispositivo
   const commonFields = getDefaultFormFields()
@@ -156,6 +198,7 @@ export {
   updateFormTemplate,
   deleteFormTemplate,
   getFormTemplatesByCategory,
-  getFormFieldsByCategory,
+  getFormFieldsByTemplate,
+  getFormFieldsByCategory, // Función de compatibilidad
   getDefaultFormFields,
 }

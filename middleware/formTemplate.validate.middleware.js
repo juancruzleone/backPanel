@@ -15,7 +15,6 @@ async function validateFormTemplate(req, res, next) {
 
     // Validación básica
     const { nombre, categoria, campos } = req.body
-
     if (!nombre || !categoria || !campos || !Array.isArray(campos) || campos.length === 0) {
       return res.status(400).json({
         error: "Datos de plantilla inválidos",
