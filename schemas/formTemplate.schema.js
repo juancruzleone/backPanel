@@ -43,3 +43,18 @@ const formTemplateSchema = Yup.object().shape({
 })
 
 export { formTemplateSchema, formFieldSchema }
+
+// Esquema para categorías de formularios
+const formCategorySchema = Yup.object().shape({
+  nombre: Yup.string()
+    .required("El nombre de la categoría es obligatorio")
+    .max(100, "El nombre no puede tener más de 100 caracteres")
+    .trim(),
+  descripcion: Yup.string()
+    .max(500, "La descripción no puede tener más de 500 caracteres")
+    .trim()
+    .notRequired(),
+  activa: Yup.boolean().default(true),
+})
+
+export { formCategorySchema }

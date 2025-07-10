@@ -12,7 +12,7 @@ import {
 const route = Router()
 
 // Rutas para administradores
-route.get("/ordenes-trabajo", [validateToken, isAdmin], controllers.getAllWorkOrders)
+route.get("/ordenes-trabajo", [validateToken, isAdminOrTechnician], controllers.getAllWorkOrders)
 route.post("/ordenes-trabajo", [validateToken, isAdmin, validateWorkOrder], controllers.createWorkOrder)
 route.put("/ordenes-trabajo/:id", [validateToken, isAdmin, validateWorkOrder], controllers.updateWorkOrder)
 route.delete("/ordenes-trabajo/:id", [validateToken, isAdmin], controllers.deleteWorkOrder)

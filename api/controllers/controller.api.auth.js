@@ -61,7 +61,7 @@ async function getAccountById(req, res) {
 // ✅ FUNCIÓN CORREGIDA: obtener cuentas con rol técnico
 async function getTechnicians(req, res) {
   try {
-    const tecnicos = await services.getAccountsByRole("tecnico")
+    const tecnicos = await services.getAccountsByRole("técnico")
     res.status(200).json({
       message: "Técnicos obtenidos exitosamente",
       count: tecnicos.length,

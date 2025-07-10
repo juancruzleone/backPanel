@@ -204,8 +204,11 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
 
     // Crear un nuevo dispositivo basado en el activo
     const deviceId = new ObjectId()
+    // --- MODIFICACIÓN: Usar FRONTEND_URL de .env ---
     const frontendUrl = process.env.FRONTEND_URL || "https://panelmantenimiento.netlify.app"
-    const formUrl = `${frontendUrl.replace(/\/$/, "")}/formulario/${installationId}/${deviceId}`
+    // Elimina barra final si existe
+    const cleanFrontendUrl = frontendUrl.replace(/\/$/, "")
+    const formUrl = `${cleanFrontendUrl}/formulario/${installationId}/${deviceId}`
 
     const newDevice = {
       _id: deviceId,
@@ -217,7 +220,7 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       ubicacion: ubicacion,
       categoria: categoria,
       templateId: asset.templateId, // Heredar la plantilla del activo
-      codigoQR: formUrl,
+      codigoQR: formUrl, // <--- AQUÍ VA LA URL COMPLETA DEL FRONT
       maintenanceHistory: [],
       fechaCreacion: new Date(),
     }

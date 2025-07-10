@@ -1,15 +1,16 @@
 import { Router } from "express"
 import * as controllers from "../controllers/controller.api.manuals.js"
 import { validateManual, validateManualPatch, validateFileUpload } from "../../middleware/manual.validate.middleware.js"
-import { isAdmin } from "../../middleware/auth.role.middleware.js"
+import { isAdmin, isAdminOrTechnician } from "../../middleware/auth.role.middleware.js"
+import { validateToken } from "../../middleware/auth.validate.middleware.js"
 import { upload, uploadPDFToCloudinary, handleUploadError } from "../../middleware/upload.middleware.js"
 
 const route = Router()
 
 // Rutas para manuales
-route.get("/manuales", controllers.getManuals)
-route.get("/manuales/:id", controllers.getManualById)
-route.get("/activos/:assetId/manuales", controllers.getManualsByAssetId)
+route.get("/manuales", [validateToken, isAdminOrTechnician], controllers.getManuals)
+route.get("/manuales/:id", [validateToken, isAdminOrTechnician], controllers.getManualById)
+route.get("/activos/:assetId/manuales", [validateToken, isAdminOrTechnician], controllers.getManualsByAssetId)
 
 // Crear manual (requiere archivo PDF)
 route.post(

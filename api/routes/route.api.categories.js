@@ -1,13 +1,14 @@
 import { Router } from "express"
 import * as controllers from "../controllers/controller.api.categories.js"
 import { validateCategory, validateCategoryPatch } from "../../middleware/category.validate.middleware.js"
-import { isAdmin } from "../../middleware/auth.role.middleware.js"
+import { isAdmin, isAdminOrTechnician } from "../../middleware/auth.role.middleware.js"
+import { validateToken } from "../../middleware/auth.validate.middleware.js"
 
 const route = Router()
 
 // Rutas públicas (para obtener categorías activas)
-route.get("/categorias", controllers.getCategories)
-route.get("/categorias/:id", controllers.getCategoryById)
+route.get("/categorias", [validateToken, isAdminOrTechnician], controllers.getCategories)
+route.get("/categorias/:id", [validateToken, isAdminOrTechnician], controllers.getCategoryById)
 
 // Rutas administrativas
 route.post("/categorias", [validateCategory, isAdmin], controllers.addCategory)

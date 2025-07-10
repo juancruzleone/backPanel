@@ -8,19 +8,19 @@ import {
   validateMaintenanceSubmission,
   validateAssetAssignment,
 } from "../../middleware/installations.validate.middleware.js"
-import { isAdmin } from "../../middleware/auth.role.middleware.js"
+import { isAdmin, isAdminOrTechnician } from "../../middleware/auth.role.middleware.js"
 
 const route = Router()
 
 // Rutas principales de instalaciones
-route.get("/installations", [validateToken, isAdmin], controllers.getInstallations)
-route.get("/installations/:id", [validateToken, isAdmin], controllers.getInstallationById) // NUEVA RUTA AGREGADA
+route.get("/installations", [validateToken, isAdminOrTechnician], controllers.getInstallations)
+route.get("/installations/:id", [validateToken, isAdminOrTechnician], controllers.getInstallationById) // NUEVA RUTA AGREGADA
 route.post("/installations", [validateToken, isAdmin, validateInstallations], controllers.createInstallation)
 route.put("/installations/:id", [validateToken, isAdmin, validateInstallations], controllers.updateInstallation)
 route.delete("/installations/:id", [validateToken, isAdmin], controllers.deleteInstallation)
 
 // Rutas de dispositivos en instalaciones
-route.get("/installations/:id/dispositivos", [validateToken, isAdmin], controllers.getDevicesFromInstallation)
+route.get("/installations/:id/dispositivos", [validateToken, isAdminOrTechnician], controllers.getDevicesFromInstallation)
 route.post(
   "/installations/:id/dispositivos",
   [validateToken, isAdmin, validateDevice],

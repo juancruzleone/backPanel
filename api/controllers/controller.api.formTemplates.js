@@ -140,6 +140,80 @@ async function getFormTemplatesByCategory(req, res) {
   }
 }
 
+// Controladores para categorías de formularios
+async function getAllFormCategories(req, res) {
+  try {
+    const categories = await service.getAllFormCategories()
+    res.status(200).json({
+      message: "Categorías obtenidas exitosamente",
+      count: categories.length,
+      categories,
+    })
+  } catch (error) {
+    console.error("Error al obtener categorías:", error)
+    res.status(500).json({ error: "Error interno del servidor" })
+  }
+}
+
+async function getFormCategoryById(req, res) {
+  try {
+    const { id } = req.params
+    const category = await service.getFormCategoryById(id)
+    
+    if (!category) {
+      return res.status(404).json({ error: "Categoría no encontrada" })
+    }
+    
+    res.status(200).json(category)
+  } catch (error) {
+    console.error("Error al obtener categoría:", error)
+    res.status(400).json({ error: error.message || "Error al obtener la categoría" })
+  }
+}
+
+async function createFormCategory(req, res) {
+  try {
+    const categoryData = req.body
+    const newCategory = await service.createFormCategory(categoryData)
+    
+    res.status(201).json({
+      message: "Categoría creada exitosamente",
+      category: newCategory,
+    })
+  } catch (error) {
+    console.error("Error al crear categoría:", error)
+    res.status(400).json({ error: error.message || "Error al crear la categoría" })
+  }
+}
+
+async function updateFormCategory(req, res) {
+  try {
+    const { id } = req.params
+    const categoryData = req.body
+    const updatedCategory = await service.updateFormCategory(id, categoryData)
+    
+    res.status(200).json({
+      message: "Categoría actualizada exitosamente",
+      category: updatedCategory,
+    })
+  } catch (error) {
+    console.error("Error al actualizar categoría:", error)
+    res.status(400).json({ error: error.message || "Error al actualizar la categoría" })
+  }
+}
+
+async function deleteFormCategory(req, res) {
+  try {
+    const { id } = req.params
+    const result = await service.deleteFormCategory(id)
+    
+    res.status(200).json(result)
+  } catch (error) {
+    console.error("Error al eliminar categoría:", error)
+    res.status(400).json({ error: error.message || "Error al eliminar la categoría" })
+  }
+}
+
 export {
   getAllFormTemplates,
   getFormTemplateById,
@@ -147,4 +221,10 @@ export {
   updateFormTemplate,
   deleteFormTemplate,
   getFormTemplatesByCategory,
+  // Nuevos controladores para categorías
+  getAllFormCategories,
+  getFormCategoryById,
+  createFormCategory,
+  updateFormCategory,
+  deleteFormCategory,
 }

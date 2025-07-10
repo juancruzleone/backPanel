@@ -21,7 +21,7 @@ async function createAccount(cuenta, adminUser) {
   const nuevaCuenta = {
     userName: cuenta.userName,
     password: hashedPassword,
-    role: "tecnico", // Todas las cuentas creadas por admin son técnicos
+    role: "técnico", // Todas las cuentas creadas por admin son técnicos
     isVerified: true,
     status: "active",
     createdAt: new Date(),

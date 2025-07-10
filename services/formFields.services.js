@@ -2,6 +2,7 @@ import { db } from "../db.js"
 import { ObjectId } from "mongodb"
 
 const formTemplatesCollection = db.collection("formTemplates")
+const formCategoriesCollection = db.collection("formCategories")
 
 // Obtener todas las plantillas de formularios
 async function getAllFormTemplates() {
@@ -191,6 +192,97 @@ async function getFormFieldsByCategory(categoria, templateId = null) {
   return commonFields
 }
 
+// Funciones para categorías de formularios
+async function getAllFormCategories() {
+  return formCategoriesCollection.find({ activa: true }).sort({ nombre: 1 }).toArray()
+}
+
+async function getFormCategoryById(id) {
+  if (!ObjectId.isValid(id)) {
+    throw new Error("ID de categoría no válido")
+  }
+  return formCategoriesCollection.findOne({ _id: new ObjectId(id) })
+}
+
+async function createFormCategory(categoryData) {
+  const { nombre, descripcion, activa = true } = categoryData
+
+  // Verificar si ya existe una categoría con ese nombre
+  const existingCategory = await formCategoriesCollection.findOne({ nombre })
+  if (existingCategory) {
+    throw new Error("Ya existe una categoría con ese nombre")
+  }
+
+  const newCategory = {
+    nombre,
+    descripcion,
+    activa,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+
+  const result = await formCategoriesCollection.insertOne(newCategory)
+  return { ...newCategory, _id: result.insertedId }
+}
+
+async function updateFormCategory(id, categoryData) {
+  if (!ObjectId.isValid(id)) {
+    throw new Error("ID de categoría no válido")
+  }
+
+  const { nombre, descripcion, activa } = categoryData
+
+  // Verificar si ya existe otra categoría con ese nombre
+  if (nombre) {
+    const existingCategory = await formCategoriesCollection.findOne({
+      nombre,
+      _id: { $ne: new ObjectId(id) },
+    })
+    if (existingCategory) {
+      throw new Error("Ya existe otra categoría con ese nombre")
+    }
+  }
+
+  const updateData = {
+    ...categoryData,
+    updatedAt: new Date(),
+  }
+
+  const result = await formCategoriesCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: updateData }
+  )
+
+  if (result.matchedCount === 0) {
+    throw new Error("Categoría no encontrada")
+  }
+
+  return { ...updateData, _id: new ObjectId(id) }
+}
+
+async function deleteFormCategory(id) {
+  if (!ObjectId.isValid(id)) {
+    throw new Error("ID de categoría no válido")
+  }
+
+  // Verificar si hay plantillas usando esta categoría
+  const templatesUsingCategory = await formTemplatesCollection.countDocuments({
+    categoria: id,
+  })
+
+  if (templatesUsingCategory > 0) {
+    throw new Error("No se puede eliminar la categoría porque hay plantillas que la utilizan")
+  }
+
+  const result = await formCategoriesCollection.deleteOne({ _id: new ObjectId(id) })
+
+  if (result.deletedCount === 0) {
+    throw new Error("Categoría no encontrada")
+  }
+
+  return { message: "Categoría eliminada exitosamente" }
+}
+
 export {
   getAllFormTemplates,
   getFormTemplateById,
@@ -201,4 +293,10 @@ export {
   getFormFieldsByTemplate,
   getFormFieldsByCategory, // Función de compatibilidad
   getDefaultFormFields,
+  // Nuevas funciones para categorías
+  getAllFormCategories,
+  getFormCategoryById,
+  createFormCategory,
+  updateFormCategory,
+  deleteFormCategory,
 }

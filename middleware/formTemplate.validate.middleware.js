@@ -1,4 +1,4 @@
-import { formTemplateSchema } from "../schemas/formTemplate.schema.js"
+import { formTemplateSchema, formCategorySchema } from "../schemas/formTemplate.schema.js"
 
 async function validateFormTemplate(req, res, next) {
   try {
@@ -27,4 +27,23 @@ async function validateFormTemplate(req, res, next) {
   }
 }
 
-export { validateFormTemplate }
+// Validación para categorías de formularios
+async function validateFormCategory(req, res, next) {
+  try {
+    const category = await formCategorySchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    })
+    req.body = category
+    next()
+  } catch (error) {
+    console.error("Error de validación de categoría:", error.message)
+    const errorMessages = error.inner.map(e => e.message)
+    res.status(400).json({
+      error: "Error de validación de categoría",
+      details: errorMessages,
+    })
+  }
+}
+
+export { validateFormTemplate, validateFormCategory }

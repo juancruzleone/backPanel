@@ -332,9 +332,9 @@ async function deleteWorkOrder(id, adminUser) {
       throw new Error("Orden de trabajo no encontrada")
     }
 
-    // No permitir eliminar órdenes en progreso
-    if (workOrder.estado === "en_progreso") {
-      throw new Error("No se puede eliminar una orden de trabajo en progreso")
+    // Solo permitir eliminar si no está completada
+    if (workOrder.estado === "completada") {
+      throw new Error("No se puede eliminar una orden de trabajo completada")
     }
 
     const result = await workOrdersCollection.deleteOne({ _id: new ObjectId(id) })
@@ -573,7 +573,7 @@ async function getWorkOrderForm(id, user) {
 
     // Verificar permisos
     if (
-      user.role === "tecnico" &&
+      user.role === "técnico" &&
       (!workOrder.tecnicoAsignado || workOrder.tecnicoAsignado.toString() !== user._id.toString())
     ) {
       throw new Error("No tienes permisos para ver esta orden de trabajo")
