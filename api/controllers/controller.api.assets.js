@@ -90,7 +90,7 @@ const deleteAsset = (req, res) => {
   service
     .deleteAsset(id)
     .then(() => {
-      res.status(204).json()
+      res.sendStatus(204) // <--- AQUÍ EL CAMBIO
     })
     .catch((error) => {
       console.error("Error al eliminar activo:", error)
