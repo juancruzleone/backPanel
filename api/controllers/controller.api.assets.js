@@ -85,20 +85,19 @@ const patchAsset = async (req, res) => {
   }
 }
 
-const deleteAsset = (req, res) => {
-  const id = req.params.id
-  service
-    .deleteAsset(id)
-    .then(() => {
-      res.sendStatus(204) // <--- AQUÍ EL CAMBIO
-    })
-    .catch((error) => {
-      console.error("Error al eliminar activo:", error)
-      res.status(500).json({ error: error.message || "Error interno del servidor" })
-    })
+const deleteAsset = async (req, res) => {
+  try {
+    const id = req.params.id
+    await service.deleteAsset(id)
+
+    // ✅ CAMBIO: Respuesta con body JSON en lugar de 204
+    res.status(200).json({ message: "Activo eliminado correctamente" })
+  } catch (error) {
+    console.error("Error al eliminar activo:", error)
+    res.status(500).json({ error: error.message || "Error interno del servidor" })
+  }
 }
 
-// Asignar una plantilla de formulario a un activo
 const assignTemplateToAsset = async (req, res) => {
   try {
     const { id } = req.params
@@ -121,7 +120,6 @@ const assignTemplateToAsset = async (req, res) => {
   }
 }
 
-// Remover plantilla de un activo
 const removeTemplateFromAsset = async (req, res) => {
   try {
     const { id } = req.params
@@ -139,7 +137,6 @@ const removeTemplateFromAsset = async (req, res) => {
   }
 }
 
-// Obtener campos de formulario para un activo específico
 const getAssetFormFields = async (req, res) => {
   try {
     const { id } = req.params
