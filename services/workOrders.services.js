@@ -361,10 +361,10 @@ async function assignWorkOrder(id, tecnicoId, adminUser) {
       throw new Error("Orden de trabajo no encontrada")
     }
 
-    // Verificar que el técnico existe y tiene el rol correcto
+    // Verificar que el técnico existe y tiene el rol correcto (aceptar 'tecnico' y 'técnico')
     const tecnico = await accountsCollection.findOne({
       _id: new ObjectId(tecnicoId),
-      role: "tecnico",
+      role: { $in: ["tecnico", "técnico"] },
       status: "active",
     })
     if (!tecnico) {
