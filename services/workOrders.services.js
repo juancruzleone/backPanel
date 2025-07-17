@@ -134,6 +134,7 @@ async function getAllWorkOrders(filters = {}) {
             fechaInicio: 1,
             fechaCompletada: 1,
             observaciones: 1,
+            trabajoRealizado: 1, // <-- AGREGADO
             instalacion: {
               company: 1,
               address: 1,
