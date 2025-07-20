@@ -73,4 +73,29 @@ async function getTechnicians(req, res) {
   }
 }
 
-export { createAccount, login, logout, getAllAccounts, getAccountById, getTechnicians }
+// ✅ FUNCIÓN PARA ELIMINAR USUARIO (solo admin puede eliminar, no puede eliminarse a sí mismo ni a otros admin)
+async function deleteAccount(req, res) {
+  const { id } = req.params
+  const adminUser = req.user
+  try {
+    // Obtener la cuenta a eliminar
+    const cuentaAEliminar = await services.getAccountById(id)
+    if (!cuentaAEliminar) {
+      return res.status(404).json({ error: { message: "Usuario no encontrado" } })
+    }
+    // No permitir eliminar admins
+    if (cuentaAEliminar.role === "admin") {
+      return res.status(403).json({ error: { message: "No se puede eliminar un usuario con rol admin." } })
+    }
+    // No permitir que el admin se elimine a sí mismo (por seguridad extra)
+    if (adminUser._id.toString() === id) {
+      return res.status(403).json({ error: { message: "No puedes eliminar tu propia cuenta." } })
+    }
+    const result = await services.deleteAccount(id, adminUser)
+    res.status(200).json(result)
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } })
+  }
+}
+
+export { createAccount, login, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount }
