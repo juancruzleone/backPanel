@@ -231,6 +231,7 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       codigoQR: formUrl, // <--- AQUÍ VA LA URL COMPLETA DEL FRONT
       maintenanceHistory: [],
       fechaCreacion: new Date(),
+      estado: "Activo", // <--- AGREGADO PARA QUE SE GUARDE EL ESTADO
     }
 
     const result = await installationsCollection.updateOne(
