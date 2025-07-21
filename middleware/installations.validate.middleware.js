@@ -59,6 +59,13 @@ const deviceSchema = Yup.object().shape({
   modelo: Yup.string(),
   numeroSerie: Yup.string(),
   templateId: Yup.string(),
+  estado: Yup.string().oneOf([
+    "Activo",
+    "Inactivo",
+    "En mantenimiento",
+    "Fuera de servicio",
+    "Pendiente de revisión"
+  ], "El estado debe ser válido").default("Activo"),
 })
 
 // Esquema de mantenimiento (sin estado)
