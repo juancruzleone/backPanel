@@ -21,6 +21,11 @@ const installationSchema = Yup.object().shape({
   fechaInicio: Yup.date().required("La fecha de inicio es obligatoria"),
   fechaFin: Yup.date().nullable(),
   frecuencia: Yup.string().oneOf(["Trimestral", "Mensual", "Anual", "Semestral"], "La frecuencia debe ser válida").required("La frecuencia es obligatoria"),
+  mesesFrecuencia: Yup.array()
+    .of(Yup.string().oneOf([
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ], "Mes no válido"))
+    .required("Debes seleccionar los meses de la frecuencia"),
   estado: Yup.string().oneOf(["Activo", "Inactivo"], "El estado debe ser 'Activo' o 'Inactivo'").default("Activo"),
 })
 

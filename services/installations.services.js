@@ -94,7 +94,7 @@ async function getInstallationById(id) {
 // Crear nueva instalación
 async function createInstallation(installationData) {
   try {
-    const { company, address, floorSector, postalCode, city, province, installationType, fechaInicio, fechaFin, frecuencia, estado } = installationData
+    const { company, address, floorSector, postalCode, city, province, installationType, fechaInicio, fechaFin, frecuencia, mesesFrecuencia, estado } = installationData
 
     const newInstallation = {
       company,
@@ -107,6 +107,7 @@ async function createInstallation(installationData) {
       fechaInicio: fechaInicio ? new Date(fechaInicio) : new Date(),
       fechaFin: fechaFin ? new Date(fechaFin) : null,
       frecuencia,
+      mesesFrecuencia,
       estado: estado || "Activo",
       devices: [],
       fechaCreacion: new Date(),
