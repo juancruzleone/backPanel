@@ -94,7 +94,7 @@ async function getInstallationById(id) {
 // Crear nueva instalación
 async function createInstallation(installationData) {
   try {
-    const { company, address, floorSector, postalCode, city, province, installationType } = installationData
+    const { company, address, floorSector, postalCode, city, province, installationType, fechaInicio, fechaFin, frecuencia, estado } = installationData
 
     const newInstallation = {
       company,
@@ -104,6 +104,10 @@ async function createInstallation(installationData) {
       city,
       province,
       installationType,
+      fechaInicio: fechaInicio ? new Date(fechaInicio) : new Date(),
+      fechaFin: fechaFin ? new Date(fechaFin) : null,
+      frecuencia,
+      estado: estado || "Activo",
       devices: [],
       fechaCreacion: new Date(),
     }
@@ -130,6 +134,9 @@ async function updateInstallation(id, installationData) {
       ...installationData,
       fechaActualizacion: new Date(),
     }
+    // Si se envía fechaInicio o fechaFin, convertirlas a Date
+    if (dataToUpdate.fechaInicio) dataToUpdate.fechaInicio = new Date(dataToUpdate.fechaInicio)
+    if (dataToUpdate.fechaFin) dataToUpdate.fechaFin = new Date(dataToUpdate.fechaFin)
 
     const result = await installationsCollection.findOneAndUpdate(
       { _id: objectId },

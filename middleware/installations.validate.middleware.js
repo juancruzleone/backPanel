@@ -18,6 +18,10 @@ const installationSchema = Yup.object().shape({
   installationType: Yup.string()
     .required("El tipo de instalación es un campo requerido")
     .max(100, "El tipo de instalación no puede tener más de 100 caracteres"),
+  fechaInicio: Yup.date().required("La fecha de inicio es obligatoria"),
+  fechaFin: Yup.date().nullable(),
+  frecuencia: Yup.string().oneOf(["Trimestral", "Mensual", "Anual", "Semestral"], "La frecuencia debe ser válida").required("La frecuencia es obligatoria"),
+  estado: Yup.string().oneOf(["Activo", "Inactivo"], "El estado debe ser 'Activo' o 'Inactivo'").default("Activo"),
 })
 
 // Esquema para asignar activo a instalación (FUNCIÓN PRINCIPAL)
