@@ -163,6 +163,7 @@ export {
   installationSchema,
   deviceSchema,
   subscriptionUpdateSchema, // Nuevo export
+  assetAssignmentSchema, // <-- Agregado
   validateInstallations,
   validateSubscriptionUpdate, // Nuevo export
   validateDevice,
