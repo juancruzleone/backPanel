@@ -71,6 +71,28 @@ async function updateInstallation(req, res) {
   }
 }
 
+// Actualizar solo información de suscripción
+async function updateInstallationSubscription(req, res) {
+  try {
+    const { id } = req.params
+    const subscriptionData = req.body
+
+    const updatedInstallation = await service.updateInstallationSubscription(id, subscriptionData)
+    
+    res.status(200).json({
+      success: true,
+      message: "Información de suscripción actualizada exitosamente",
+      data: updatedInstallation,
+    })
+  } catch (error) {
+    console.error("Error al actualizar suscripción:", error)
+    res.status(400).json({
+      success: false,
+      error: error.message || "Error al actualizar la suscripción",
+    })
+  }
+}
+
 // Eliminar instalación
 async function deleteInstallation(req, res) {
   try {
@@ -298,6 +320,7 @@ export {
   getInstallationById,
   createInstallation,
   updateInstallation,
+  updateInstallationSubscription, // Nuevo export
   deleteInstallation,
   addDeviceToInstallation,
   updateDeviceInInstallation,

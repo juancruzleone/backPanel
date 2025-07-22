@@ -156,6 +156,41 @@ async function updateInstallation(id, installationData) {
   }
 }
 
+// Actualizar solo información de suscripción
+async function updateInstallationSubscription(id, subscriptionData) {
+  try {
+    if (!ObjectId.isValid(id)) {
+      throw new Error("El ID de la instalación no es válido")
+    }
+
+    const objectId = new ObjectId(id)
+    
+    // Preparar datos de suscripción con conversión de fechas
+    const dataToUpdate = {
+      fechaInicio: new Date(subscriptionData.fechaInicio),
+      fechaFin: subscriptionData.fechaFin ? new Date(subscriptionData.fechaFin) : null,
+      frecuencia: subscriptionData.frecuencia,
+      mesesFrecuencia: subscriptionData.mesesFrecuencia,
+      fechaActualizacion: new Date(),
+    }
+
+    const result = await installationsCollection.findOneAndUpdate(
+      { _id: objectId },
+      { $set: dataToUpdate },
+      { returnDocument: "after" },
+    )
+
+    if (!result) {
+      throw new Error("No se encontró la instalación para actualizar la suscripción")
+    }
+
+    return result
+  } catch (error) {
+    console.error("Error en updateInstallationSubscription:", error)
+    throw error
+  }
+}
+
 // Eliminar instalación
 async function deleteInstallation(id) {
   try {
@@ -680,14 +715,15 @@ export {
   getInstallationById,
   createInstallation,
   updateInstallation,
+  updateInstallationSubscription, // Nuevo export
   deleteInstallation,
-  addDeviceToInstallation, // Ahora redirige a assignAssetToInstallation
+  addDeviceToInstallation,
   updateDeviceInInstallation,
   deleteDeviceFromInstallation,
   getDeviceForm,
   handleMaintenanceSubmission,
   getLastMaintenanceForDevice,
   getDevicesFromInstallation,
-  assignAssetToInstallation, // FUNCIÓN PRINCIPAL
-  assignTemplateToDevice, // DEPRECADA
+  assignAssetToInstallation,
+  assignTemplateToDevice,
 }

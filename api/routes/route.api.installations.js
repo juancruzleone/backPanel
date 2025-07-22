@@ -3,6 +3,7 @@ import * as controllers from "../controllers/controller.api.installations.js"
 import { validateToken } from "../../middleware/auth.validate.middleware.js"
 import {
   validateInstallations,
+  validateSubscriptionUpdate, // Importar el nuevo middleware
   validateDevice,
   validateTemplateAssignment,
   validateMaintenanceSubmission,
@@ -14,10 +15,16 @@ const route = Router()
 
 // Rutas principales de instalaciones
 route.get("/installations", [validateToken, isAdminOrTechnician], controllers.getInstallations)
-route.get("/installations/:id", [validateToken, isAdminOrTechnician], controllers.getInstallationById) // NUEVA RUTA AGREGADA
+route.get("/installations/:id", [validateToken, isAdminOrTechnician], controllers.getInstallationById)
 route.post("/installations", [validateToken, isAdmin, validateInstallations], controllers.createInstallation)
 route.put("/installations/:id", [validateToken, isAdmin, validateInstallations], controllers.updateInstallation)
 route.delete("/installations/:id", [validateToken, isAdmin], controllers.deleteInstallation)
+
+// NUEVA RUTA: Actualizar solo información de suscripción
+route.patch("/installations/:id/subscription", 
+  [validateToken, isAdmin, validateSubscriptionUpdate], 
+  controllers.updateInstallationSubscription
+)
 
 // Rutas de dispositivos en instalaciones
 route.get("/installations/:id/dispositivos", [validateToken, isAdminOrTechnician], controllers.getDevicesFromInstallation)
