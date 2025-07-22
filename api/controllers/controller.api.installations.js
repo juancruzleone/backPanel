@@ -329,6 +329,6 @@ export {
   handleMaintenanceSubmission,
   getLastMaintenanceForDevice,
   getDevicesFromInstallation,
-  assignAssetToInstallation, // FUNCIÓN PRINCIPAL
+  assignAssetToInstallation, // FUNCIÓN PRINCIPA
   assignTemplateToDevice,
 }
