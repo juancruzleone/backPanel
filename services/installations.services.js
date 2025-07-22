@@ -369,7 +369,7 @@ async function deleteDeviceFromInstallation(installationId, deviceId) {
   }
 }
 
-// Obtener formulario de dispositivo
+// Obtener formulario de dispositivo con información de instalación
 async function getDeviceForm(installationId, deviceId) {
   try {
     if (!ObjectId.isValid(installationId) || !ObjectId.isValid(deviceId)) {
@@ -379,16 +379,27 @@ async function getDeviceForm(installationId, deviceId) {
     const installationObjectId = new ObjectId(installationId)
     const deviceObjectId = new ObjectId(deviceId)
 
-    const result = await installationsCollection.findOne(
+    // Obtener la instalación completa con el dispositivo específico
+    const installation = await installationsCollection.findOne(
       { _id: installationObjectId, "devices._id": deviceObjectId },
-      { projection: { "devices.$": 1 } },
+      { 
+        projection: { 
+          "devices.$": 1,
+          "company": 1,
+          "address": 1,
+          "floorSector": 1,
+          "city": 1,
+          "province": 1,
+          "installationType": 1
+        } 
+      }
     )
 
-    if (!result || !result.devices || result.devices.length === 0) {
+    if (!installation || !installation.devices || installation.devices.length === 0) {
       throw new Error("No se encontró la instalación o el dispositivo")
     }
 
-    const device = result.devices[0]
+    const device = installation.devices[0]
 
     // Usar la plantilla del dispositivo (que viene del activo)
     let formFields = []
@@ -403,6 +414,16 @@ async function getDeviceForm(installationId, deviceId) {
     }
 
     return {
+      installationInfo: {
+        _id: installation._id,
+        company: installation.company,
+        address: installation.address,
+        floorSector: installation.floorSector,
+        city: installation.city,
+        province: installation.province,
+        installationType: installation.installationType,
+        fullAddress: `${installation.address}${installation.floorSector ? ', ' + installation.floorSector : ''}, ${installation.city}, ${installation.province}`
+      },
       deviceInfo: {
         _id: device._id,
         assetId: device.assetId,
