@@ -68,10 +68,13 @@ const deviceSchema = Yup.object().shape({
   ], "El estado debe ser válido").default("Activo"),
 })
 
-// Esquema de mantenimiento (sin estado)
+// Esquema de mantenimiento mejorado para manejar diferentes tipos de campos
 const maintenanceSchema = Yup.object().shape({
-  fechaRevision: Yup.string(),
-  horaRevision: Yup.string(),
+  // Los campos dinámicos se validarán en el servicio
+  // Aquí solo validamos que sea un objeto
+}).test('dynamic-fields', 'Validación de campos dinámicos', function(value) {
+  // Permitir cualquier objeto, la validación real se hace en el servicio
+  return typeof value === 'object' && value !== null
 })
 
 // Middleware de validación para asignación de activos
@@ -120,13 +123,14 @@ function validateTemplateAssignment(req, res, next) {
 }
 
 function validateMaintenanceSubmission(req, res, next) {
-  maintenanceSchema
-    .validate(req.body, { abortEarly: false, stripUnknown: true })
-    .then((maintenance) => {
-      req.body = maintenance
-      next()
-    })
-    .catch((error) => res.status(400).json({ error: error.errors }))
+  // Validación mínima, la validación real se hace en el servicio
+  // porque los campos son dinámicos según la plantilla
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: ['Los datos del mantenimiento son requeridos'] })
+  }
+  
+  // No usar stripUnknown para permitir campos dinámicos
+  next()
 }
 
 export {

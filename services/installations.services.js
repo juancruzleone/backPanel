@@ -422,7 +422,7 @@ async function getDeviceForm(installationId, deviceId) {
   }
 }
 
-// Manejar envío de mantenimiento
+// Manejar envío de mantenimiento - FUNCIÓN COMPLETA CORREGIDA
 async function handleMaintenanceSubmission(installationId, deviceId, formResponses) {
   try {
     if (!ObjectId.isValid(installationId) || !ObjectId.isValid(deviceId)) {
@@ -464,13 +464,27 @@ async function handleMaintenanceSubmission(installationId, deviceId, formRespons
 
     // Verificar si todos los campos requeridos están llenos
     const missingFields = formFields
-      .filter(
-        (field) =>
-          field.required &&
-          !formResponses[field.name] &&
-          field.name !== "fechaRevision" &&
-          field.name !== "horaRevision",
-      )
+      .filter((field) => {
+        // Si es fecha o hora de revisión, ya se agregaron automáticamente
+        if (field.name === "fechaRevision" || field.name === "horaRevision") {
+          return false
+        }
+        
+        // Si el campo es requerido
+        if (field.required) {
+          const fieldValue = formResponses[field.name]
+          
+          // Para checkboxes, verificar que exista la propiedad (puede ser true o false)
+          if (field.type === "checkbox") {
+            return fieldValue === undefined || fieldValue === null
+          }
+          
+          // Para otros campos, verificar que tengan un valor truthy
+          return !fieldValue && fieldValue !== 0 && fieldValue !== false
+        }
+        
+        return false
+      })
       .map((field) => field.label)
 
     if (missingFields.length > 0) {
