@@ -43,8 +43,21 @@ const installationSchema = Yup.object().shape({
 
 // Schema específico para actualizar solo los campos de suscripción
 const subscriptionUpdateSchema = Yup.object().shape({
-  fechaInicio: Yup.date().required("La fecha de inicio es obligatoria para activar la suscripción"),
-  fechaFin: Yup.date().nullable(),
+  fechaInicio: Yup.date()
+    .required("La fecha de inicio es obligatoria para activar la suscripción")
+    .typeError("La fecha de inicio debe ser una fecha válida"),
+  fechaFin: Yup.date()
+    .required("La fecha de fin es obligatoria") // CAMBIO: Ahora es requerida
+    .typeError("La fecha de fin debe ser una fecha válida")
+    .test(
+      'is-after-start',
+      'La fecha de fin debe ser posterior a la fecha de inicio',
+      function(value) {
+        const { fechaInicio } = this.parent;
+        if (!fechaInicio || !value) return true; // Si alguna no existe, dejar que required lo maneje
+        return new Date(value) >= new Date(fechaInicio);
+      }
+    ),
   frecuencia: Yup.string()
     .oneOf(["Trimestral", "Mensual", "Anual", "Semestral"], "La frecuencia debe ser válida")
     .required("La frecuencia es obligatoria para activar la suscripción"),
@@ -53,7 +66,28 @@ const subscriptionUpdateSchema = Yup.object().shape({
       "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
       "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ], "Mes no válido"))
-    .required("Debes seleccionar los meses de la frecuencia"),
+    .required("Debes seleccionar los meses de la frecuencia")
+    .test(
+      'valid-months-count',
+      'La cantidad de meses seleccionados no coincide con la frecuencia',
+      function(value) {
+        const { frecuencia } = this.parent;
+        if (!value || !frecuencia) return true;
+        
+        // Validar cantidad de meses según frecuencia
+        switch(frecuencia) {
+          case 'Mensual':
+          case 'Anual':
+            return value.length === 12; // Todos los meses
+          case 'Semestral':
+            return value.length === 2; // 2 meses
+          case 'Trimestral':
+            return value.length === 4; // 4 meses
+          default:
+            return true;
+        }
+      }
+    ),
 })
 
 // Esquema para asignar activo a instalación (FUNCIÓN PRINCIPAL)
