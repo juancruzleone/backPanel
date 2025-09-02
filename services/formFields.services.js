@@ -5,16 +5,39 @@ const formTemplatesCollection = db.collection("formTemplates")
 const formCategoriesCollection = db.collection("formCategories")
 
 // Obtener todas las plantillas de formularios
-async function getAllFormTemplates() {
-  return formTemplatesCollection.find().sort({ nombre: 1 }).toArray()
+async function getAllFormTemplates(tenantId = null) {
+  try {
+    const query = {}
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+    
+    const templates = await formTemplatesCollection.find(query).sort({ nombre: 1 }).toArray()
+    return templates
+  } catch (error) {
+    console.error("Error en getAllFormTemplates:", error)
+    throw new Error("Error al obtener las plantillas de formularios")
+  }
 }
 
 // Obtener una plantilla de formulario por ID
-async function getFormTemplateById(id) {
-  if (!ObjectId.isValid(id)) {
-    throw new Error("ID de plantilla no válido")
+async function getFormTemplateById(id, tenantId = null) {
+  try {
+    if (!ObjectId.isValid(id)) {
+      throw new Error("ID de plantilla no válido")
+    }
+
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
+    const template = await formTemplatesCollection.findOne(query)
+    return template
+  } catch (error) {
+    console.error("Error en getFormTemplateById:", error)
+    throw error
   }
-  return formTemplatesCollection.findOne({ _id: new ObjectId(id) })
 }
 
 // Crear una nueva plantilla de formulario
@@ -54,77 +77,108 @@ async function createFormTemplate(templateData) {
 }
 
 // Actualizar una plantilla de formulario
-async function updateFormTemplate(id, templateData) {
-  if (!ObjectId.isValid(id)) {
-    throw new Error("ID de plantilla no válido")
-  }
-
-  const { nombre, descripcion, categoria, campos } = templateData
-
-  // Validar que los campos tengan la estructura correcta
-  if (!Array.isArray(campos) || campos.length === 0) {
-    throw new Error("La plantilla debe contener al menos un campo")
-  }
-
-  for (const campo of campos) {
-    if (!campo.name || !campo.type || !campo.label) {
-      throw new Error("Todos los campos deben tener nombre, tipo y etiqueta")
+async function updateFormTemplate(id, templateData, tenantId = null) {
+  try {
+    if (!ObjectId.isValid(id)) {
+      throw new Error("ID de plantilla no válido")
     }
 
-    // Validar que los campos de tipo select y radio tengan opciones
-    if (
-      (campo.type === "select" || campo.type === "radio") &&
-      (!Array.isArray(campo.options) || campo.options.length === 0)
-    ) {
-      throw new Error(`El campo ${campo.label} es de tipo ${campo.type} pero no tiene opciones`)
+    const { nombre, descripcion, categoria, campos } = templateData
+
+    // Validar que los campos tengan la estructura correcta
+    if (!Array.isArray(campos) || campos.length === 0) {
+      throw new Error("La plantilla debe contener al menos un campo")
     }
+
+    for (const campo of campos) {
+      if (!campo.name || !campo.type || !campo.label) {
+        throw new Error("Todos los campos deben tener nombre, tipo y etiqueta")
+      }
+
+      // Validar que los campos de tipo select y radio tengan opciones
+      if (
+        (campo.type === "select" || campo.type === "radio") &&
+        (!Array.isArray(campo.options) || campo.options.length === 0)
+      ) {
+        throw new Error(`El campo ${campo.label} es de tipo ${campo.type} pero no tiene opciones`)
+      }
+    }
+
+    const updatedTemplate = {
+      nombre,
+      descripcion,
+      categoria,
+      campos,
+      updatedAt: new Date(),
+    }
+
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
+    const result = await formTemplatesCollection.updateOne(query, { $set: updatedTemplate })
+
+    if (result.matchedCount === 0) {
+      throw new Error("Plantilla no encontrada")
+    }
+
+    return { ...updatedTemplate, _id: new ObjectId(id) }
+  } catch (error) {
+    console.error("Error en updateFormTemplate:", error)
+    throw error
   }
-
-  const updatedTemplate = {
-    nombre,
-    descripcion,
-    categoria,
-    campos,
-    updatedAt: new Date(),
-  }
-
-  const result = await formTemplatesCollection.updateOne({ _id: new ObjectId(id) }, { $set: updatedTemplate })
-
-  if (result.matchedCount === 0) {
-    throw new Error("Plantilla no encontrada")
-  }
-
-  return { ...updatedTemplate, _id: new ObjectId(id) }
 }
 
 // Eliminar una plantilla de formulario
-async function deleteFormTemplate(id) {
-  if (!ObjectId.isValid(id)) {
-    throw new Error("ID de plantilla no válido")
+async function deleteFormTemplate(id, tenantId = null) {
+  try {
+    if (!ObjectId.isValid(id)) {
+      throw new Error("ID de plantilla no válido")
+    }
+
+    // Verificar si la plantilla está siendo usada por algún activo
+    const assetsCollection = db.collection("activos")
+    const assetsUsingTemplate = await assetsCollection.countDocuments({
+      templateId: new ObjectId(id),
+    })
+
+    if (assetsUsingTemplate > 0) {
+      throw new Error(`No se puede eliminar la plantilla porque está siendo usada por ${assetsUsingTemplate} activo(s)`)
+    }
+
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
+    const result = await formTemplatesCollection.deleteOne(query)
+
+    if (result.deletedCount === 0) {
+      throw new Error("Plantilla no encontrada")
+    }
+
+    return { message: "Plantilla eliminada correctamente" }
+  } catch (error) {
+    console.error("Error en deleteFormTemplate:", error)
+    throw error
   }
-
-  // Verificar si la plantilla está siendo usada por algún activo
-  const assetsCollection = db.collection("activos")
-  const assetsUsingTemplate = await assetsCollection.countDocuments({
-    templateId: new ObjectId(id),
-  })
-
-  if (assetsUsingTemplate > 0) {
-    throw new Error(`No se puede eliminar la plantilla porque está siendo usada por ${assetsUsingTemplate} activo(s)`)
-  }
-
-  const result = await formTemplatesCollection.deleteOne({ _id: new ObjectId(id) })
-
-  if (result.deletedCount === 0) {
-    throw new Error("Plantilla no encontrada")
-  }
-
-  return { message: "Plantilla eliminada correctamente" }
 }
 
 // Obtener plantillas por categoría
-async function getFormTemplatesByCategory(categoria) {
-  return formTemplatesCollection.find({ categoria }).sort({ nombre: 1 }).toArray()
+async function getFormTemplatesByCategory(categoria, tenantId = null) {
+  try {
+    const query = { categoria }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+    
+    const templates = await formTemplatesCollection.find(query).sort({ nombre: 1 }).toArray()
+    return templates
+  } catch (error) {
+    console.error("Error en getFormTemplatesByCategory:", error)
+    throw new Error("Error al obtener plantillas por categoría")
+  }
 }
 
 // Campos predeterminados para cualquier tipo de mantenimiento
@@ -153,12 +207,12 @@ function getDefaultFormFields() {
 }
 
 // Obtener campos de formulario según la plantilla
-async function getFormFieldsByTemplate(templateId) {
+async function getFormFieldsByTemplate(templateId, tenantId = null) {
   // Campos comunes para cualquier tipo de dispositivo
   const commonFields = getDefaultFormFields()
 
   if (templateId && ObjectId.isValid(templateId)) {
-    const template = await getFormTemplateById(templateId)
+    const template = await getFormTemplateById(templateId, tenantId)
     if (template) {
       return [...commonFields, ...template.campos]
     }
@@ -169,20 +223,20 @@ async function getFormFieldsByTemplate(templateId) {
 }
 
 // Obtener campos de formulario según la categoría (función de compatibilidad)
-async function getFormFieldsByCategory(categoria, templateId = null) {
+async function getFormFieldsByCategory(categoria, templateId = null, tenantId = null) {
   // Campos comunes para cualquier tipo de dispositivo
   const commonFields = getDefaultFormFields()
 
   // Si se proporciona un ID de plantilla, usar esa plantilla
   if (templateId && ObjectId.isValid(templateId)) {
-    const template = await getFormTemplateById(templateId)
+    const template = await getFormTemplateById(templateId, tenantId)
     if (template) {
       return [...commonFields, ...template.campos]
     }
   }
 
   // Si no hay plantilla o no se encontró, buscar plantillas por categoría
-  const templates = await getFormTemplatesByCategory(categoria)
+  const templates = await getFormTemplatesByCategory(categoria, tenantId)
   if (templates && templates.length > 0) {
     // Usar la primera plantilla encontrada para esta categoría
     return [...commonFields, ...templates[0].campos]

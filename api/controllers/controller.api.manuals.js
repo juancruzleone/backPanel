@@ -208,6 +208,7 @@ const updateManualFile = async (req, res) => {
   try {
     const id = req.params.id
     const fileData = req.cloudinaryFile
+    const tenantId = req.user.tenantId
 
     if (!fileData) {
       return res.status(400).json({
@@ -215,9 +216,9 @@ const updateManualFile = async (req, res) => {
       })
     }
 
-    const result = await service.updateManualFile(id, fileData)
+    const result = await service.updateManualFile(id, fileData, tenantId)
     if (result.modifiedCount > 0) {
-      const updatedManual = await service.getManualById(id)
+      const updatedManual = await service.getManualById(id, tenantId)
       res.status(200).json(updatedManual)
     } else {
       res.status(404).json({

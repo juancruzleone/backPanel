@@ -190,7 +190,8 @@ async function getWorkOrderById(req, res) {
   try {
     const { id } = req.params
     const user = req.user
-    const workOrder = await service.getWorkOrderById(id, user)
+    const tenantId = req.user.tenantId
+    const workOrder = await service.getWorkOrderById(id, user, tenantId)
 
     res.status(200).json({
       success: true,
@@ -210,7 +211,8 @@ async function getWorkOrderForm(req, res) {
   try {
     const { id } = req.params
     const user = req.user
-    const formData = await service.getWorkOrderForm(id, user)
+    const tenantId = req.user.tenantId
+    const formData = await service.getWorkOrderForm(id, user, tenantId)
 
     res.status(200).json({
       success: true,

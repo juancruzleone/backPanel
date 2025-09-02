@@ -61,7 +61,7 @@ async function uploadWorkOrderPDFToCloudinary(buffer, workOrderId, timestamp) {
 }
 
 // Obtener todas las órdenes de trabajo con filtros
-async function getAllWorkOrders(filters = {}) {
+async function getAllWorkOrders(filters = {}, tenantId = null) {
   try {
     const query = {}
     if (filters.estado) {
@@ -72,6 +72,9 @@ async function getAllWorkOrders(filters = {}) {
     }
     if (filters.instalacionId) {
       query.instalacionId = new ObjectId(filters.instalacionId)
+    }
+    if (tenantId) {
+      query.tenantId = tenantId
     }
 
     const workOrders = await workOrdersCollection
@@ -181,7 +184,18 @@ async function createWorkOrder(workOrderData, adminUser) {
       horaProgramada,
       tipoTrabajo,
       observaciones,
+      tenantId,
     } = workOrderData
+
+    // Verificar que se proporcione tenantId
+    if (!tenantId) {
+      throw new Error("Se requiere tenantId para crear la orden de trabajo")
+    }
+
+    // Verificar que el usuario tenga permisos para este tenant
+    if (adminUser.role !== "super_admin" && adminUser.tenantId !== tenantId) {
+      throw new Error("No tienes permisos para crear órdenes de trabajo en este tenant")
+    }
 
     // Verificar que la instalación existe
     if (!ObjectId.isValid(instalacionId)) {
@@ -226,6 +240,7 @@ async function createWorkOrder(workOrderData, adminUser) {
       observaciones: observaciones || "",
       tecnicoAsignado: null,
       creadoPor: new ObjectId(adminUser._id),
+      tenantId, // Agregar tenantId
       fechaCreacion: new Date(),
       historial: [
         {
@@ -249,15 +264,25 @@ async function createWorkOrder(workOrderData, adminUser) {
 }
 
 // Actualizar orden de trabajo
-async function updateWorkOrder(id, workOrderData, adminUser) {
+async function updateWorkOrder(id, workOrderData, adminUser, tenantId = null) {
   try {
     if (!ObjectId.isValid(id)) {
       throw new Error("ID de orden de trabajo inválido")
     }
 
-    const workOrder = await workOrdersCollection.findOne({ _id: new ObjectId(id) })
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
+    const workOrder = await workOrdersCollection.findOne(query)
     if (!workOrder) {
       throw new Error("Orden de trabajo no encontrada")
+    }
+
+    // Verificar que el usuario tenga permisos para este tenant
+    if (adminUser.role !== "super_admin" && adminUser.tenantId !== tenantId) {
+      throw new Error("No tienes permisos para actualizar órdenes de trabajo en este tenant")
     }
 
     // No permitir actualizar órdenes completadas o canceladas
@@ -306,7 +331,7 @@ async function updateWorkOrder(id, workOrderData, adminUser) {
     }
 
     const result = await workOrdersCollection.findOneAndUpdate(
-      { _id: new ObjectId(id) },
+      query,
       {
         $set: updateData,
         $push: { historial: historialEntry },
@@ -322,15 +347,25 @@ async function updateWorkOrder(id, workOrderData, adminUser) {
 }
 
 // Eliminar orden de trabajo
-async function deleteWorkOrder(id, adminUser) {
+async function deleteWorkOrder(id, adminUser, tenantId = null) {
   try {
     if (!ObjectId.isValid(id)) {
       throw new Error("ID de orden de trabajo inválido")
     }
 
-    const workOrder = await workOrdersCollection.findOne({ _id: new ObjectId(id) })
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
+    const workOrder = await workOrdersCollection.findOne(query)
     if (!workOrder) {
       throw new Error("Orden de trabajo no encontrada")
+    }
+
+    // Verificar que el usuario tenga permisos para este tenant
+    if (adminUser.role !== "super_admin" && adminUser.tenantId !== tenantId) {
+      throw new Error("No tienes permisos para eliminar órdenes de trabajo en este tenant")
     }
 
     // Solo permitir eliminar si no está completada
@@ -338,7 +373,7 @@ async function deleteWorkOrder(id, adminUser) {
       throw new Error("No se puede eliminar una orden de trabajo completada")
     }
 
-    const result = await workOrdersCollection.deleteOne({ _id: new ObjectId(id) })
+    const result = await workOrdersCollection.deleteOne(query)
     if (result.deletedCount === 0) {
       throw new Error("No se pudo eliminar la orden de trabajo")
     }
@@ -503,15 +538,20 @@ async function getTechnicianWorkOrders(tecnicoId, estado = null) {
 }
 
 // Obtener orden de trabajo por ID
-async function getWorkOrderById(id, user) {
+async function getWorkOrderById(id, user, tenantId = null) {
   try {
     if (!ObjectId.isValid(id)) {
       throw new Error("ID de orden de trabajo inválido")
     }
 
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
     const workOrder = await workOrdersCollection
       .aggregate([
-        { $match: { _id: new ObjectId(id) } },
+        { $match: query },
         {
           $lookup: {
             from: "instalaciones",
@@ -561,13 +601,18 @@ async function getWorkOrderById(id, user) {
 }
 
 // Obtener formulario para orden de trabajo
-async function getWorkOrderForm(id, user) {
+async function getWorkOrderForm(id, user, tenantId = null) {
   try {
     if (!ObjectId.isValid(id)) {
       throw new Error("ID de orden de trabajo inválido")
     }
 
-    const workOrder = await workOrdersCollection.findOne({ _id: new ObjectId(id) })
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
+    const workOrder = await workOrdersCollection.findOne(query)
     if (!workOrder) {
       throw new Error("Orden de trabajo no encontrada")
     }
@@ -608,7 +653,7 @@ async function getWorkOrderForm(id, user) {
     const device = installation.devices[0]
 
     // Obtener los campos del formulario
-    const formFields = await getFormFieldsByCategory(device.categoria, device.templateId)
+    const formFields = await getFormFieldsByCategory(device.categoria, device.templateId, tenantId)
 
     return {
       workOrderInfo: {
@@ -661,7 +706,7 @@ async function completeWorkOrder(id, completionData, user) {
     // VALIDACIÓN OPCIONAL del formulario personalizado (solo advertencias, no errores)
     if (workOrder.dispositivoId && completionData.formularioRespuestas) {
       try {
-        await validateCustomFormResponses(workOrder, completionData.formularioRespuestas)
+        await validateCustomFormResponses(workOrder, completionData.formularioRespuestas, tenantId)
       } catch (validationError) {
         // Solo registrar la advertencia, no fallar la operación
         console.warn("Advertencia en formulario personalizado:", validationError.message)
@@ -744,7 +789,7 @@ async function completeWorkOrder(id, completionData, user) {
 }
 
 // Validar respuestas del formulario personalizado (MODIFICADO para ser más flexible)
-async function validateCustomFormResponses(workOrder, formularioRespuestas) {
+async function validateCustomFormResponses(workOrder, formularioRespuestas, tenantId = null) {
   try {
     if (!workOrder.dispositivoId) return
 
@@ -764,7 +809,7 @@ async function validateCustomFormResponses(workOrder, formularioRespuestas) {
     const device = installation.devices[0]
 
     // Obtener los campos del formulario
-    const formFields = await getFormFieldsByCategory(device.categoria, device.templateId)
+    const formFields = await getFormFieldsByCategory(device.categoria, device.templateId, tenantId)
 
     // Solo validar campos críticos (no todos los requeridos)
     const criticalFields = formFields.filter(

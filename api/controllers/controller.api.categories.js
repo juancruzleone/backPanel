@@ -83,7 +83,8 @@ async function updateCategory(req, res) {
 // Desactivar categoría
 async function deactivateCategory(req, res) {
   try {
-    const category = await categoriesService.deactivateCategory(req.params.id)
+    const tenantId = req.user.tenantId
+    const category = await categoriesService.deactivateCategory(req.params.id, tenantId)
     if (!category) {
       return res.status(404).json({ error: "Categoría no encontrada" })
     }
@@ -96,7 +97,8 @@ async function deactivateCategory(req, res) {
 // Reactivar categoría
 async function activateCategory(req, res) {
   try {
-    const category = await categoriesService.activateCategory(req.params.id)
+    const tenantId = req.user.tenantId
+    const category = await categoriesService.activateCategory(req.params.id, tenantId)
     if (!category) {
       return res.status(404).json({ error: "Categoría no encontrada" })
     }
@@ -109,7 +111,8 @@ async function activateCategory(req, res) {
 // Eliminar categoría físicamente
 async function deleteCategory(req, res) {
   try {
-    const result = await categoriesService.deleteCategory(req.params.id)
+    const tenantId = req.user.tenantId
+    const result = await categoriesService.deleteCategory(req.params.id, tenantId)
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: "Categoría no encontrada" })
     }
