@@ -9,25 +9,47 @@ import {
 } from "../../middleware/auth.validate.middleware.js"
 
 import { isAdmin } from "../../middleware/auth.role.middleware.js"
+import { 
+  identifyTenantByToken, 
+  identifyTenantByHeader,
+  verifyUserTenant, 
+  injectTenantId 
+} from "../../middleware/tenant.middleware.js"
 
 const route = Router()
 
-// Solo los ADMIN pueden crear cuentas
-route.post("/cuenta", [validateToken, isAdmin, validateAccountRegistro], controllers.createAccount)
+// Rutas que requieren identificación de tenant
+route.post("/cuenta", [
+  validateToken,
+  isAdmin, 
+  identifyTenantByHeader,
+  validateAccountRegistro
+], controllers.createAccount)
 
 route.post("/cuenta/login", [validateAccountLogin], controllers.login)
 
 route.delete("/cuenta", controllers.logout)
 
-route.get("/cuentas", [validateToken, isAdmin], controllers.getAllAccounts)
+route.get("/cuentas", [
+  validateToken,
+  isAdmin
+], controllers.getAllAccounts)
 
 // ✅ RUTA ESPECÍFICA ANTES que la ruta con parámetros
-route.get("/cuentas/tecnicos", [validateToken], controllers.getTechnicians)
+route.get("/cuentas/tecnicos", [
+  validateToken
+], controllers.getTechnicians)
 
 // Eliminar usuario (solo admin)
-route.delete("/cuentas/:id", [validateToken, isAdmin], controllers.deleteAccount)
+route.delete("/cuentas/:id", [
+  validateToken,
+  isAdmin
+], controllers.deleteAccount)
 
 // Esta ruta debe ir DESPUÉS de las rutas específicas
-route.get("/cuentas/:id", [validateToken, isAdmin], controllers.getAccountById)
+route.get("/cuentas/:id", [
+  validateToken,
+  isAdmin
+], controllers.getAccountById)
 
 export default route

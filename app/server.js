@@ -8,6 +8,7 @@ import ApiCategoriesRoute from "../api/routes/route.api.categories.js"
 import ApiTypeInstallationRoute from "../api/routes/route.api.installationType.js"
 import ApiManualsRoutes from "../api/routes/route.api.manuals.js"
 import ApiWorkOrdersRoutes from "../api/routes/route.api.workOders.js"
+import ApiTenantsRoutes from "../api/routes/route.api.tenants.js"
 import { connectDB } from "../db.js"
 import cors from "cors"
 import dotenv from "dotenv"
@@ -47,6 +48,7 @@ app.use("/api", ApiCategoriesRoute)
 app.use("/api", ApiTypeInstallationRoute)
 app.use("/api", ApiManualsRoutes)
 app.use("/api", ApiWorkOrdersRoutes)
+app.use("/api", ApiTenantsRoutes)
 
 const PORT = process.env.PORT || 2023
 

@@ -14,6 +14,11 @@ const cuentaRegistro = yup.object({
     .required("La contraseña es obligatoria")
     .min(6, "La contraseña debe tener al menos 6 caracteres")
     .max(100, "La contraseña no puede tener más de 100 caracteres"),
+
+  role: yup
+    .string()
+    .oneOf(["admin", "técnico", "super_admin"], "Rol inválido")
+    .default("técnico"),
 })
 
 const cuentaLogin = yup.object({

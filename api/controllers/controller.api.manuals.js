@@ -3,7 +3,8 @@ import * as service from "../../services/manuals.services.js"
 const getManuals = async (req, res) => {
   try {
     const filter = req.query
-    const manuales = await service.getManuals(filter)
+    const tenantId = req.user.tenantId
+    const manuales = await service.getManuals(filter, tenantId)
     res.status(200).json(manuales)
   } catch (error) {
     console.error("Error al obtener manuales:", error)
@@ -14,7 +15,8 @@ const getManuals = async (req, res) => {
 const getManualById = async (req, res) => {
   try {
     const id = req.params.id
-    const manual = await service.getManualById(id)
+    const tenantId = req.user.tenantId
+    const manual = await service.getManualById(id, tenantId)
     if (manual) {
       res.status(200).json(manual)
     } else {
@@ -29,7 +31,8 @@ const getManualById = async (req, res) => {
 const getManualsByAssetId = async (req, res) => {
   try {
     const assetId = req.params.assetId
-    const manuales = await service.getManualsByAssetId(assetId)
+    const tenantId = req.user.tenantId
+    const manuales = await service.getManualsByAssetId(assetId, tenantId)
     res.status(200).json(manuales)
   } catch (error) {
     console.error("Error al obtener manuales del activo:", error)
@@ -41,6 +44,15 @@ const addManual = async (req, res) => {
   try {
     const manualData = req.body
     const fileData = req.cloudinaryFile
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: { message: "No tienes permisos para crear manuales" }
+      })
+    }
 
     if (!fileData) {
       return res.status(400).json({
@@ -48,7 +60,11 @@ const addManual = async (req, res) => {
       })
     }
 
-    const newManual = await service.addManual(manualData, fileData)
+    // Agregar tenantId a los datos del manual
+    manualData.tenantId = tenantId
+    manualData.createdBy = adminUser._id
+
+    const newManual = await service.addManual(manualData, fileData, adminUser)
     res.status(201).json(newManual)
   } catch (error) {
     console.error("Error al agregar manual:", error)
@@ -71,17 +87,29 @@ const putManual = async (req, res) => {
     const id = req.params.id
     const manualData = req.body
     const fileData = req.cloudinaryFile // Puede ser null si no se subió nuevo archivo
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: { message: "No tienes permisos para actualizar manuales" }
+      })
+    }
 
-    const existingManual = await service.getManualById(id)
+    const existingManual = await service.getManualById(id, tenantId)
     if (!existingManual) {
       return res.status(404).json({
         error: { message: "Manual no encontrado" },
       })
     }
 
-    const result = await service.putManual(id, manualData, fileData)
+    manualData.updatedBy = adminUser._id
+    manualData.updatedAt = new Date()
+
+    const result = await service.putManual(id, manualData, fileData, tenantId, adminUser)
     if (result.modifiedCount > 0 || result.matchedCount > 0) {
-      const updatedManual = await service.getManualById(id)
+      const updatedManual = await service.getManualById(id, tenantId)
       res.status(200).json(updatedManual)
     } else {
       res.status(404).json({
@@ -108,17 +136,29 @@ const patchManual = async (req, res) => {
   try {
     const id = req.params.id
     const manualData = req.body
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: { message: "No tienes permisos para actualizar manuales" }
+      })
+    }
 
-    const existingManual = await service.getManualById(id)
+    const existingManual = await service.getManualById(id, tenantId)
     if (!existingManual) {
       return res.status(404).json({
         error: { message: "Manual no encontrado" },
       })
     }
 
-    const result = await service.editManual(id, manualData)
+    manualData.updatedBy = adminUser._id
+    manualData.updatedAt = new Date()
+
+    const result = await service.editManual(id, manualData, tenantId, adminUser)
     if (result.modifiedCount > 0) {
-      const updatedManual = await service.getManualById(id)
+      const updatedManual = await service.getManualById(id, tenantId)
       res.status(200).json(updatedManual)
     } else {
       res.status(404).json({
@@ -144,8 +184,18 @@ const patchManual = async (req, res) => {
 const deleteManual = async (req, res) => {
   try {
     const id = req.params.id
-    await service.deleteManual(id)
-    res.status(204).json()
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: { message: "No tienes permisos para eliminar manuales" }
+      })
+    }
+    
+    await service.deleteManual(id, tenantId, adminUser)
+    res.status(200).json({ message: "Manual eliminado exitosamente" })
   } catch (error) {
     console.error("Error al eliminar manual:", error)
     res.status(500).json({

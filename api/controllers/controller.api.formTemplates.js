@@ -3,7 +3,8 @@ import * as service from "../../services/formFields.services.js"
 // Obtener todas las plantillas de formularios
 async function getAllFormTemplates(req, res) {
   try {
-    const templates = await service.getAllFormTemplates()
+    const tenantId = req.user.tenantId
+    const templates = await service.getAllFormTemplates(tenantId)
     res.status(200).json(templates)
   } catch (error) {
     console.error("Error al obtener plantillas:", error)
@@ -15,7 +16,8 @@ async function getAllFormTemplates(req, res) {
 async function getFormTemplateById(req, res) {
   try {
     const { id } = req.params
-    const template = await service.getFormTemplateById(id)
+    const tenantId = req.user.tenantId
+    const template = await service.getFormTemplateById(id, tenantId)
     if (!template) {
       return res.status(404).json({ error: "Plantilla no encontrada" })
     }
@@ -72,6 +74,15 @@ function validateFormTemplateData(templateData) {
 async function createFormTemplate(req, res) {
   try {
     const templateData = req.body
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para crear plantillas"
+      })
+    }
 
     // Validación manual
     const validationErrors = validateFormTemplateData(templateData)
@@ -82,7 +93,11 @@ async function createFormTemplate(req, res) {
       })
     }
 
-    const newTemplate = await service.createFormTemplate(templateData)
+    // Agregar tenantId a los datos de la plantilla
+    templateData.tenantId = tenantId
+    templateData.createdBy = adminUser._id
+
+    const newTemplate = await service.createFormTemplate(templateData, adminUser)
     res.status(201).json(newTemplate)
   } catch (error) {
     console.error("Error al crear plantilla:", error)
@@ -98,6 +113,15 @@ async function updateFormTemplate(req, res) {
   try {
     const { id } = req.params
     const templateData = req.body
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para actualizar plantillas"
+      })
+    }
 
     // Validación manual
     const validationErrors = validateFormTemplateData(templateData)
@@ -108,7 +132,7 @@ async function updateFormTemplate(req, res) {
       })
     }
 
-    const updatedTemplate = await service.updateFormTemplate(id, templateData)
+    const updatedTemplate = await service.updateFormTemplate(id, templateData, tenantId, adminUser)
     res.status(200).json(updatedTemplate)
   } catch (error) {
     console.error("Error al actualizar plantilla:", error)
@@ -120,8 +144,18 @@ async function updateFormTemplate(req, res) {
 async function deleteFormTemplate(req, res) {
   try {
     const { id } = req.params
-    await service.deleteFormTemplate(id)
-    res.status(204).send()
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para eliminar plantillas"
+      })
+    }
+    
+    await service.deleteFormTemplate(id, tenantId, adminUser)
+    res.status(200).json({ message: "Plantilla eliminada exitosamente" })
   } catch (error) {
     console.error("Error al eliminar plantilla:", error)
     res.status(400).json({ error: error.message || "Error al eliminar la plantilla" })
@@ -132,7 +166,8 @@ async function deleteFormTemplate(req, res) {
 async function getFormTemplatesByCategory(req, res) {
   try {
     const { categoria } = req.params
-    const templates = await service.getFormTemplatesByCategory(categoria)
+    const tenantId = req.user.tenantId
+    const templates = await service.getFormTemplatesByCategory(categoria, tenantId)
     res.status(200).json(templates)
   } catch (error) {
     console.error("Error al obtener plantillas por categoría:", error)

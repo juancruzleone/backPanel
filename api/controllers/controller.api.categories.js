@@ -4,7 +4,8 @@ import * as categoriesService from "../../services/categories.services.js"
 async function getCategories(req, res) {
   try {
     const includeInactive = req.query.includeInactive === "true"
-    const categories = await categoriesService.getCategories(includeInactive)
+    const tenantId = req.user.tenantId
+    const categories = await categoriesService.getCategories(includeInactive, tenantId)
     res.json(categories)
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -14,7 +15,8 @@ async function getCategories(req, res) {
 // Obtener categoría por ID
 async function getCategoryById(req, res) {
   try {
-    const category = await categoriesService.getCategoryById(req.params.id)
+    const tenantId = req.user.tenantId
+    const category = await categoriesService.getCategoryById(req.params.id, tenantId)
     if (!category) {
       return res.status(404).json({ error: "Categoría no encontrada" })
     }
@@ -27,7 +29,20 @@ async function getCategoryById(req, res) {
 // Crear nueva categoría
 async function addCategory(req, res) {
   try {
-    const newCategory = await categoriesService.addCategory(req.body)
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para crear categorías"
+      })
+    }
+    
+    // Agregar tenantId a los datos de la categoría
+    const categoryData = { ...req.body, tenantId, createdBy: adminUser._id }
+    
+    const newCategory = await categoriesService.addCategory(categoryData, adminUser)
     res.status(201).json(newCategory)
   } catch (error) {
     if (error.message === "Ya existe una categoría con ese nombre") {
@@ -40,7 +55,19 @@ async function addCategory(req, res) {
 // Actualizar categoría
 async function updateCategory(req, res) {
   try {
-    const updatedCategory = await categoriesService.updateCategory(req.params.id, req.body)
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para actualizar categorías"
+      })
+    }
+    
+    const categoryData = { ...req.body, updatedBy: adminUser._id, updatedAt: new Date() }
+    
+    const updatedCategory = await categoriesService.updateCategory(req.params.id, categoryData, tenantId, adminUser)
     if (!updatedCategory) {
       return res.status(404).json({ error: "Categoría no encontrada" })
     }

@@ -60,9 +60,14 @@ async function uploadBufferToCloudinary(buffer, installationId, deviceId, timest
 }
 
 // Obtener todas las instalaciones
-async function getInstallations() {
+async function getInstallations(tenantId = null) {
   try {
-    const installations = await installationsCollection.find().sort({ _id: -1 }).toArray()
+    const query = {}
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+    
+    const installations = await installationsCollection.find(query).sort({ _id: -1 }).toArray()
     return installations
   } catch (error) {
     console.error("Error en getInstallations:", error)
@@ -71,14 +76,18 @@ async function getInstallations() {
 }
 
 // Obtener instalación por ID
-async function getInstallationById(id) {
+async function getInstallationById(id, tenantId = null) {
   try {
     if (!ObjectId.isValid(id)) {
       throw new Error("El ID de la instalación no es válido")
     }
 
-    const objectId = new ObjectId(id)
-    const installation = await installationsCollection.findOne({ _id: objectId })
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
+    const installation = await installationsCollection.findOne(query)
 
     if (!installation) {
       throw new Error("Instalación no encontrada")
@@ -92,9 +101,19 @@ async function getInstallationById(id) {
 }
 
 // Crear nueva instalación
-async function createInstallation(installationData) {
+async function createInstallation(installationData, adminUser) {
   try {
-    const { company, address, floorSector, postalCode, city, province, installationType, fechaInicio, fechaFin, frecuencia, mesesFrecuencia, estado } = installationData
+    const { company, address, floorSector, postalCode, city, province, installationType, fechaInicio, fechaFin, frecuencia, mesesFrecuencia, estado, tenantId } = installationData
+
+    // Verificar que se proporcione tenantId
+    if (!tenantId) {
+      throw new Error("Se requiere tenantId para crear la instalación")
+    }
+
+    // Verificar que el usuario tenga permisos para este tenant
+    if (adminUser.role !== "super_admin" && adminUser.tenantId !== tenantId) {
+      throw new Error("No tienes permisos para crear instalaciones en este tenant")
+    }
 
     const newInstallation = {
       company,
@@ -109,8 +128,11 @@ async function createInstallation(installationData) {
       frecuencia,
       mesesFrecuencia,
       estado: estado || "Activo",
+      tenantId, // Agregar tenantId
+      createdBy: adminUser._id, // Agregar quien creó la instalación
+      createdAt: new Date(),
+      updatedAt: new Date(),
       devices: [],
-      fechaCreacion: new Date(),
     }
 
     const result = await installationsCollection.insertOne(newInstallation)
@@ -124,23 +146,33 @@ async function createInstallation(installationData) {
 }
 
 // Actualizar instalación
-async function updateInstallation(id, installationData) {
+async function updateInstallation(id, installationData, tenantId, adminUser) {
   try {
     if (!ObjectId.isValid(id)) {
       throw new Error("El ID de la instalación no es válido")
     }
 
-    const objectId = new ObjectId(id)
+    // Verificar que el usuario tenga permisos para este tenant
+    if (adminUser.role !== "super_admin" && adminUser.tenantId !== tenantId) {
+      throw new Error("No tienes permisos para actualizar instalaciones en este tenant")
+    }
+
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
     const dataToUpdate = {
       ...installationData,
-      fechaActualizacion: new Date(),
+      updatedAt: new Date(),
+      updatedBy: adminUser._id,
     }
     // Si se envía fechaInicio o fechaFin, convertirlas a Date
     if (dataToUpdate.fechaInicio) dataToUpdate.fechaInicio = new Date(dataToUpdate.fechaInicio)
     if (dataToUpdate.fechaFin) dataToUpdate.fechaFin = new Date(dataToUpdate.fechaFin)
 
     const result = await installationsCollection.findOneAndUpdate(
-      { _id: objectId },
+      query,
       { $set: dataToUpdate },
       { returnDocument: "after" },
     )
@@ -192,14 +224,23 @@ async function updateInstallationSubscription(id, subscriptionData) {
 }
 
 // Eliminar instalación
-async function deleteInstallation(id) {
+async function deleteInstallation(id, tenantId, adminUser) {
   try {
     if (!ObjectId.isValid(id)) {
       throw new Error("El ID de la instalación no es válido")
     }
 
-    const objectId = new ObjectId(id)
-    const result = await installationsCollection.deleteOne({ _id: objectId })
+    // Verificar que el usuario tenga permisos para este tenant
+    if (adminUser.role !== "super_admin" && adminUser.tenantId !== tenantId) {
+      throw new Error("No tienes permisos para eliminar instalaciones en este tenant")
+    }
+
+    const query = { _id: new ObjectId(id) }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
+    const result = await installationsCollection.deleteOne(query)
 
     if (result.deletedCount === 0) {
       throw new Error("No se pudo eliminar la instalación")

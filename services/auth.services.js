@@ -4,15 +4,75 @@ import { ObjectId } from "mongodb"
 
 const cuentaCollection = db.collection("cuentas")
 
-async function createAccount(cuenta, adminUser) {
-  // Verificar que el usuario que crea la cuenta sea admin
-  if (!adminUser || adminUser.role !== "admin") {
+async function createAccount(cuenta, adminUser, tenantId) {
+  // Verificar que el usuario que crea la cuenta sea admin o super_admin
+  if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
     throw new Error("No tienes permisos para crear cuentas")
   }
 
-  // Verificar si ya existe el nombre de usuario
-  const existe = await cuentaCollection.findOne({ userName: cuenta.userName })
-  if (existe) throw new Error("El nombre de usuario ya existe")
+  // Para super_admin, permitir crear cuentas con o sin tenantId
+  if (adminUser.role === "super_admin") {
+    // Verificar si ya existe el nombre de usuario
+    const query = { userName: cuenta.userName }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+    
+    const existe = await cuentaCollection.findOne(query)
+    if (existe) throw new Error("El nombre de usuario ya existe")
+
+    // Hashear la contraseña
+    const hashedPassword = await bcrypt.hash(cuenta.password, 10)
+
+    // Crear la nueva cuenta
+    const nuevaCuenta = {
+      userName: cuenta.userName,
+      password: hashedPassword,
+      role: cuenta.role || "técnico",
+      tenantId: tenantId, // Puede ser null para super_admin o el tenantId específico
+      isVerified: true,
+      status: "active",
+      createdAt: new Date(),
+      createdBy: adminUser._id,
+      updatedAt: new Date(),
+    }
+
+    const result = await cuentaCollection.insertOne(nuevaCuenta)
+
+    // Actualizar estadísticas del tenant si se proporciona tenantId
+    if (tenantId) {
+      console.log("🔄 Super admin: Actualizando estadísticas para tenantId:", tenantId)
+      const { updateTenantStats } = await import("./tenants.services.js")
+      await updateTenantStats(tenantId)
+      console.log("✅ Super admin: Estadísticas actualizadas")
+    }
+
+    return {
+      message: "Cuenta creada exitosamente",
+      cuenta: {
+        ...nuevaCuenta,
+        _id: result.insertedId,
+        password: undefined, // No devolver la contraseña
+      },
+    }
+  }
+
+  // Para admin normal, verificar tenant
+  if (adminUser.tenantId !== tenantId) {
+    throw new Error("No tienes permisos para crear cuentas en este tenant")
+  }
+
+  // Verificar si ya existe el nombre de usuario en el mismo tenant
+  const existe = await cuentaCollection.findOne({ 
+    userName: cuenta.userName,
+    tenantId: tenantId
+  })
+  if (existe) throw new Error("El nombre de usuario ya existe en este tenant")
+
+  // Verificar límites del tenant
+  const usersCount = await cuentaCollection.countDocuments({ tenantId })
+  const { checkTenantLimits } = await import("./tenants.services.js")
+  await checkTenantLimits(adminUser.tenantId, "users", usersCount)
 
   // Hashear la contraseña
   const hashedPassword = await bcrypt.hash(cuenta.password, 10)
@@ -22,6 +82,7 @@ async function createAccount(cuenta, adminUser) {
     userName: cuenta.userName,
     password: hashedPassword,
     role: "técnico", // Todas las cuentas creadas por admin son técnicos
+    tenantId: tenantId, // Asignar al tenant correspondiente
     isVerified: true,
     status: "active",
     createdAt: new Date(),
@@ -30,6 +91,12 @@ async function createAccount(cuenta, adminUser) {
   }
 
   const result = await cuentaCollection.insertOne(nuevaCuenta)
+
+  // Actualizar estadísticas del tenant
+  console.log("🔄 Actualizando estadísticas después de crear cuenta para tenantId:", tenantId)
+  const { updateTenantStats } = await import("./tenants.services.js")
+  await updateTenantStats(tenantId)
+  console.log("✅ Estadísticas actualizadas después de crear cuenta")
 
   return {
     message: "Cuenta de técnico creada exitosamente",
@@ -41,8 +108,14 @@ async function createAccount(cuenta, adminUser) {
   }
 }
 
-async function login(cuenta) {
-  const existe = await cuentaCollection.findOne({ userName: cuenta.userName })
+async function login(cuenta, tenantId = null) {
+  // Construir query según si se proporciona tenantId o no
+  const query = { userName: cuenta.userName }
+  if (tenantId) {
+    query.tenantId = tenantId
+  }
+
+  const existe = await cuentaCollection.findOne(query)
   if (!existe) throw new Error("Credenciales inválidas")
 
   // Verificar que la cuenta esté activa
@@ -68,9 +141,10 @@ async function login(cuenta) {
   return { ...existe, password: undefined }
 }
 
-async function getAllAccounts() {
+async function getAllAccounts(tenantId) {
+  const query = tenantId ? { tenantId } : {}
   return cuentaCollection
-    .find({}, { projection: { password: 0 } }) // Excluir contraseñas
+    .find(query, { projection: { password: 0 } }) // Excluir contraseñas y filtrar por tenant
     .sort({ createdAt: -1 })
     .toArray()
 }
@@ -89,11 +163,16 @@ async function getAccountById(id) {
 }
 
 // ✅ NUEVA FUNCIÓN: obtener cuentas por rol
-async function getAccountsByRole(role) {
+async function getAccountsByRole(role, tenantId) {
   try {
+    const query = { role: role }
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+    
     const cuentas = await cuentaCollection
       .find(
-        { role: role },
+        query,
         { projection: { password: 0 } }, // Excluir contraseñas
       )
       .sort({ createdAt: -1 })
@@ -139,9 +218,9 @@ async function updateAccountStatus(id, status, adminUser) {
   return { message: "Estado de cuenta actualizado exitosamente" }
 }
 
-// Función para eliminar una cuenta (solo admin)
+// Función para eliminar una cuenta (admin y super_admin)
 async function deleteAccount(id, adminUser) {
-  if (!adminUser || adminUser.role !== "admin") {
+  if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
     throw new Error("No tienes permisos para eliminar cuentas")
   }
 
@@ -149,15 +228,27 @@ async function deleteAccount(id, adminUser) {
     throw new Error("ID de usuario inválido")
   }
 
-  // No permitir que el admin se elimine a sí mismo
+  // No permitir que el usuario se elimine a sí mismo
   if (adminUser._id.toString() === id) {
     throw new Error("No puedes eliminar tu propia cuenta")
+  }
+
+  // Obtener el usuario antes de eliminarlo para actualizar estadísticas
+  const userToDelete = await cuentaCollection.findOne({ _id: new ObjectId(id) })
+  if (!userToDelete) {
+    throw new Error("Usuario no encontrado")
   }
 
   const result = await cuentaCollection.deleteOne({ _id: new ObjectId(id) })
 
   if (result.deletedCount === 0) {
     throw new Error("Usuario no encontrado")
+  }
+
+  // Actualizar estadísticas del tenant si el usuario eliminado tenía tenantId
+  if (userToDelete.tenantId) {
+    const { updateTenantStats } = await import("./tenants.services.js")
+    await updateTenantStats(userToDelete.tenantId)
   }
 
   return { message: "Cuenta eliminada exitosamente" }

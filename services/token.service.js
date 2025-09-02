@@ -5,8 +5,13 @@ import { ObjectId } from "mongodb"
 const tokenCollection = db.collection("tokens")
 
 async function createToken(cuenta) {
-  const token = jwt.sign(cuenta, process.env.JWT_SECRET)
-  await tokenCollection.insertOne({ token, cuenta_id: cuenta._id })
+  // Incluir tenantId en el token
+  const tokenPayload = {
+    ...cuenta,
+    tenantId: cuenta.tenantId
+  }
+  const token = jwt.sign(tokenPayload, process.env.JWT_SECRET)
+  await tokenCollection.insertOne({ token, cuenta_id: cuenta._id, tenantId: cuenta.tenantId })
   return token
 }
 

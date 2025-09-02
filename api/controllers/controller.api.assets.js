@@ -2,8 +2,10 @@ import * as service from "../../services/assets.services.js"
 
 const getAssets = (req, res) => {
   const filter = req.query
+  const tenantId = req.user.tenantId
+  
   service
-    .getAssets(filter)
+    .getAssets(filter, tenantId)
     .then((activos) => {
       res.status(200).json(activos)
     })
@@ -15,8 +17,10 @@ const getAssets = (req, res) => {
 
 const getAssetById = (req, res) => {
   const id = req.params.id
+  const tenantId = req.user.tenantId
+  
   service
-    .getAssetById(id)
+    .getAssetById(id, tenantId)
     .then((activo) => {
       if (activo) {
         res.status(200).json(activo)
@@ -33,7 +37,21 @@ const getAssetById = (req, res) => {
 const addAsset = async (req, res) => {
   try {
     const activo = { ...req.body }
-    const newAsset = await service.addAsset(activo)
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para crear activos"
+      })
+    }
+    
+    // Agregar tenantId a los datos del activo
+    activo.tenantId = tenantId
+    activo.createdBy = adminUser._id
+    
+    const newAsset = await service.addAsset(activo, adminUser)
     res.status(201).json(newAsset)
   } catch (error) {
     console.error("Error al agregar activo:", error)
@@ -44,15 +62,28 @@ const addAsset = async (req, res) => {
 const putAsset = async (req, res) => {
   try {
     const id = req.params.id
-    const existingAsset = await service.getAssetById(id)
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para actualizar activos"
+      })
+    }
+    
+    const existingAsset = await service.getAssetById(id, tenantId)
     if (!existingAsset) {
       return res.status(404).json({ error: "Activo no encontrado" })
     }
 
     const activo = { ...req.body }
-    const editedAsset = await service.putAsset(id, activo)
+    activo.updatedBy = adminUser._id
+    activo.updatedAt = new Date()
+    
+    const editedAsset = await service.putAsset(id, activo, tenantId, adminUser)
     if (editedAsset.modifiedCount > 0) {
-      const updatedAsset = await service.getAssetById(id)
+      const updatedAsset = await service.getAssetById(id, tenantId)
       res.status(200).json(updatedAsset)
     } else {
       res.status(404).json({ error: "No se pudo actualizar el activo" })
@@ -66,15 +97,28 @@ const putAsset = async (req, res) => {
 const patchAsset = async (req, res) => {
   try {
     const id = req.params.id
-    const existingAsset = await service.getAssetById(id)
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para actualizar activos"
+      })
+    }
+    
+    const existingAsset = await service.getAssetById(id, tenantId)
     if (!existingAsset) {
       return res.status(404).json({ error: "Activo no encontrado" })
     }
 
     const activo = { ...req.body }
-    const editedAsset = await service.editAsset(id, activo)
+    activo.updatedBy = adminUser._id
+    activo.updatedAt = new Date()
+    
+    const editedAsset = await service.editAsset(id, activo, tenantId, adminUser)
     if (editedAsset.modifiedCount > 0) {
-      const updatedAsset = await service.getAssetById(id)
+      const updatedAsset = await service.getAssetById(id, tenantId)
       res.status(200).json(updatedAsset)
     } else {
       res.status(404).json({ error: "No se pudo actualizar el activo" })
@@ -88,7 +132,17 @@ const patchAsset = async (req, res) => {
 const deleteAsset = async (req, res) => {
   try {
     const id = req.params.id
-    await service.deleteAsset(id)
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para eliminar activos"
+      })
+    }
+    
+    await service.deleteAsset(id, tenantId, adminUser)
 
     // ✅ CAMBIO: Respuesta con body JSON en lugar de 204
     res.status(200).json({ message: "Activo eliminado correctamente" })

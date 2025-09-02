@@ -3,7 +3,9 @@ import * as service from "../../services/installations.services.js"
 // Obtener todas las instalaciones
 async function getInstallations(req, res) {
   try {
-    const installations = await service.getInstallations()
+    // Filtrar por tenant del usuario
+    const tenantId = req.user.tenantId
+    const installations = await service.getInstallations(tenantId)
     res.status(200).json(installations)
   } catch (error) {
     console.error("Error al obtener instalaciones:", error)
@@ -18,7 +20,8 @@ async function getInstallations(req, res) {
 async function getInstallationById(req, res) {
   try {
     const { id } = req.params
-    const installation = await service.getInstallationById(id)
+    const tenantId = req.user.tenantId
+    const installation = await service.getInstallationById(id, tenantId)
     res.status(200).json({
       success: true,
       data: installation,
@@ -36,7 +39,22 @@ async function getInstallationById(req, res) {
 async function createInstallation(req, res) {
   try {
     const installationData = req.body
-    const newInstallation = await service.createInstallation(installationData)
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        success: false,
+        error: "No tienes permisos para crear instalaciones"
+      })
+    }
+    
+    // Agregar tenantId a los datos de la instalación
+    installationData.tenantId = tenantId
+    installationData.createdBy = adminUser._id
+    
+    const newInstallation = await service.createInstallation(installationData, adminUser)
     res.status(201).json({
       success: true,
       message: "Instalación creada exitosamente",
@@ -56,7 +74,18 @@ async function updateInstallation(req, res) {
   try {
     const { id } = req.params
     const installationData = req.body
-    const updatedInstallation = await service.updateInstallation(id, installationData)
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        success: false,
+        error: "No tienes permisos para actualizar instalaciones"
+      })
+    }
+    
+    const updatedInstallation = await service.updateInstallation(id, installationData, tenantId, adminUser)
     res.status(200).json({
       success: true,
       message: "Instalación actualizada exitosamente",
@@ -97,7 +126,18 @@ async function updateInstallationSubscription(req, res) {
 async function deleteInstallation(req, res) {
   try {
     const { id } = req.params
-    await service.deleteInstallation(id)
+    const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        success: false,
+        error: "No tienes permisos para eliminar instalaciones"
+      })
+    }
+    
+    await service.deleteInstallation(id, tenantId, adminUser)
     res.status(200).json({
       success: true,
       message: "Instalación eliminada exitosamente",

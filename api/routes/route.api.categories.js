@@ -3,23 +3,24 @@ import * as controllers from "../controllers/controller.api.categories.js"
 import { validateCategory, validateCategoryPatch } from "../../middleware/category.validate.middleware.js"
 import { isAdmin, isAdminOrTechnician } from "../../middleware/auth.role.middleware.js"
 import { validateToken } from "../../middleware/auth.validate.middleware.js"
+import { identifyTenantByHeader } from "../../middleware/tenant.middleware.js"
 
 const route = Router()
 
 // Rutas públicas (para obtener categorías activas)
-route.get("/categorias", [validateToken, isAdminOrTechnician], controllers.getCategories)
-route.get("/categorias/:id", [validateToken, isAdminOrTechnician], controllers.getCategoryById)
+route.get("/categorias", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.getCategories)
+route.get("/categorias/:id", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.getCategoryById)
 
 // Rutas administrativas
-route.post("/categorias", [validateCategory, isAdmin], controllers.addCategory)
-route.put("/categorias/:id", [validateCategory, isAdmin], controllers.updateCategory)
-route.patch("/categorias/:id", [validateCategoryPatch, isAdmin], controllers.updateCategory)
+route.post("/categorias", [validateToken, identifyTenantByHeader, validateCategory, isAdmin], controllers.addCategory)
+route.put("/categorias/:id", [validateToken, identifyTenantByHeader, validateCategory, isAdmin], controllers.updateCategory)
+route.patch("/categorias/:id", [validateToken, identifyTenantByHeader, validateCategoryPatch, isAdmin], controllers.updateCategory)
 
 // Rutas para activar/desactivar
-route.patch("/categorias/:id/desactivar", isAdmin, controllers.deactivateCategory)
-route.patch("/categorias/:id/activar", isAdmin, controllers.activateCategory)
+route.patch("/categorias/:id/desactivar", [validateToken, identifyTenantByHeader, isAdmin], controllers.deactivateCategory)
+route.patch("/categorias/:id/activar", [validateToken, identifyTenantByHeader, isAdmin], controllers.activateCategory)
 
 // Eliminación física (usar con mucho cuidado)
-route.delete("/categorias/:id", isAdmin, controllers.deleteCategory)
+route.delete("/categorias/:id", [validateToken, identifyTenantByHeader, isAdmin], controllers.deleteCategory)
 
 export default route

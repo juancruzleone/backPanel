@@ -5,7 +5,8 @@ async function getAllWorkOrders(req, res) {
   try {
     const { estado, tecnicoId, instalacionId } = req.query
     const filters = { estado, tecnicoId, instalacionId }
-    const workOrders = await service.getAllWorkOrders(filters)
+    const tenantId = req.user.tenantId
+    const workOrders = await service.getAllWorkOrders(filters, tenantId)
 
     res.status(200).json({
       success: true,
@@ -25,6 +26,20 @@ async function createWorkOrder(req, res) {
   try {
     const workOrderData = req.body
     const adminUser = req.user
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        success: false,
+        error: "No tienes permisos para crear órdenes de trabajo"
+      })
+    }
+    
+    // Agregar tenantId a los datos de la orden de trabajo
+    workOrderData.tenantId = tenantId
+    workOrderData.createdBy = adminUser._id
+    
     const newWorkOrder = await service.createWorkOrder(workOrderData, adminUser)
 
     res.status(201).json({
@@ -47,7 +62,20 @@ async function updateWorkOrder(req, res) {
     const { id } = req.params
     const workOrderData = req.body
     const adminUser = req.user
-    const updatedWorkOrder = await service.updateWorkOrder(id, workOrderData, adminUser)
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        success: false,
+        error: "No tienes permisos para actualizar órdenes de trabajo"
+      })
+    }
+    
+    workOrderData.updatedBy = adminUser._id
+    workOrderData.updatedAt = new Date()
+    
+    const updatedWorkOrder = await service.updateWorkOrder(id, workOrderData, adminUser, tenantId)
 
     res.status(200).json({
       success: true,
@@ -68,7 +96,17 @@ async function deleteWorkOrder(req, res) {
   try {
     const { id } = req.params
     const adminUser = req.user
-    await service.deleteWorkOrder(id, adminUser)
+    const tenantId = req.user.tenantId
+    
+    // Verificar que el usuario sea admin del tenant
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        success: false,
+        error: "No tienes permisos para eliminar órdenes de trabajo"
+      })
+    }
+    
+    await service.deleteWorkOrder(id, adminUser, tenantId)
 
     res.status(200).json({
       success: true,

@@ -4,8 +4,13 @@ import * as formFieldsService from "./formFields.services.js"
 
 const assetsCollection = db.collection("activos")
 
-async function getAssets(filter = {}) {
+async function getAssets(filter = {}, tenantId = null) {
   const filterMongo = { eliminado: { $ne: true } }
+  
+  // Filtrar por tenant si se proporciona
+  if (tenantId) {
+    filterMongo.tenantId = tenantId
+  }
 
   if (filter.nombre) {
     filterMongo.nombre = { $regex: filter.nombre, $options: "i" }
@@ -20,14 +25,20 @@ async function getAssets(filter = {}) {
   return assetsCollection.find(filterMongo).sort({ _id: -1 }).toArray()
 }
 
-async function getAssetById(id) {
+async function getAssetById(id, tenantId = null) {
   if (!ObjectId.isValid(id)) {
     return null
   }
-  return assetsCollection.findOne({ _id: new ObjectId(id) })
+  
+  const query = { _id: new ObjectId(id) }
+  if (tenantId) {
+    query.tenantId = tenantId
+  }
+  
+  return assetsCollection.findOne(query)
 }
 
-const addAsset = async (activo) => {
+const addAsset = async (activo, adminUser) => {
   // Validar que se proporcionó templateId (obligatorio)
   if (!activo.templateId) {
     throw new Error("La plantilla de formulario es obligatoria")
@@ -35,6 +46,16 @@ const addAsset = async (activo) => {
 
   if (!ObjectId.isValid(activo.templateId)) {
     throw new Error("El ID de la plantilla no es válido")
+  }
+
+  // Verificar que se proporcione tenantId
+  if (!activo.tenantId) {
+    throw new Error("Se requiere tenantId para crear el activo")
+  }
+
+  // Verificar que el usuario tenga permisos para este tenant
+  if (adminUser.role !== "super_admin" && adminUser.tenantId !== activo.tenantId) {
+    throw new Error("No tienes permisos para crear activos en este tenant")
   }
 
   // Verificar que la plantilla existe
@@ -50,7 +71,10 @@ const addAsset = async (activo) => {
     modelo: activo.modelo,
     numeroSerie: activo.numeroSerie,
     templateId: new ObjectId(activo.templateId),
-    fechaCreacion: new Date(),
+    tenantId: activo.tenantId, // Agregar tenantId
+    createdBy: adminUser._id, // Agregar quien creó el activo
+    createdAt: new Date(),
+    updatedAt: new Date(),
   }
 
   const result = await assetsCollection.insertOne(assetToInsert)
@@ -58,9 +82,14 @@ const addAsset = async (activo) => {
   return assetToInsert
 }
 
-const putAsset = async (id, activo) => {
+const putAsset = async (id, activo, tenantId, adminUser) => {
   if (!ObjectId.isValid(id)) {
     throw new Error("El ID del activo no es válido")
+  }
+
+  // Verificar que el usuario tenga permisos para este tenant
+  if (adminUser.role !== "super_admin" && adminUser.tenantId !== tenantId) {
+    throw new Error("No tienes permisos para actualizar activos en este tenant")
   }
 
   // Verificar si se proporcionó un templateId y si es válido
@@ -76,26 +105,37 @@ const putAsset = async (id, activo) => {
     }
   }
 
+  const query = { _id: new ObjectId(id) }
+  if (tenantId) {
+    query.tenantId = tenantId
+  }
+
   // Preservar la fecha de creación original
-  const existingAsset = await getAssetById(id)
+  const existingAsset = await getAssetById(id, tenantId)
   const assetToUpdate = {
     nombre: activo.nombre,
     marca: activo.marca,
     modelo: activo.modelo,
     numeroSerie: activo.numeroSerie,
-    fechaCreacion: existingAsset.fechaCreacion || new Date(),
-    fechaActualizacion: new Date(),
+    createdAt: existingAsset.createdAt || new Date(),
+    updatedAt: new Date(),
+    updatedBy: adminUser._id,
     // Convertir templateId a ObjectId si existe
     ...(activo.templateId && { templateId: new ObjectId(activo.templateId) }),
   }
 
-  const result = await assetsCollection.replaceOne({ _id: new ObjectId(id) }, assetToUpdate)
+  const result = await assetsCollection.replaceOne(query, assetToUpdate)
   return result
 }
 
-const editAsset = async (id, activo) => {
+const editAsset = async (id, activo, tenantId, adminUser) => {
   if (!ObjectId.isValid(id)) {
     throw new Error("El ID del activo no es válido")
+  }
+
+  // Verificar que el usuario tenga permisos para este tenant
+  if (adminUser.role !== "super_admin" && adminUser.tenantId !== tenantId) {
+    throw new Error("No tienes permisos para actualizar activos en este tenant")
   }
 
   // Verificar si se proporcionó un templateId y si es válido
@@ -111,20 +151,36 @@ const editAsset = async (id, activo) => {
     }
   }
 
+  const query = { _id: new ObjectId(id) }
+  if (tenantId) {
+    query.tenantId = tenantId
+  }
+
   const updateData = {
     ...activo,
-    fechaActualizacion: new Date(),
+    updatedAt: new Date(),
+    updatedBy: adminUser._id,
     // Convertir templateId a ObjectId si existe
     ...(activo.templateId && { templateId: new ObjectId(activo.templateId) }),
   }
 
-  const result = await assetsCollection.updateOne({ _id: new ObjectId(id) }, { $set: updateData })
+  const result = await assetsCollection.updateOne(query, { $set: updateData })
   return result
 }
 
-const deleteAsset = async (id) => {
+const deleteAsset = async (id, tenantId, adminUser) => {
   if (!ObjectId.isValid(id)) {
     throw new Error("El ID del activo no es válido")
+  }
+
+  // Verificar que el usuario tenga permisos para este tenant
+  if (adminUser.role !== "super_admin" && adminUser.tenantId !== tenantId) {
+    throw new Error("No tienes permisos para eliminar activos en este tenant")
+  }
+
+  const query = { _id: new ObjectId(id) }
+  if (tenantId) {
+    query.tenantId = tenantId
   }
 
   // Opción 1: Eliminación lógica (marcar como eliminado)
@@ -134,7 +190,7 @@ const deleteAsset = async (id) => {
   // )
 
   // Opción 2: Eliminación física
-  const result = await assetsCollection.deleteOne({ _id: new ObjectId(id) })
+  const result = await assetsCollection.deleteOne(query)
   return result
 }
 

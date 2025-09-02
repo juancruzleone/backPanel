@@ -3,14 +3,21 @@ import dotenv from "dotenv"
 
 dotenv.config()
 
-// Configuración de opciones de conexión
+// Configuración de opciones de conexión optimizada para escalabilidad
 const options = {
-  maxPoolSize: 10,
+  maxPoolSize: 50, // Aumentar pool de conexiones para muchos tenants
+  minPoolSize: 10,
   serverSelectionTimeoutMS: 30000,
   socketTimeoutMS: 45000,
   family: 4, // Usar IPv4
   retryWrites: true,
   w: "majority",
+  // Configuraciones para mejor rendimiento
+  maxIdleTimeMS: 30000,
+  waitQueueTimeoutMS: 2500,
+  // Configuraciones para replicación
+  readPreference: "secondaryPreferred", // Leer desde secundarios cuando sea posible
+  writeConcern: { w: "majority", j: true }
 }
 
 // Agregar opciones TLS específicas para producción (opciones correctas)
@@ -46,6 +53,9 @@ const connectDB = async () => {
     console.log("✅ Conectado a la base de datos")
     console.log(`📊 Base de datos: PanelMantenimiento`)
 
+    // Crear índices para optimizar consultas multi-tenant
+    await createIndexes()
+
     return true
   } catch (error) {
     console.error("❌ Error al conectar a la base de datos:", error.message)
@@ -59,6 +69,73 @@ const connectDB = async () => {
     }
 
     return false
+  }
+}
+
+// Crear índices para optimización multi-tenant
+async function createIndexes() {
+  try {
+    console.log("🔧 Creando índices para optimización multi-tenant...")
+    
+    // Índices para cuentas
+    await db.collection("cuentas").createIndex({ tenantId: 1 })
+    await db.collection("cuentas").createIndex({ tenantId: 1, role: 1 })
+    await db.collection("cuentas").createIndex({ tenantId: 1, status: 1 })
+    await db.collection("cuentas").createIndex({ tenantId: 1, createdAt: -1 })
+    
+    // Índices para instalaciones
+    await db.collection("instalaciones").createIndex({ tenantId: 1 })
+    await db.collection("instalaciones").createIndex({ tenantId: 1, status: 1 })
+    await db.collection("instalaciones").createIndex({ tenantId: 1, createdAt: -1 })
+    await db.collection("instalaciones").createIndex({ tenantId: 1, installationType: 1 })
+    
+    // Índices para activos
+    await db.collection("activos").createIndex({ tenantId: 1 })
+    await db.collection("activos").createIndex({ tenantId: 1, eliminado: 1 })
+    await db.collection("activos").createIndex({ tenantId: 1, templateId: 1 })
+    await db.collection("activos").createIndex({ tenantId: 1, createdAt: -1 })
+    
+    // Índices para plantillas de formularios
+    await db.collection("formTemplates").createIndex({ tenantId: 1 })
+    await db.collection("formTemplates").createIndex({ tenantId: 1, categoria: 1 })
+    await db.collection("formTemplates").createIndex({ tenantId: 1, createdAt: -1 })
+    
+    // Índices para manuales
+    await db.collection("manuales").createIndex({ tenantId: 1 })
+    await db.collection("manuales").createIndex({ tenantId: 1, assetId: 1 })
+    await db.collection("manuales").createIndex({ tenantId: 1, createdAt: -1 })
+    
+    // Índices para órdenes de trabajo
+    await db.collection("workOrders").createIndex({ tenantId: 1 })
+    await db.collection("workOrders").createIndex({ tenantId: 1, estado: 1 })
+    await db.collection("workOrders").createIndex({ tenantId: 1, tecnicoId: 1 })
+    await db.collection("workOrders").createIndex({ tenantId: 1, createdAt: -1 })
+    await db.collection("workOrders").createIndex({ tenantId: 1, instalacionId: 1 })
+    
+    // Índices para tipos de instalación
+    await db.collection("installationTypes").createIndex({ tenantId: 1 })
+    await db.collection("installationTypes").createIndex({ tenantId: 1, activo: 1 })
+    
+    // Índices para categorías
+    await db.collection("categories").createIndex({ tenantId: 1 })
+    await db.collection("categories").createIndex({ tenantId: 1, activo: 1 })
+    await db.collection("categories").createIndex({ tenantId: 1, createdAt: -1 })
+    
+    // Índices para tenants
+    await db.collection("tenants").createIndex({ tenantId: 1 }, { unique: true })
+    await db.collection("tenants").createIndex({ subdomain: 1 }, { unique: true })
+    await db.collection("tenants").createIndex({ status: 1 })
+    await db.collection("tenants").createIndex({ plan: 1 })
+    await db.collection("tenants").createIndex({ createdAt: -1 })
+    
+    // Índices para tokens
+    await db.collection("tokens").createIndex({ token: 1 })
+    await db.collection("tokens").createIndex({ tenantId: 1 })
+    await db.collection("tokens").createIndex({ createdAt: 1 }, { expireAfterSeconds: 86400 }) // TTL 24h
+    
+    console.log("✅ Índices creados exitosamente")
+  } catch (error) {
+    console.error("❌ Error creando índices:", error)
   }
 }
 
