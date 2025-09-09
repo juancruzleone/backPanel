@@ -9,6 +9,10 @@ import ApiTypeInstallationRoute from "../api/routes/route.api.installationType.j
 import ApiManualsRoutes from "../api/routes/route.api.manuals.js"
 import ApiWorkOrdersRoutes from "../api/routes/route.api.workOders.js"
 import ApiTenantsRoutes from "../api/routes/route.api.tenants.js"
+import ApiSubscriptionPlansRoutes from "../api/routes/route.api.subscriptionPlans.js"
+import ApiSubscriptionsRoutes from "../api/routes/route.api.subscriptions.js"
+import ApiWebhooksRoutes from "../api/routes/route.api.webhooks.js"
+import publicRoutes from '../api/routes/route.api.public.js' 
 import { connectDB } from "../db.js"
 import cors from "cors"
 import dotenv from "dotenv"
@@ -49,6 +53,11 @@ app.use("/api", ApiTypeInstallationRoute)
 app.use("/api", ApiManualsRoutes)
 app.use("/api", ApiWorkOrdersRoutes)
 app.use("/api", ApiTenantsRoutes)
+app.use("/api/subscription-plans", ApiSubscriptionPlansRoutes)
+app.use("/api/subscriptions", ApiSubscriptionsRoutes)
+app.use("/api/webhooks", ApiWebhooksRoutes)
+app.use("/api/public", publicRoutes)
+
 
 const PORT = process.env.PORT || 2023
 
