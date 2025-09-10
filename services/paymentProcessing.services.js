@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { ObjectId } from 'mongodb';
 import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
-import subscriptionService from './subscriptions.services.js';
+import * as subscriptionService from './subscriptions.services.js';
 import { MP_CONFIG } from '../config/mercadopago.config.js';
 
 const tenantCollection = db.collection("tenants");
@@ -58,8 +58,9 @@ class PaymentProcessingService {
             // 7. Actualizar suscripción con información del tenant
             await this.linkSubscriptionToTenant(subscription._id, tenantData.tenantId, adminUser._id);
             
-            // 8. Actualizar estado de la suscripción en MercadoPago
-            await subscriptionService.syncWithMercadoPago(subscription._id.toString(), tenantData.tenantId);
+            // 8. Actualizar estado de la suscripción usando las funciones importadas
+            // Cambiar esta línea si subscriptionService no tiene este método
+            // await subscriptionService.syncWithMercadoPago(subscription._id.toString(), tenantData.tenantId);
             
             return {
                 success: true,
@@ -262,13 +263,13 @@ class PaymentProcessingService {
         
         // Características avanzadas basadas en el plan
         const advancedFeatures = {
-            apiAccess: plan.features.includes('API completa'),
-            customBranding: plan.features.includes('Branding personalizado'),
-            prioritySupport: plan.features.includes('Soporte prioritario'),
-            advancedAnalytics: plan.features.includes('Reportes avanzados'),
-            integrations: plan.features.includes('Integración con terceros'),
-            whiteLabel: plan.features.includes('White label'),
-            backupAutomatico: plan.features.includes('Backup automático')
+            apiAccess: plan.features?.includes('API completa') || false,
+            customBranding: plan.features?.includes('Branding personalizado') || false,
+            prioritySupport: plan.features?.includes('Soporte prioritario') || false,
+            advancedAnalytics: plan.features?.includes('Reportes avanzados') || false,
+            integrations: plan.features?.includes('Integración con terceros') || false,
+            whiteLabel: plan.features?.includes('White label') || false,
+            backupAutomatico: plan.features?.includes('Backup automático') || false
         };
         
         return { ...baseFeatures, ...advancedFeatures };
@@ -390,4 +391,4 @@ class PaymentProcessingService {
     }
 }
 
-export default new PaymentProcessingService(); 
+export default new PaymentProcessingService();

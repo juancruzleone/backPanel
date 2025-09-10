@@ -8,7 +8,7 @@ const tenantCollection = db.collection("tenants")
 const subscriptionPlansCollection = db.collection("subscriptionplans")
 
 async function registerPublicUser(userData) {
-  const { userName, password, name, email, tenantName, tenantAddress } = userData
+  const { userName, password, name, email, tenantName, tenantAddress, country } = userData
 
   // Validaciones
   if (!userName || !password || !name || !email || !tenantName) {
@@ -69,6 +69,7 @@ async function registerPublicUser(userData) {
     email,
     role: "admin",
     tenantId: tenantIdString,
+    country: country || 'AR', // Guardar país del usuario
     isVerified: true,
     status: "active",
     createdAt: new Date(),
@@ -225,4 +226,162 @@ async function createDefaultPublicPlans() {
   }
 }
 
-export { registerPublicUser, getPublicPlans }
+// Función para asegurar que existan los planes por defecto
+async function ensureDefaultPlansExist() {
+  try {
+    const existingPlans = await subscriptionPlansCollection.find({
+      tenant: "public",
+      status: "active"
+    }).toArray();
+
+    if (existingPlans.length === 0) {
+      console.log('📋 No hay planes públicos, creando planes por defecto...');
+      await createDefaultPublicPlans();
+    }
+  } catch (error) {
+    console.error('Error verificando planes por defecto:', error);
+  }
+}
+
+// Función para crear checkout público (sin autenticación)
+async function createPublicCheckout(planId, userData) {
+  try {
+    const { payerEmail, payerName, backUrl } = userData;
+    
+    // Mapeo de IDs fallback a nombres de planes
+    const fallbackMapping = {
+      'starter-plan-fallback': 'Starter',
+      'professional-plan-fallback': 'Professional', 
+      'enterprise-plan-fallback': 'Enterprise'
+    };
+    
+    let plan;
+    
+    // Si es un ID fallback, buscar por nombre
+    if (fallbackMapping[planId]) {
+      console.log(`🔄 Buscando plan por nombre fallback: ${planId} -> ${fallbackMapping[planId]}`);
+      plan = await subscriptionPlansCollection.findOne({
+        name: fallbackMapping[planId],
+        tenant: 'public',
+        status: 'active'
+      });
+    } else {
+      // Si es un ObjectId válido, buscar por _id
+      try {
+        console.log(`🔍 Buscando plan por ObjectId: ${planId}`);
+        plan = await subscriptionPlansCollection.findOne({
+          _id: new ObjectId(planId),
+          status: 'active'
+        });
+      } catch (objectIdError) {
+        console.log(`⚠️ ID no es ObjectId válido, intentando buscar por nombre: ${planId}`);
+        // Si falla el ObjectId, intentar buscar por nombre directamente
+        plan = await subscriptionPlansCollection.findOne({
+          name: planId,
+          tenant: 'public',
+          status: 'active'
+        });
+      }
+    }
+
+    if (!plan) {
+      throw new Error(`Plan de suscripción no encontrado: ${planId}`);
+    }
+    
+    console.log(`✅ Plan encontrado: ${plan.name} (${plan._id})`);
+    
+    // Asegurar que el plan tenga todos los planes por defecto si no existen
+    await ensureDefaultPlansExist();
+
+    // Crear cliente temporal para la suscripción
+    const tempClient = {
+      _id: new ObjectId(),
+      name: payerName || 'Cliente Temporal',
+      email: payerEmail,
+      phone: '',
+      address: '',
+      tenant: 'public',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // Insertar cliente temporal
+    await db.collection('clients').insertOne(tempClient);
+
+    // Crear suscripción temporal
+    const subscription = {
+      _id: new ObjectId(),
+      subscriptionPlan: plan._id,
+      client: tempClient._id,
+      payerEmail: payerEmail,
+      reason: plan.description,
+      amount: plan.price,
+      currency: plan.currency,
+      frequency: plan.frequency,
+      backUrl: backUrl || `${process.env.FRONTEND_URL || 'https://leonix.vercel.app'}/subscription/success`,
+      externalReference: `public_sub_${Date.now()}`,
+      tenant: 'public',
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // Insertar suscripción
+    await db.collection('subscriptions').insertOne(subscription);
+
+    // Crear checkout real en MercadoPago
+    const mercadoPagoService = (await import('./mercadopago.services.js')).default;
+    
+    const mpData = {
+      reason: subscription.reason,
+      external_reference: subscription.externalReference,
+      payer_email: subscription.payerEmail,
+      back_url: subscription.backUrl,
+      auto_recurring: {
+        frequency: 1,
+        frequency_type: 'months',
+        transaction_amount: plan.price,
+        currency_id: plan.currency
+      },
+      status: 'pending'
+    };
+
+    console.log('🚀 Creando checkout real en MercadoPago para plan:', plan.name);
+    
+    const mpResult = await mercadoPagoService.createSubscription(mpData);
+    
+    if (!mpResult.success) {
+      throw new Error(`Error en MercadoPago: ${mpResult.message}`);
+    }
+
+    // Actualizar suscripción con ID de MercadoPago
+    await db.collection('subscriptions').updateOne(
+      { _id: subscription._id },
+      { 
+        $set: { 
+          mpSubscriptionId: mpResult.data.id,
+          initPoint: mpResult.data.init_point || mpResult.data.sandbox_init_point,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    const checkoutUrl = mpResult.data.init_point || mpResult.data.sandbox_init_point;
+
+    return {
+      success: true,
+      data: {
+        subscriptionId: subscription._id,
+        checkoutUrl: checkoutUrl,
+        initPoint: checkoutUrl,
+        mpSubscriptionId: mpResult.data.id
+      }
+    };
+
+  } catch (error) {
+    console.error('Error en createPublicCheckout:', error);
+    throw new Error(`Error creando checkout público: ${error.message}`);
+  }
+}
+
+export { registerPublicUser, getPublicPlans, createPublicCheckout }

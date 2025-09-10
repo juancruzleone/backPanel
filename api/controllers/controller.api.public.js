@@ -30,4 +30,26 @@ async function getPublicPlans(req, res) {
   }
 }
 
-export { registerPublic, getPublicPlans }
+async function createPublicCheckout(req, res) {
+  try {
+    const { planId } = req.params;
+    const userData = req.body;
+    
+    const result = await publicServices.createPublicCheckout(planId, userData);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Checkout público creado exitosamente',
+      data: result.data
+    });
+  } catch (error) {
+    console.error('Error en createPublicCheckout:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+      error: error.message
+    });
+  }
+}
+
+export { registerPublic, getPublicPlans, createPublicCheckout }
