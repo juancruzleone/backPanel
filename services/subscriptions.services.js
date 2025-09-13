@@ -13,19 +13,70 @@ async function createMercadoPagoCheckout({ planId, tenantId, successUrl, failure
   try {
     console.log('🛒 Creando checkout para:', { planId, tenantId });
 
-    // 1. Obtener el plan
-    const plan = await subscriptionPlansCollection.findOne({ _id: new ObjectId(planId) });
+    // 1. Obtener el plan - primero intentar por _id, luego por planId string
+    let plan;
+    
+    // Si planId parece ser un ObjectId válido, buscar por _id
+    if (planId && planId.length === 24 && /^[0-9a-fA-F]{24}$/.test(planId)) {
+      console.log('🔍 Buscando plan por _id:', planId);
+      plan = await subscriptionPlansCollection.findOne({ _id: new ObjectId(planId) });
+    }
+    
+    // Si no se encontró o no es ObjectId válido, buscar por planId string
+    if (!plan) {
+      console.log('🔍 Buscando plan por planId string:', planId);
+      plan = await subscriptionPlansCollection.findOne({ planId: planId });
+    }
+    
+    // Si aún no se encuentra, usar configuración de planes hardcodeada
+    if (!plan) {
+      console.log('⚠️ Plan no encontrado en BD, usando configuración hardcodeada');
+      const { PLANS_CONFIG } = await import('../config/plans.config.js');
+      
+      // Mapear planId a configuración
+      let planKey = 'basic'; // default
+      if (planId.includes('professional')) planKey = 'professional';
+      if (planId.includes('enterprise')) planKey = 'enterprise';
+      
+      const planConfig = PLANS_CONFIG[planKey];
+      plan = {
+        _id: planId,
+        planId: planId,
+        name: planConfig.name,
+        price: planConfig.price,
+        currency: 'ARS',
+        frequency: 'monthly',
+        description: `Plan ${planConfig.name}`,
+        features: planConfig.features,
+        limits: planConfig.limits
+      };
+      
+      console.log('✅ Usando plan de configuración:', {
+        planId: plan.planId,
+        name: plan.name,
+        price: plan.price
+      });
+    }
+    
     if (!plan) {
       throw new Error('Plan no encontrado');
     }
 
     // 2. Obtener información del tenant
-    const tenant = await tenantsCollection.findOne({ 
-      $or: [
-        { _id: new ObjectId(tenantId) },
-        { tenantId: tenantId }
-      ]
-    });
+    let tenant;
+    
+    // Si tenantId parece ser un ObjectId válido, buscar por _id
+    if (tenantId && tenantId.length === 24 && /^[0-9a-fA-F]{24}$/.test(tenantId)) {
+      console.log('🔍 Buscando tenant por _id:', tenantId);
+      tenant = await tenantsCollection.findOne({ _id: new ObjectId(tenantId) });
+    }
+    
+    // Si no se encontró, buscar por tenantId string
+    if (!tenant) {
+      console.log('🔍 Buscando tenant por tenantId string:', tenantId);
+      tenant = await tenantsCollection.findOne({ tenantId: tenantId });
+    }
+    
     if (!tenant) {
       throw new Error('Tenant no encontrado');
     }
@@ -61,11 +112,18 @@ async function createMercadoPagoCheckout({ planId, tenantId, successUrl, failure
     console.log('✅ Suscripción creada:', mpResult.data.id);
 
     const checkoutUrl = mpResult.data.init_point || mpResult.data.sandbox_init_point;
+    console.log('🔗 URL de checkout obtenida:', checkoutUrl);
+
+    if (!checkoutUrl) {
+      console.error('❌ No se obtuvo URL de checkout de MercadoPago');
+      console.log('📋 Respuesta completa de MP:', JSON.stringify(mpResult.data, null, 2));
+      throw new Error('MercadoPago no devolvió URL de checkout');
+    }
 
     // 5. Guardar registro de intento de suscripción
     const subscriptionAttempt = {
       tenantId,
-      planId: new ObjectId(planId),
+      planId: planId, // No convertir a ObjectId, guardar como string
       mpSubscriptionId: mpResult.data.id,
       externalReference: subscriptionData.external_reference,
       amount: plan.price,
@@ -77,12 +135,14 @@ async function createMercadoPagoCheckout({ planId, tenantId, successUrl, failure
     };
 
     await subscriptionsCollection.insertOne(subscriptionAttempt);
+    console.log('💾 Registro de suscripción guardado en BD');
 
     return {
       success: true,
       message: 'Checkout creado exitosamente',
       data: {
         checkoutUrl: checkoutUrl,
+        init_point: checkoutUrl, // Agregar también como init_point para compatibilidad
         subscriptionId: mpResult.data.id,
         externalReference: subscriptionData.external_reference
       }

@@ -31,25 +31,14 @@ async function getPublicPlans(req, res) {
 }
 
 async function createPublicCheckout(req, res) {
-  try {
-    const { planId } = req.params;
-    const userData = req.body;
-    
-    const result = await publicServices.createPublicCheckout(planId, userData);
-    
-    res.status(201).json({
-      success: true,
-      message: 'Checkout público creado exitosamente',
-      data: result.data
-    });
-  } catch (error) {
-    console.error('Error en createPublicCheckout:', error);
-    res.status(400).json({
-      success: false,
-      message: error.message,
-      error: error.message
-    });
-  }
+  // Endpoint deshabilitado - se requiere autenticación para crear checkouts
+  return res.status(401).json({
+    success: false,
+    code: 'AUTHENTICATION_REQUIRED',
+    message: 'Debe iniciar sesión para continuar con la compra',
+    redirectTo: '/auth/login',
+    details: 'Por seguridad y para asociar correctamente la suscripción a su cuenta, debe autenticarse antes de proceder con el pago.'
+  });
 }
 
 export { registerPublic, getPublicPlans, createPublicCheckout }

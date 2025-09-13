@@ -164,9 +164,35 @@ async function getTenantBySubdomain(subdomain) {
 
 // Obtener tenant por tenantId
 async function getTenantByTenantId(tenantId) {
-  const tenant = await tenantCollection.findOne({ tenantId })
+  console.log('🔍 [TENANT SERVICE] Buscando tenant con tenantId:', tenantId);
+  
+  // Buscar por tenantId como string
+  let tenant = await tenantCollection.findOne({ tenantId })
+  console.log('🔍 [TENANT SERVICE] Tenant encontrado (tenantId):', tenant ? 'SÍ' : 'NO');
+  
+  // Si no se encuentra, intentar buscar por _id (caso común: el tenantId del usuario es el _id del tenant)
   if (!tenant) {
-    throw new Error("Tenant no encontrado")
+    console.log('🔍 [TENANT SERVICE] Intentando buscar por _id...');
+    try {
+      const { ObjectId } = await import('mongodb');
+      tenant = await tenantCollection.findOne({ _id: new ObjectId(tenantId) });
+      console.log('🔍 [TENANT SERVICE] Tenant encontrado (_id):', tenant ? 'SÍ' : 'NO');
+      
+      if (tenant) {
+        console.log('✅ [TENANT SERVICE] Tenant encontrado por _id:', {
+          _id: tenant._id,
+          tenantId: tenant.tenantId,
+          name: tenant.name,
+          status: tenant.status
+        });
+      }
+    } catch (error) {
+      console.log('🔍 [TENANT SERVICE] Error buscando por _id:', error.message);
+    }
+  }
+  
+  if (!tenant) {
+    throw new Error("Tenant no encontrado");
   }
 
   return tenant

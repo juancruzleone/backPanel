@@ -24,27 +24,94 @@ async function validateAccountLogin(req, res, next) {
 }
 
 async function validateToken(req, res, next) {
+    console.log('🔐 [AUTH] Validando token...');
+    console.log('🔐 [AUTH] URL:', req.method, req.originalUrl);
+    
     const authHeader = req.headers.authorization;
+    console.log('🔐 [AUTH] Authorization header:', authHeader ? 'Presente' : 'Ausente');
+    
+    // Verificar si el encabezado de autorización existe
     if (!authHeader) {
-        return res.status(401).json({ error: { message: 'Token de autorización requerido' } });
+        console.log('❌ [AUTH] Token faltante');
+        return res.status(401).json({ 
+            success: false,
+            code: 'MISSING_AUTH_HEADER',
+            message: 'Se requiere token de autenticación' 
+        });
     }
 
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-        return res.status(401).json({ error: { message: 'Token de autorización inválido' } });
+    // Extraer el token del encabezado
+    const tokenParts = authHeader.split(' ');
+    if (tokenParts.length !== 2 || tokenParts[0].toLowerCase() !== 'bearer') {
+        console.log('❌ [AUTH] Formato de token inválido');
+        return res.status(401).json({ 
+            success: false,
+            code: 'INVALID_AUTH_FORMAT',
+            message: 'Formato de autorización inválido. Use: Bearer <token>' 
+        });
     }
+
+    const token = tokenParts[1];
+    if (!token) {
+        console.log('❌ [AUTH] Token vacío');
+        return res.status(401).json({ 
+            success: false,
+            code: 'EMPTY_TOKEN',
+            message: 'El token no puede estar vacío' 
+        });
+    }
+
+    console.log('🔐 [AUTH] Token extraído:', token.substring(0, 20) + '...');
 
     try {
+        // Validar el token
+        console.log('🔐 [AUTH] Validando token con servicio...');
         const user = await tokenServiceValidateToken(token);
+        
         if (!user) {
-            return res.status(401).json({ error: { message: 'Token inválido o expirado' } });
+            console.log('❌ [AUTH] Token inválido - usuario no encontrado');
+            return res.status(401).json({ 
+                success: false,
+                code: 'INVALID_TOKEN',
+                message: 'Token inválido o expirado' 
+            });
         }
 
+        console.log('✅ [AUTH] Token válido - Usuario:', {
+            id: user._id,
+            userName: user.userName,
+            email: user.email,
+            tenantId: user.tenantId,
+            role: user.role
+        });
+
+        // Adjuntar el usuario autenticado al objeto de solicitud
         req.user = user;
         next();
     } catch (err) {
-        console.error('Error validando token:', err);
-        res.status(401).json({ error: { message: 'Token inválido o expirado' } });
+        console.error('❌ [AUTH] Error validando token:', err.message);
+        
+        // Manejar diferentes tipos de errores de autenticación
+        let errorCode = 'AUTH_ERROR';
+        let errorMessage = 'Error de autenticación';
+        let statusCode = 401;
+
+        if (err.name === 'TokenExpiredError') {
+            errorCode = 'TOKEN_EXPIRED';
+            errorMessage = 'La sesión ha expirado. Por favor, inicie sesión nuevamente.';
+            console.log('⏰ [AUTH] Token expirado');
+        } else if (err.name === 'JsonWebTokenError') {
+            errorCode = 'INVALID_TOKEN';
+            errorMessage = 'Token inválido';
+            console.log('🔒 [AUTH] Token malformado');
+        }
+
+        res.status(statusCode).json({ 
+            success: false,
+            code: errorCode,
+            message: errorMessage,
+            ...(process.env.NODE_ENV === 'development' && { details: err.message })
+        });
     }
 }
 

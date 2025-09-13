@@ -114,4 +114,29 @@ async function deleteAccount(req, res) {
   }
 }
 
-export { createAccount, login, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount }
+// Verificar estado de autenticación
+async function verifyAuth(req, res) {
+  try {
+    // El middleware validateToken ya verificó el token y puso req.user
+    if (req.user) {
+      res.status(200).json({
+        success: true,
+        message: 'Token válido',
+        user: req.user
+      });
+    } else {
+      res.status(401).json({
+        success: false,
+        message: 'Token inválido'
+      });
+    }
+  } catch (error) {
+    console.error('Error en verifyAuth:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+}
+
+export { createAccount, login, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount, verifyAuth }

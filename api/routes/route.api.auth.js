@@ -46,6 +46,11 @@ route.delete("/cuentas/:id", [
   isAdmin
 ], controllers.deleteAccount)
 
+// Verificar autenticación (endpoint público para validar tokens)
+route.get("/verify", [
+  validateToken
+], controllers.verifyAuth)
+
 // Esta ruta debe ir DESPUÉS de las rutas específicas
 route.get("/cuentas/:id", [
   validateToken,

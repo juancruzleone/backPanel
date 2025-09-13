@@ -3,18 +3,50 @@ import * as subscriptionServices from "../../services/subscriptions.services.js"
 
 // Crear checkout de MercadoPago para suscripción
 async function createCheckout(req, res) {
+  console.log('🎯 [CHECKOUT] Iniciando proceso de checkout');
+  console.log('🔍 [CHECKOUT] Headers recibidos:', {
+    authorization: req.headers.authorization ? 'Bearer ***' : 'No existe',
+    contentType: req.headers['content-type']
+  });
+  
   try {
-    const { planId, successUrl, failureUrl, pendingUrl } = req.body;
+    // Verificar autenticación
+    console.log('🔐 [CHECKOUT] Verificando autenticación...');
+    console.log('🔐 [CHECKOUT] req.user:', req.user ? 'Existe' : 'No existe');
     
-    // Obtener tenantId desde el middleware
-    const tenantId = req.user?.tenantId || req.tenantId;
-    
-    if (!tenantId) {
-      return res.status(400).json({
+    if (!req.user) {
+      console.log('❌ [CHECKOUT] Usuario no autenticado');
+      return res.status(401).json({
         success: false,
-        message: 'No se pudo identificar el tenant'
+        code: 'UNAUTHENTICATED',
+        message: 'Debe iniciar sesión para continuar con la compra'
       });
     }
+
+    console.log('✅ [CHECKOUT] Usuario autenticado:', {
+      id: req.user._id,
+      userName: req.user.userName,
+      email: req.user.email,
+      tenantId: req.user.tenantId,
+      role: req.user.role
+    });
+
+    const { planId, successUrl, failureUrl, pendingUrl } = req.body;
+    console.log('📋 [CHECKOUT] Datos del request:', { planId, successUrl, failureUrl, pendingUrl });
+    
+    // Obtener tenantId desde el usuario autenticado
+    const tenantId = req.user.tenantId;
+    
+    if (!tenantId) {
+      console.log('❌ [CHECKOUT] TenantId no encontrado');
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_TENANT',
+        message: 'No se pudo identificar la organización'
+      });
+    }
+
+    console.log('🏢 [CHECKOUT] TenantId válido:', tenantId);
 
     if (!planId || !successUrl) {
       return res.status(400).json({
@@ -23,6 +55,7 @@ async function createCheckout(req, res) {
       });
     }
 
+    console.log('💳 [CHECKOUT] Creando checkout de MercadoPago...');
     const result = await subscriptionServices.createMercadoPagoCheckout({
       planId,
       tenantId,
@@ -31,13 +64,25 @@ async function createCheckout(req, res) {
       pendingUrl: pendingUrl || `${successUrl.split('/subscription')[0]}/subscription/pending`
     });
 
-    res.status(200).json(result);
+    console.log('✅ [CHECKOUT] Checkout creado exitosamente:', {
+      checkoutUrl: result.data?.checkoutUrl || result.data?.init_point ? 'Generado' : 'No generado',
+      preferenceId: result.data?.subscriptionId || 'No disponible'
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.data
+    });
   } catch (error) {
-    console.error('Error en createCheckout:', error);
-    res.status(400).json({
+    console.error('❌ [CHECKOUT] Error en createCheckout:', error.message);
+    console.error('❌ [CHECKOUT] Stack trace:', error.stack);
+    
+    const statusCode = error.statusCode || 400;
+    res.status(statusCode).json({
       success: false,
-      message: error.message,
-      error: error.message
+      code: error.code || 'CHECKOUT_ERROR',
+      message: error.message || 'Error al procesar el pago',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
