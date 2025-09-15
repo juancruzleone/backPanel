@@ -1,13 +1,13 @@
-// Configuración para MercadoPago API - Volver a credenciales originales
+// Configuración para MercadoPago API - Credenciales de TEST
 const MP_CONFIG = {
-    // Credenciales originales que funcionaban antes
-    ACCESS_TOKEN: process.env.MP_ACCESS_TOKEN || 'APP_USR-7356534442102935-091318-95181566990427513d6eb94a61a388e6-1861901310',
-    PUBLIC_KEY: process.env.MP_PUBLIC_KEY || 'APP_USR-1e9cd90e-5408-451a-bd86-2e2b597c3b88',
+    // Credenciales de TEST - para desarrollo con usuarios de test
+    ACCESS_TOKEN: process.env.MP_ACCESS_TOKEN || 'TEST-3430589277107626-090813-9cab6523e97b0e15b81b7ce6383b845f-290017275',
+    PUBLIC_KEY: process.env.MP_PUBLIC_KEY || 'TEST-9b5f08cb-61e6-49b7-b055-19b8e68ee344',
     BASE_URL: 'https://api.mercadopago.com',
-    // Configuración específica para Argentina
-    COUNTRY: 'AR',
-    CURRENCY: 'ARS',
-    SITE_ID: 'MLA' // Argentina site ID
+    // Configuración automática - se detecta del país de las credenciales
+    COUNTRY: 'AUTO', // Se detecta automáticamente
+    CURRENCY: 'AUTO', // Se detecta automáticamente  
+    SITE_ID: 'AUTO' // Se detecta automáticamente
 };
 
 console.log('🔧 MercadoPago configurado:', {

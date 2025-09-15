@@ -3,6 +3,65 @@ import { MP_CONFIG } from '../config/mercadopago.config.js';
 
 class MercadoPagoService {
     
+    // Obtener información de la cuenta para detectar país automáticamente
+    async getAccountInfo() {
+        try {
+            const response = await axios.get(
+                `${MP_CONFIG.BASE_URL}/users/me`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`
+                    }
+                }
+            );
+
+            // Log completo de la respuesta para debugging
+            console.log('🌍 Respuesta completa de /users/me:', JSON.stringify(response.data, null, 2));
+            
+            console.log('🌍 Información de cuenta MercadoPago:', {
+                country: response.data.country_id,
+                site_id: response.data.site_id,
+                currency: response.data.currency_id
+            });
+
+            // Mapeo de países a monedas para fallback
+            const countryToCurrency = {
+                'AR': 'ARS',
+                'BR': 'BRL',
+                'MX': 'MXN',
+                'CO': 'COP',
+                'CL': 'CLP',
+                'PE': 'PEN',
+                'UY': 'UYU'
+            };
+
+            // Determinar moneda: usar currency_id si existe, sino mapear por país
+            let finalCurrency = response.data.currency_id;
+            if (!finalCurrency && response.data.country_id) {
+                finalCurrency = countryToCurrency[response.data.country_id] || 'ARS';
+                console.log(`💰 Currency_id undefined, usando fallback basado en país ${response.data.country_id}: ${finalCurrency}`);
+            }
+
+            return {
+                success: true,
+                data: {
+                    country_id: response.data.country_id,
+                    site_id: response.data.site_id,
+                    currency_id: finalCurrency
+                }
+            };
+
+        } catch (error) {
+            console.error('❌ Error obteniendo información de cuenta:', error.response?.data || error.message);
+            
+            return {
+                success: false,
+                error: error.response?.data || error.message,
+                message: 'Error al obtener información de cuenta'
+            };
+        }
+    }
+    
     // Crear checkout directo (pago único) en MercadoPago
     async createDirectCheckout(checkoutData) {
         try {
@@ -118,7 +177,7 @@ class MercadoPagoService {
                     'https://panelmantenimiento.netlify.app/subscription/success';
             }
 
-            // Datos para crear la suscripción en MercadoPago (simplificado)
+            // Datos para crear la suscripción en MercadoPago
             const mpData = {
                 reason: reason,
                 external_reference: external_reference,
@@ -128,84 +187,27 @@ class MercadoPagoService {
                     frequency: auto_recurring.frequency,
                     frequency_type: auto_recurring.frequency_type,
                     transaction_amount: auto_recurring.transaction_amount,
-                    currency_id: 'ARS'
+                    currency_id: auto_recurring.currency_id || 'ARS' // Usar currency_id del parámetro o ARS por defecto
                 },
                 status: status
             };
 
-            console.log('🚀 Creando suscripción (preapproval) en MercadoPago:', mpData);
-
-            // Verificar si la cuenta tiene habilitadas las suscripciones
-            // Si no, usar checkout de preferencia en su lugar
-            let response;
-            try {
-                response = await axios.post(
-                    `${MP_CONFIG.BASE_URL}/preapproval`,
-                    mpData,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`,
-                            'Content-Type': 'application/json',
-                            'X-Idempotency-Key': `${external_reference}_${Date.now()}`
-                        }
+            console.log('🚀 Creando suscripción recurrente REAL con /preapproval');
+            console.log('📋 Datos completos enviados a MercadoPago:', JSON.stringify(mpData, null, 2));
+            
+            const response = await axios.post(
+                `${MP_CONFIG.BASE_URL}/preapproval`,
+                mpData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`,
+                        'Content-Type': 'application/json',
+                        'X-Idempotency-Key': `${external_reference}_${Date.now()}`
                     }
-                );
-            } catch (preapprovalError) {
-                console.log('⚠️ Error con /preapproval, intentando con checkout de preferencia:', preapprovalError.response?.data);
-                
-                // Fallback: usar checkout de preferencia para simular suscripción
-                const preferenceData = {
-                    items: [{
-                        title: reason,
-                        description: `Plan mensual - ${reason}`,
-                        quantity: 1,
-                        currency_id: 'ARS',
-                        unit_price: auto_recurring.transaction_amount
-                    }],
-                    payer: {
-                        email: payer_email
-                    },
-                    external_reference: external_reference,
-                    back_urls: {
-                        success: validBackUrl,
-                        failure: validBackUrl.replace('success', 'failure'),
-                        pending: validBackUrl.replace('success', 'pending')
-                    },
-                    auto_return: 'approved',
-                    payment_methods: {
-                        excluded_payment_methods: [],
-                        excluded_payment_types: [],
-                        installments: 1
-                    }
-                };
+                }
+            );
 
-                response = await axios.post(
-                    `${MP_CONFIG.BASE_URL}/checkout/preferences`,
-                    preferenceData,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
-
-                console.log('✅ Checkout de preferencia creado como fallback:', response.data);
-
-                return {
-                    success: true,
-                    data: {
-                        id: response.data.id,
-                        init_point: response.data.init_point,
-                        sandbox_init_point: response.data.sandbox_init_point,
-                        status: 'pending',
-                        external_reference: response.data.external_reference,
-                        type: 'preference_fallback'
-                    }
-                };
-            }
-
-            console.log('✅ Suscripción (preapproval) creada en MercadoPago:', response.data);
+            console.log('✅ Suscripción recurrente creada en MercadoPago:', response.data);
 
             return {
                 success: true,
@@ -214,7 +216,8 @@ class MercadoPagoService {
                     init_point: response.data.init_point,
                     sandbox_init_point: response.data.sandbox_init_point,
                     status: response.data.status,
-                    external_reference: response.data.external_reference
+                    external_reference: response.data.external_reference,
+                    type: 'preapproval_subscription'
                 }
             };
 

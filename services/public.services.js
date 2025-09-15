@@ -2,6 +2,7 @@ import { db } from "../db.js"
 import bcrypt from "bcrypt"
 import { ObjectId } from "mongodb"
 import { v4 as uuidv4 } from "uuid"
+import mercadoPagoService from "./mercadopago.services.js"
 
 const cuentaCollection = db.collection("cuentas")
 const tenantCollection = db.collection("tenants")
@@ -331,33 +332,52 @@ async function createPublicCheckout(planId, userData) {
     let checkoutUrl;
     let subscriptionResult;
     
-    // Enrutamiento por país: Argentina -> MercadoPago, otros países -> Polar.sh
-    if (userCountry === 'AR' || userCountry === 'Argentina') {
+    // Determinar procesador de pago según país
+    if (userCountry === 'AR') {
       console.log('🇦🇷 Usando MercadoPago para Argentina');
       
-      // Crear suscripción recurrente con MercadoPago usando solo preapproval (sin plan previo)
-      const mercadoPagoService = (await import('./mercadopago.services.js')).default;
+      // VERIFICAR PAÍS REAL DE LAS CREDENCIALES MERCADOPAGO
+      console.log('🔍 Verificando país real de las credenciales MercadoPago...');
+      const accountInfo = await mercadoPagoService.getAccountInfo();
+      
+      if (!accountInfo.success) {
+        console.error('❌ Error obteniendo información de cuenta MercadoPago:', accountInfo.message);
+        throw new Error('Error verificando credenciales de MercadoPago');
+      }
+      
+      const realCountry = accountInfo.data.country_id;
+      const realCurrency = accountInfo.data.currency_id;
+      
+      console.log('✅ País real de credenciales MercadoPago:', realCountry);
+      console.log('✅ Moneda real de credenciales MercadoPago:', realCurrency);
+      
+      // Crear suscripción recurrente en MercadoPago con moneda real
+      // Usar email genérico para evitar conflictos de usuarios test/real
+      const genericEmail = `checkout_${Date.now()}@example.com`;
       
       const subscriptionData = {
-        reason: `Suscripción ${plan.name} - ${plan.description}`,
-        external_reference: subscription.externalReference,
-        payer_email: subscription.payerEmail,
-        back_url: subscription.backUrl,
+        reason: plan.description,
+        external_reference: `subscription_${subscription._id}`,
+        payer_email: genericEmail, // Email genérico requerido por MercadoPago
+        back_url: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/success?lang=es`,
         auto_recurring: {
           frequency: frequency,
           frequency_type: frequencyType,
           transaction_amount: finalPrice,
-          currency_id: 'ARS'
+          currency_id: realCurrency // Usar moneda real en lugar de hardcodeado
         },
         status: 'pending'
       };
 
-      console.log('🚀 Creando suscripción recurrente en MercadoPago para plan:', plan.name);
-      console.log('💳 Datos de suscripción:', { 
+      console.log('🔄 Creando SUSCRIPCIÓN RECURRENTE en MercadoPago para plan:', plan.name);
+      console.log('💳 Datos de suscripción recurrente:', { 
         amount: finalPrice, 
         billingCycle,
         frequency,
-        frequencyType
+        frequencyType,
+        currency: realCurrency,
+        country: realCountry,
+        reason: subscriptionData.reason
       });
       
       const mpResult = await mercadoPagoService.createSubscription(subscriptionData);
@@ -366,7 +386,7 @@ async function createPublicCheckout(planId, userData) {
         throw new Error(`Error en MercadoPago: ${mpResult.message}`);
       }
 
-      // Actualizar suscripción con ID de MercadoPago
+      // Actualizar suscripción con ID de MercadoPago (suscripción recurrente)
       await db.collection('subscriptions').updateOne(
         { _id: subscription._id },
         { 
