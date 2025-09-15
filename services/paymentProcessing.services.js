@@ -49,30 +49,136 @@ class PaymentProcessingService {
                 throw new Error('Cliente no encontrado');
             }
             
-            // 5. Crear tenant para el cliente
-            const tenantData = await this.createTenantForClient(client, plan);
+            // 5. VERIFICAR SI YA EXISTE UN USUARIO CON ESE EMAIL
+            const existingUser = await cuentaCollection.findOne({
+                email: subscription.payerEmail
+            });
             
-            // 6. Crear usuario admin para el tenant
-            const adminUser = await this.createAdminUser(client, tenantData.tenantId, subscription.payerEmail);
+            let tenantData, adminUser;
+            
+            if (existingUser) {
+                console.log('👤 Usuario existente encontrado:', existingUser.email);
+                console.log('🏢 TenantId del usuario existente:', existingUser.tenantId);
+                
+                // 6A. ACTUALIZAR PLAN DEL TENANT EXISTENTE
+                tenantData = await this.updateExistingTenantPlan(existingUser.tenantId, plan);
+                adminUser = existingUser;
+                
+                console.log('✅ Plan actualizado para tenant existente:', {
+                    tenantId: existingUser.tenantId,
+                    newPlan: plan.name,
+                    userEmail: existingUser.email
+                });
+                
+            } else {
+                console.log('🆕 Usuario nuevo, creando tenant y cuenta...');
+                
+                // 6B. CREAR NUEVO TENANT Y USUARIO (flujo original)
+                tenantData = await this.createTenantForClient(client, plan);
+                adminUser = await this.createAdminUser(client, tenantData.tenantId, subscription.payerEmail);
+                
+                console.log('✅ Nuevo tenant y usuario creados:', {
+                    tenantId: tenantData.tenantId,
+                    userEmail: adminUser.email
+                });
+            }
             
             // 7. Actualizar suscripción con información del tenant
             await this.linkSubscriptionToTenant(subscription._id, tenantData.tenantId, adminUser._id);
-            
-            // 8. Actualizar estado de la suscripción usando las funciones importadas
-            // Cambiar esta línea si subscriptionService no tiene este método
-            // await subscriptionService.syncWithMercadoPago(subscription._id.toString(), tenantData.tenantId);
             
             return {
                 success: true,
                 tenant: tenantData,
                 adminUser: adminUser,
                 subscription: subscription,
-                plan: plan
+                plan: plan,
+                isExistingUser: !!existingUser
             };
             
         } catch (error) {
             console.error('❌ Error procesando pago exitoso:', error);
             throw new Error(`Error procesando pago: ${error.message}`);
+        }
+    }
+    
+    // Actualizar plan del tenant existente
+    async updateExistingTenantPlan(tenantId, newPlan) {
+        try {
+            console.log('🔄 Actualizando plan del tenant existente:', { tenantId, newPlan: newPlan.name });
+            
+            // Buscar el tenant existente por tenantId o por _id
+            let tenant = await tenantCollection.findOne({ tenantId });
+            if (!tenant) {
+                // Buscar por _id si no se encuentra por tenantId
+                tenant = await tenantCollection.findOne({ _id: new ObjectId(tenantId) });
+            }
+            
+            if (!tenant) {
+                throw new Error(`Tenant no encontrado con ID: ${tenantId}`);
+            }
+            
+            console.log('🏢 Tenant encontrado:', {
+                _id: tenant._id,
+                tenantId: tenant.tenantId,
+                currentPlan: tenant.plan
+            });
+            
+            // Mapear características del nuevo plan
+            const tenantFeatures = this.mapPlanToTenantFeatures(newPlan);
+            
+            // Actualizar datos del tenant con el nuevo plan
+            const updateData = {
+                plan: newPlan.name.toLowerCase().replace(' ', '_'),
+                
+                // Actualizar límites basados en el nuevo plan
+                maxUsers: newPlan.maxUsers || 10,
+                maxAssets: newPlan.maxProjects || 100,
+                maxWorkOrders: this.calculateWorkOrderLimit(newPlan),
+                
+                // Actualizar características del plan
+                features: tenantFeatures,
+                
+                // Actualizar información de la suscripción
+                subscriptionPlan: newPlan._id,
+                subscriptionFrequency: newPlan.frequency,
+                subscriptionAmount: newPlan.price,
+                
+                // Mantener estado activo y actualizar timestamp
+                status: 'active',
+                updatedAt: new Date(),
+                updatedBy: 'payment_system'
+            };
+            
+            // Actualizar el tenant en la base de datos
+            const result = await tenantCollection.updateOne(
+                { _id: tenant._id },
+                { $set: updateData }
+            );
+            
+            if (result.matchedCount === 0) {
+                throw new Error('No se pudo actualizar el tenant');
+            }
+            
+            console.log('✅ Tenant actualizado exitosamente:', {
+                tenantId: tenant.tenantId,
+                oldPlan: tenant.plan,
+                newPlan: updateData.plan,
+                newLimits: {
+                    maxUsers: updateData.maxUsers,
+                    maxAssets: updateData.maxAssets,
+                    maxWorkOrders: updateData.maxWorkOrders
+                }
+            });
+            
+            // Devolver el tenant actualizado
+            return {
+                ...tenant,
+                ...updateData
+            };
+            
+        } catch (error) {
+            console.error('❌ Error actualizando plan del tenant:', error);
+            throw error;
         }
     }
     

@@ -127,6 +127,46 @@ async function login(cuenta, tenantId = null) {
   const esValido = await bcrypt.compare(cuenta.password, existe.password)
   if (!esValido) throw new Error("Credenciales inválidas")
 
+  // VALIDAR PLAN DEL TENANT PARA ACCESO AL PANEL GMAO
+  if (existe.tenantId) {
+    try {
+      const { getTenantByTenantId } = await import("./tenants.services.js")
+      const tenant = await getTenantByTenantId(existe.tenantId)
+      
+      console.log('🏢 [LOGIN] Validando tenant:', {
+        tenantId: tenant.tenantId,
+        plan: tenant.plan,
+        status: tenant.status
+      })
+
+      // Verificar que el tenant esté activo
+      if (tenant.status !== 'active') {
+        throw new Error(`Cuenta suspendida (${tenant.status}). Contacte al administrador.`)
+      }
+
+      // Verificar que el tenant tenga un plan válido (no gratuito)
+      if (!tenant.plan || tenant.plan === 'free' || tenant.plan === 'trial') {
+        throw new Error("Se requiere un plan de suscripción activo para acceder al panel GMAO.")
+      }
+
+      // Verificar fecha de expiración si existe
+      if (tenant.subscriptionExpiresAt) {
+        const now = new Date()
+        const expirationDate = new Date(tenant.subscriptionExpiresAt)
+        
+        if (now > expirationDate) {
+          throw new Error("Su suscripción ha expirado. Renueve su plan para continuar.")
+        }
+      }
+
+      console.log('✅ [LOGIN] Tenant con plan válido - acceso permitido')
+
+    } catch (error) {
+      console.error('❌ [LOGIN] Error validando tenant:', error.message)
+      throw new Error(error.message)
+    }
+  }
+
   // Actualizar último login
   await cuentaCollection.updateOne(
     { _id: existe._id },

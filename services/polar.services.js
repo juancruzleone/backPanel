@@ -286,11 +286,18 @@ class PolarService {
           
         case 'subscription.updated':
           console.log('🔄 Suscripción actualizada:', data.id, 'Estado:', data.status);
-          break;
+          
+          // Procesar cambios de estado de suscripción
+          const subscriptionMonitoringService = await import('./subscriptionMonitoring.services.js');
+          return await subscriptionMonitoringService.default.processPolarSubscriptionWebhook(eventType, data);
           
         case 'subscription.canceled':
-          console.log('🚫 Suscripción cancelada:', data.id);
-          break;
+        case 'subscription.past_due':
+          console.log('🚫 Suscripción con problema:', data.id, 'Evento:', eventType);
+          
+          // Procesar cancelación o pago vencido
+          const monitoringService = await import('./subscriptionMonitoring.services.js');
+          return await monitoringService.default.processPolarSubscriptionWebhook(eventType, data);
           
         default:
           console.log('ℹ️ Evento no manejado:', eventType);

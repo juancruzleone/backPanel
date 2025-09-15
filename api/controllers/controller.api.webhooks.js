@@ -1,4 +1,5 @@
 import paymentProcessingService from '../../services/paymentProcessing.services.js';
+import subscriptionMonitoringService from '../../services/subscriptionMonitoring.services.js';
 import { ObjectId } from 'mongodb';
 
 const webhookController = {
@@ -18,17 +19,17 @@ const webhookController = {
             }
             
             // Procesar webhooks de pagos y suscripciones
-            if (webhookData.type === 'payment' || webhookData.type === 'preapproval') {
-                console.log(`🔄 Procesando webhook de tipo: ${webhookData.type}`);
+            if (webhookData.type === 'payment') {
+                console.log(`🔄 Procesando webhook de pago: ${webhookData.type}`);
                 
                 const result = await paymentProcessingService.processWebhook(webhookData);
                 
                 if (result.processed) {
-                    console.log('✅ Webhook procesado exitosamente:', result.result);
+                    console.log('✅ Webhook de pago procesado exitosamente:', result.result);
                     
                     return res.status(200).json({
                         success: true,
-                        message: 'Webhook procesado exitosamente',
+                        message: 'Webhook de pago procesado exitosamente',
                         data: {
                             tenant: result.result.tenant?.tenantId,
                             adminUser: result.result.adminUser?.userName,
@@ -37,11 +38,39 @@ const webhookController = {
                         }
                     });
                 } else {
-                    console.log('ℹ️ Webhook no procesado:', result.reason);
+                    console.log('ℹ️ Webhook de pago no procesado:', result.reason);
                     
                     return res.status(200).json({
                         success: true,
-                        message: 'Webhook recibido pero no procesado',
+                        message: 'Webhook de pago recibido pero no procesado',
+                        reason: result.reason,
+                        type: webhookData.type
+                    });
+                }
+            } else if (webhookData.type === 'preapproval') {
+                console.log(`🔄 Procesando webhook de suscripción: ${webhookData.type}`);
+                
+                // Procesar webhooks de suscripciones (cancelaciones, pausas, etc.)
+                const result = await subscriptionMonitoringService.processMercadoPagoSubscriptionWebhook(webhookData);
+                
+                if (result.processed) {
+                    console.log('✅ Webhook de suscripción procesado exitosamente:', result.result);
+                    
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Webhook de suscripción procesado exitosamente',
+                        data: {
+                            tenant: result.result.tenant?.tenantId,
+                            action: 'plan_suspended',
+                            type: webhookData.type
+                        }
+                    });
+                } else {
+                    console.log('ℹ️ Webhook de suscripción no procesado:', result.reason);
+                    
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Webhook de suscripción recibido pero no procesado',
                         reason: result.reason,
                         type: webhookData.type
                     });
