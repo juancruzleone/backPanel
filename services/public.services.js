@@ -316,13 +316,13 @@ async function createPublicCheckout(planId, userData) {
     let finalPrice = plan.price;
     let frequencyType = 'months';
     let frequency = 1;
+    let isAnnualPayment = false;
     
     if (billingCycle === 'yearly') {
       // Aplicar descuento del 20% para planes anuales (equivalente a 10 meses)
       finalPrice = Math.round(plan.price * 10); // 10 meses de precio
-      frequencyType = 'months';
-      frequency = 12;
-      console.log(`💰 Precio anual calculado: ${finalPrice} (descuento aplicado)`);
+      isAnnualPayment = true; // Marcar como pago único anual
+      console.log(`💰 Precio anual calculado: ${finalPrice} (descuento aplicado - PAGO ÚNICO)`);
     }
 
     // Determinar proveedor de pago basado en el país del usuario
@@ -353,52 +353,94 @@ async function createPublicCheckout(planId, userData) {
       console.log('✅ Moneda real de credenciales MercadoPago:', realCurrency);
       console.log('📧 Email de cuenta MercadoPago:', mercadoPagoAccountEmail);
       
-      // Crear suscripción recurrente en MercadoPago con moneda real
-      // Usar el email del usuario que está logueado como comprador
+      let mpResult;
       
-      const subscriptionData = {
-        reason: plan.description,
-        external_reference: `subscription_${subscription._id}`,
-        payer_email: payerEmail, // Email del usuario comprador logueado
-        back_url: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/success?lang=es`,
-        auto_recurring: {
-          frequency: frequency,
-          frequency_type: frequencyType,
-          transaction_amount: finalPrice,
-          currency_id: realCurrency // Usar moneda real en lugar de hardcodeado
-        },
-        status: 'pending'
-      };
+      if (isAnnualPayment) {
+        // PAGO ÚNICO ANUAL - Usar preference en lugar de suscripción
+        console.log('💰 Creando PAGO ÚNICO ANUAL en MercadoPago para plan:', plan.name);
+        
+        const checkoutData = {
+          title: `${plan.name} - Plan Anual (12 meses)`,
+          description: `${plan.description} - Facturación anual con descuento. Precio mensual equivalente: $${Math.round(finalPrice/12)} ARS/mes`,
+          price: finalPrice,
+          currency_id: realCurrency,
+          payer_email: payerEmail,
+          external_reference: `annual_${subscription._id}`,
+          back_urls: {
+            success: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/success?lang=es`,
+            failure: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/failure?lang=es`,
+            pending: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/pending?lang=es`
+          }
+        };
+        
+        console.log('💳 Datos de pago único anual:', { 
+          amount: finalPrice, 
+          monthlyEquivalent: Math.round(finalPrice/12),
+          billingCycle: 'yearly',
+          currency: realCurrency,
+          country: realCountry,
+          title: checkoutData.title
+        });
+        
+        mpResult = await mercadoPagoService.createDirectCheckout(checkoutData);
+        
+      } else {
+        // SUSCRIPCIÓN MENSUAL RECURRENTE
+        const subscriptionData = {
+          reason: plan.description,
+          external_reference: `subscription_${subscription._id}`,
+          payer_email: payerEmail,
+          back_url: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/success?lang=es`,
+          auto_recurring: {
+            frequency: frequency,
+            frequency_type: frequencyType,
+            transaction_amount: finalPrice,
+            currency_id: realCurrency
+          },
+          status: 'pending'
+        };
 
-      console.log('🔄 Creando SUSCRIPCIÓN RECURRENTE en MercadoPago para plan:', plan.name);
-      console.log('💳 Datos de suscripción recurrente:', { 
-        amount: finalPrice, 
-        billingCycle,
-        frequency,
-        frequencyType,
-        currency: realCurrency,
-        country: realCountry,
-        reason: subscriptionData.reason
-      });
-      
-      const mpResult = await mercadoPagoService.createSubscription(subscriptionData);
+        console.log('🔄 Creando SUSCRIPCIÓN MENSUAL RECURRENTE en MercadoPago para plan:', plan.name);
+        console.log('💳 Datos de suscripción recurrente:', { 
+          amount: finalPrice, 
+          billingCycle,
+          frequency,
+          frequencyType,
+          currency: realCurrency,
+          country: realCountry,
+          reason: subscriptionData.reason
+        });
+        
+        mpResult = await mercadoPagoService.createSubscription(subscriptionData);
+      }
       
       if (!mpResult.success) {
         throw new Error(`Error en MercadoPago: ${mpResult.message}`);
       }
 
-      // Actualizar suscripción con ID de MercadoPago (suscripción recurrente)
+      // Actualizar suscripción con ID de MercadoPago
+      const updateData = {
+        billingCycle: billingCycle,
+        updatedAt: new Date()
+      };
+      
+      if (isAnnualPayment) {
+        // Pago único anual
+        updateData.mpPreferenceId = mpResult.data.id;
+        updateData.initPoint = mpResult.data.init_point || mpResult.data.sandbox_init_point;
+        updateData.subscriptionType = 'annual_payment';
+        console.log('💾 Guardando como pago único anual');
+      } else {
+        // Suscripción mensual recurrente
+        updateData.mpPreapprovalId = mpResult.data.id;
+        updateData.initPoint = mpResult.data.init_point || mpResult.data.sandbox_init_point;
+        updateData.subscriptionType = 'recurring';
+        console.log('💾 Guardando como suscripción recurrente');
+      }
+      
       await db.collection('subscriptions').updateOne(
         { _id: subscription._id },
-        { 
-          $set: { 
-            mpPreapprovalId: mpResult.data.id,
-            initPoint: mpResult.data.init_point || mpResult.data.sandbox_init_point,
-            billingCycle: billingCycle,
-            subscriptionType: 'recurring',
-            updatedAt: new Date()
-          }
-        }
+        { $set: updateData }
       );
 
       checkoutUrl = mpResult.data.init_point || mpResult.data.sandbox_init_point;

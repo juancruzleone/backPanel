@@ -15,6 +15,9 @@ class PaymentRouterService {
       mercadopago: mercadoPagoService,
       polar: polarService
     };
+    
+    // Límite máximo de MercadoPago para suscripciones recurrentes
+    this.MERCADOPAGO_MAX_AMOUNT = 250000; // ARS
   }
 
   /**
@@ -72,13 +75,18 @@ class PaymentRouterService {
   }
 
   /**
-   * Determinar qué procesador usar según el país
+   * Determinar qué procesador usar según el país y monto
    */
-  getProcessorForCountry(countryCode) {
-    // Argentina usa MercadoPago, resto del mundo usa Polar.sh
+  getProcessorForCountry(countryCode, amount = 0) {
+    // Si es Argentina pero el monto excede el límite de MercadoPago, usar Polar.sh
     if (countryCode === 'AR') {
-      console.log('🇦🇷 Usuario de Argentina - Usando MercadoPago');
-      return 'mercadopago';
+      if (amount > this.MERCADOPAGO_MAX_AMOUNT) {
+        console.log(`🚨 Monto $${amount} ARS excede límite de MercadoPago ($${this.MERCADOPAGO_MAX_AMOUNT}) - Usando Polar.sh`);
+        return 'polar';
+      } else {
+        console.log('🇦🇷 Usuario de Argentina - Usando MercadoPago');
+        return 'mercadopago';
+      }
     } else {
       console.log(`🌍 Usuario de ${countryCode} - Usando Polar.sh`);
       return 'polar';
@@ -86,7 +94,30 @@ class PaymentRouterService {
   }
 
   /**
-   * Crear checkout unificado que enruta según el país del usuario
+   * Obtener precio del plan
+   */
+  async getPlanPrice(planId, billingCycle) {
+    try {
+      // Importar configuración de planes
+      const plansConfig = await import('../config/plans.config.js');
+      
+      // Mapear planId a nombre de plan
+      let planName = planId;
+      if (planId.includes('basic')) planName = billingCycle === 'yearly' ? 'basic-yearly' : 'basic';
+      if (planId.includes('professional')) planName = billingCycle === 'yearly' ? 'professional-yearly' : 'professional';
+      if (planId.includes('enterprise')) planName = billingCycle === 'yearly' ? 'enterprise-yearly' : 'enterprise';
+      
+      const planConfig = plansConfig.getPlanConfig(planName);
+      return planConfig.price || 0;
+      
+    } catch (error) {
+      console.warn('⚠️ Error obteniendo precio del plan:', error.message);
+      return 0;
+    }
+  }
+
+  /**
+   * Crear checkout unificado que enruta según el país del usuario y monto
    */
   async createUnifiedCheckout(planId, userEmail, userName, billingCycle = 'monthly', requestData = {}) {
     try {
@@ -96,21 +127,30 @@ class PaymentRouterService {
       const userCountry = requestData.country || 'US';
       console.log('🌍 País del usuario:', userCountry);
       
+      // Obtener precio del plan para determinar el procesador
+      const planPrice = await this.getPlanPrice(planId, billingCycle);
+      console.log('💰 Precio del plan:', planPrice, 'ARS');
+      
+      // Determinar procesador basado en país y monto
+      const processor = this.getProcessorForCountry(userCountry, planPrice);
+      
       let checkoutResult;
       
-      // Enrutar según el país
-      if (userCountry === 'AR') {
-        console.log('🇦🇷 Usuario de Argentina - Usando MercadoPago');
+      // Enrutar según el procesador determinado
+      if (processor === 'mercadopago') {
+        console.log('💳 Creando checkout con MercadoPago');
         checkoutResult = await this.createMercadoPagoCheckout(planId, userEmail, userName, billingCycle, userCountry, requestData);
       } else {
-        console.log('🌍 Usuario de', userCountry, '- Usando Polar.sh');
+        console.log('🌐 Creando checkout con Polar.sh');
         checkoutResult = await this.createPolarCheckout(planId, userEmail, userName, billingCycle, userCountry);
       }
       
       // Agregar información del procesador al resultado
       return {
         ...checkoutResult,
-        userCountry: userCountry
+        userCountry: userCountry,
+        processor: processor,
+        planPrice: planPrice
       };
       
     } catch (error) {

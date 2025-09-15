@@ -105,8 +105,9 @@ export const PLANS_CONFIG = {
   
   'professional-yearly': {
     name: "Profesional Anual",
-    price: 2409000,
-    frequency: 'yearly',
+    price: 200750, // $2,409,000 / 12 meses = $200,750 por mes
+    frequency: 'monthly', // Cambiar a mensual para cumplir límite
+    billingCycle: 'yearly', // Pero facturar como anual
     maxUsers: 50,
     maxAssets: 1000,
     maxWorkOrders: 5000,
