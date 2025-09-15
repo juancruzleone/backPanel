@@ -1,0 +1,317 @@
+/**
+ * Payment Router Service
+ * Enruta automáticamente los pagos según el país del usuario:
+ * - Argentina: MercadoPago
+ * - Resto del mundo: Polar.sh
+ */
+
+import mercadoPagoService from './mercadopago.services.js';
+import polarService from './polar.services.js';
+import axios from 'axios';
+
+class PaymentRouterService {
+  constructor() {
+    this.processors = {
+      mercadopago: mercadoPagoService,
+      polar: polarService
+    };
+  }
+
+  /**
+   * Detectar país del usuario por múltiples métodos
+   */
+  async detectUserCountry(userIP, userAgent, acceptLanguage) {
+    try {
+      let detectedCountry = 'US'; // Default
+      
+      // Método 1: Detección por IP usando ip-api.com (gratuito)
+      if (userIP && userIP !== '127.0.0.1' && userIP !== '::1') {
+        try {
+          console.log(`🌍 Detectando país por IP: ${userIP}`);
+          const ipResponse = await axios.get(`http://ip-api.com/json/${userIP}?fields=countryCode,country`, {
+            timeout: 5000
+          });
+          
+          if (ipResponse.data && ipResponse.data.countryCode) {
+            detectedCountry = ipResponse.data.countryCode;
+            console.log(`✅ País detectado por IP: ${detectedCountry} (${ipResponse.data.country})`);
+            return detectedCountry;
+          }
+        } catch (ipError) {
+          console.warn('⚠️ Error detectando país por IP:', ipError.message);
+        }
+      }
+      
+      // Método 2: Detección por Accept-Language header
+      if (acceptLanguage) {
+        try {
+          const langCountryMap = {
+            'es-AR': 'AR', 'es-MX': 'MX', 'es-ES': 'ES', 'es-CL': 'CL', 'es-CO': 'CO',
+            'pt-BR': 'BR', 'en-US': 'US', 'en-GB': 'GB', 'en-CA': 'CA', 'en-AU': 'AU',
+            'fr-FR': 'FR', 'fr-CA': 'CA', 'de-DE': 'DE', 'it-IT': 'IT', 'ja-JP': 'JP'
+          };
+          
+          const primaryLang = acceptLanguage.split(',')[0].trim();
+          if (langCountryMap[primaryLang]) {
+            detectedCountry = langCountryMap[primaryLang];
+            console.log(`🗣️ País detectado por idioma: ${detectedCountry} (${primaryLang})`);
+            return detectedCountry;
+          }
+        } catch (langError) {
+          console.warn('⚠️ Error detectando país por idioma:', langError.message);
+        }
+      }
+      
+      console.log(`🌍 País por defecto: ${detectedCountry}`);
+      return detectedCountry;
+      
+    } catch (error) {
+      console.error('❌ Error detectando país del usuario:', error);
+      return 'US'; // Fallback seguro
+    }
+  }
+
+  /**
+   * Determinar qué procesador usar según el país
+   */
+  getProcessorForCountry(countryCode) {
+    // Argentina usa MercadoPago, resto del mundo usa Polar.sh
+    if (countryCode === 'AR') {
+      console.log('🇦🇷 Usuario de Argentina - Usando MercadoPago');
+      return 'mercadopago';
+    } else {
+      console.log(`🌍 Usuario de ${countryCode} - Usando Polar.sh`);
+      return 'polar';
+    }
+  }
+
+  /**
+   * Crear checkout unificado que enruta según el país del usuario
+   */
+  async createUnifiedCheckout(planId, userEmail, userName, billingCycle = 'monthly', requestData = {}) {
+    try {
+      console.log('🚀 Iniciando checkout unificado:', { planId, userEmail, billingCycle });
+      
+      // Usar país del usuario directamente (sin detección automática)
+      const userCountry = requestData.country || 'US';
+      console.log('🌍 País del usuario:', userCountry);
+      
+      let checkoutResult;
+      
+      // Enrutar según el país
+      if (userCountry === 'AR') {
+        console.log('🇦🇷 Usuario de Argentina - Usando MercadoPago');
+        checkoutResult = await this.createMercadoPagoCheckout(planId, userEmail, userName, billingCycle, userCountry, requestData);
+      } else {
+        console.log('🌍 Usuario de', userCountry, '- Usando Polar.sh');
+        checkoutResult = await this.createPolarCheckout(planId, userEmail, userName, billingCycle, userCountry);
+      }
+      
+      // Agregar información del procesador al resultado
+      return {
+        ...checkoutResult,
+        userCountry: userCountry
+      };
+      
+    } catch (error) {
+      console.error('❌ Error en checkout unificado:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Crear checkout con MercadoPago
+   */
+  async createMercadoPagoCheckout(planId, userEmail, userName, billingCycle, userCountry, requestData) {
+    try {
+      console.log('💳 Creando checkout con MercadoPago');
+      
+      // Usar el servicio existente de MercadoPago
+      const subscriptionsService = await import('./subscriptions.services.js');
+      
+      // Obtener tenantId del usuario desde requestData
+      const tenantId = requestData?.tenantId;
+      
+      const result = await subscriptionsService.createMercadoPagoCheckout({
+        planId: planId,
+        tenantId: tenantId,
+        successUrl: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/success?lang=es`,
+        failureUrl: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/failed?lang=es`,
+        pendingUrl: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/pending?lang=es`
+      });
+      
+      return {
+        checkoutUrl: result.data?.checkoutUrl || result.data?.init_point,
+        processor: 'mercadopago',
+        currency: 'ARS'
+      };
+      
+    } catch (error) {
+      console.error('❌ Error creando checkout MercadoPago:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Crear checkout con Polar.sh
+   */
+  async createPolarCheckout(planId, userEmail, userName, billingCycle, userCountry) {
+    try {
+      console.log('🌐 Creando checkout con Polar.sh');
+      
+      const result = await polarService.createCheckout(
+        planId, 
+        userEmail, 
+        userName, 
+        billingCycle, 
+        userCountry
+      );
+      
+      return {
+        checkoutUrl: result.checkoutUrl,
+        checkoutId: result.checkoutId,
+        processor: 'polar',
+        currency: 'USD'
+      };
+      
+    } catch (error) {
+      console.error('❌ Error creando checkout Polar.sh:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener información de suscripción unificada
+   */
+  async getSubscription(processor, subscriptionId) {
+    try {
+      console.log(`📋 Obteniendo suscripción ${processor}: ${subscriptionId}`);
+      
+      if (processor === 'mercadopago') {
+        return await mercadoPagoService.getSubscription(subscriptionId);
+      } else if (processor === 'polar') {
+        return await polarService.getSubscription(subscriptionId);
+      } else {
+        throw new Error(`Procesador no soportado: ${processor}`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error obteniendo suscripción:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancelar suscripción unificada
+   */
+  async cancelSubscription(processor, subscriptionId) {
+    try {
+      console.log(`🚫 Cancelando suscripción ${processor}: ${subscriptionId}`);
+      
+      if (processor === 'mercadopago') {
+        return await mercadoPagoService.cancelSubscription(subscriptionId);
+      } else if (processor === 'polar') {
+        return await polarService.cancelSubscription(subscriptionId);
+      } else {
+        throw new Error(`Procesador no soportado: ${processor}`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error cancelando suscripción:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Procesar webhook unificado
+   */
+  async processWebhook(processor, eventType, data, signature, rawBody) {
+    try {
+      console.log(`🔔 Procesando webhook ${processor}: ${eventType}`);
+      
+      if (processor === 'mercadopago') {
+        // Los webhooks de MercadoPago ya están implementados
+        const paymentProcessingService = await import('./paymentProcessing.services.js');
+        return await paymentProcessingService.default.processMercadoPagoWebhook(data);
+        
+      } else if (processor === 'polar') {
+        // Verificar signature de Polar.sh
+        if (!polarService.verifyWebhookSignature(rawBody, signature)) {
+          throw new Error('Signature de webhook inválida');
+        }
+        
+        return await polarService.processWebhook(eventType, data);
+        
+      } else {
+        throw new Error(`Procesador no soportado: ${processor}`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error procesando webhook:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener estadísticas de pagos por procesador
+   */
+  async getPaymentStats() {
+    try {
+      const stats = {
+        mercadopago: {
+          country: 'AR',
+          currency: 'ARS',
+          active: true
+        },
+        polar: {
+          countries: 'International',
+          currency: 'USD',
+          active: true
+        }
+      };
+      
+      return stats;
+      
+    } catch (error) {
+      console.error('❌ Error obteniendo estadísticas:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validar configuración de procesadores
+   */
+  async validateProcessors() {
+    try {
+      const validation = {
+        mercadopago: false,
+        polar: false
+      };
+      
+      // Validar MercadoPago
+      try {
+        const mpConfig = await import('../config/mercadopago.config.js');
+        validation.mercadopago = !!(mpConfig.default.accessToken && mpConfig.default.publicKey);
+      } catch (mpError) {
+        console.warn('⚠️ Error validando MercadoPago:', mpError.message);
+      }
+      
+      // Validar Polar.sh
+      try {
+        const polarConfig = await import('../config/polar.config.js');
+        validation.polar = !!(polarConfig.default.apiKey);
+      } catch (polarError) {
+        console.warn('⚠️ Error validando Polar.sh:', polarError.message);
+      }
+      
+      console.log('🔍 Validación de procesadores:', validation);
+      return validation;
+      
+    } catch (error) {
+      console.error('❌ Error validando procesadores:', error);
+      return { mercadopago: false, polar: false };
+    }
+  }
+}
+
+export default new PaymentRouterService();

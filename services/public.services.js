@@ -347,18 +347,19 @@ async function createPublicCheckout(planId, userData) {
       
       const realCountry = accountInfo.data.country_id;
       const realCurrency = accountInfo.data.currency_id;
+      const mercadoPagoAccountEmail = accountInfo.data.email; // Email de la cuenta MercadoPago
       
       console.log('✅ País real de credenciales MercadoPago:', realCountry);
       console.log('✅ Moneda real de credenciales MercadoPago:', realCurrency);
+      console.log('📧 Email de cuenta MercadoPago:', mercadoPagoAccountEmail);
       
       // Crear suscripción recurrente en MercadoPago con moneda real
-      // Usar email genérico para evitar conflictos de usuarios test/real
-      const genericEmail = `checkout_${Date.now()}@example.com`;
+      // Usar el email del usuario que está logueado como comprador
       
       const subscriptionData = {
         reason: plan.description,
         external_reference: `subscription_${subscription._id}`,
-        payer_email: genericEmail, // Email genérico requerido por MercadoPago
+        payer_email: payerEmail, // Email del usuario comprador logueado
         back_url: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/success?lang=es`,
         auto_recurring: {
           frequency: frequency,

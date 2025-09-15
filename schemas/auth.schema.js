@@ -1,4 +1,4 @@
-﻿import * as yup from "yup"
+import * as yup from "yup"
 
 const cuentaRegistro = yup.object({
   userName: yup
@@ -65,6 +65,14 @@ const publicRegister = yup.object({
     .string()
     .trim()
     .max(255, "La dirección no puede tener más de 255 caracteres")
+    .optional(),
+
+  country: yup
+    .string()
+    .trim()
+    .length(2, "El código de país debe tener 2 caracteres")
+    .matches(/^[A-Z]{2}$/, "El código de país debe estar en mayúsculas")
+    .default("US")
     .optional(),
 })
 

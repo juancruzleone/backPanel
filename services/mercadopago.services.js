@@ -47,7 +47,8 @@ class MercadoPagoService {
                 data: {
                     country_id: response.data.country_id,
                     site_id: response.data.site_id,
-                    currency_id: finalCurrency
+                    currency_id: finalCurrency,
+                    email: response.data.email // Agregar email de la cuenta MercadoPago
                 }
             };
 

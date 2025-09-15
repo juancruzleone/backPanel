@@ -12,6 +12,7 @@ import ApiTenantsRoutes from "../api/routes/route.api.tenants.js"
 import ApiSubscriptionPlansRoutes from "../api/routes/route.api.subscriptionPlans.js"
 import ApiSubscriptionsRoutes from "../api/routes/route.api.subscriptions.js"
 import ApiWebhooksRoutes from "../api/routes/route.api.webhooks.js"
+import ApiPaymentsRoutes from "../api/routes/route.api.payments.js"
 import publicRoutes from '../api/routes/route.api.public.js' 
 import { connectDB } from "../db.js"
 import cors from "cors"
@@ -56,6 +57,7 @@ app.use("/api", ApiTenantsRoutes)
 app.use("/api/subscription-plans", ApiSubscriptionPlansRoutes)
 app.use("/api/subscriptions", ApiSubscriptionsRoutes)
 app.use("/api/webhooks", ApiWebhooksRoutes)
+app.use("/api/payments", ApiPaymentsRoutes)
 app.use("/api/public", publicRoutes)
 
 
