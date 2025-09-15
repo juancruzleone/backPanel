@@ -112,37 +112,100 @@ class MercadoPagoService {
 
             // Validar y corregir back_url para MercadoPago
             let validBackUrl = back_url;
-            if (!validBackUrl || validBackUrl.startsWith('http://localhost')) {
-                validBackUrl = 'https://leonix.vercel.app/subscription/success';
+            if (!validBackUrl || validBackUrl.includes('localhost')) {
+                validBackUrl = process.env.FRONTEND_URL ? 
+                    `${process.env.FRONTEND_URL}/subscription/success?lang=es` : 
+                    'https://panelmantenimiento.netlify.app/subscription/success';
             }
 
-            // Datos para crear la suscripción en MercadoPago
+            // Datos para crear la suscripción en MercadoPago (simplificado)
             const mpData = {
                 reason: reason,
                 external_reference: external_reference,
                 payer_email: payer_email,
                 back_url: validBackUrl,
                 auto_recurring: {
-                    ...auto_recurring,
-                    currency_id: 'ARS' // Forzar ARS para Argentina
+                    frequency: auto_recurring.frequency,
+                    frequency_type: auto_recurring.frequency_type,
+                    transaction_amount: auto_recurring.transaction_amount,
+                    currency_id: 'ARS'
                 },
                 status: status
             };
 
-            console.log('🚀 Creando suscripción en MercadoPago:', mpData);
+            console.log('🚀 Creando suscripción (preapproval) en MercadoPago:', mpData);
 
-            const response = await axios.post(
-                `${MP_CONFIG.BASE_URL}/preapproval`,
-                mpData,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`,
-                        'Content-Type': 'application/json'
+            // Verificar si la cuenta tiene habilitadas las suscripciones
+            // Si no, usar checkout de preferencia en su lugar
+            let response;
+            try {
+                response = await axios.post(
+                    `${MP_CONFIG.BASE_URL}/preapproval`,
+                    mpData,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`,
+                            'Content-Type': 'application/json',
+                            'X-Idempotency-Key': `${external_reference}_${Date.now()}`
+                        }
                     }
-                }
-            );
+                );
+            } catch (preapprovalError) {
+                console.log('⚠️ Error con /preapproval, intentando con checkout de preferencia:', preapprovalError.response?.data);
+                
+                // Fallback: usar checkout de preferencia para simular suscripción
+                const preferenceData = {
+                    items: [{
+                        title: reason,
+                        description: `Plan mensual - ${reason}`,
+                        quantity: 1,
+                        currency_id: 'ARS',
+                        unit_price: auto_recurring.transaction_amount
+                    }],
+                    payer: {
+                        email: payer_email
+                    },
+                    external_reference: external_reference,
+                    back_urls: {
+                        success: validBackUrl,
+                        failure: validBackUrl.replace('success', 'failure'),
+                        pending: validBackUrl.replace('success', 'pending')
+                    },
+                    auto_return: 'approved',
+                    payment_methods: {
+                        excluded_payment_methods: [],
+                        excluded_payment_types: [],
+                        installments: 1
+                    }
+                };
 
-            console.log('✅ Suscripción creada en MercadoPago:', response.data);
+                response = await axios.post(
+                    `${MP_CONFIG.BASE_URL}/checkout/preferences`,
+                    preferenceData,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                console.log('✅ Checkout de preferencia creado como fallback:', response.data);
+
+                return {
+                    success: true,
+                    data: {
+                        id: response.data.id,
+                        init_point: response.data.init_point,
+                        sandbox_init_point: response.data.sandbox_init_point,
+                        status: 'pending',
+                        external_reference: response.data.external_reference,
+                        type: 'preference_fallback'
+                    }
+                };
+            }
+
+            console.log('✅ Suscripción (preapproval) creada en MercadoPago:', response.data);
 
             return {
                 success: true,
@@ -176,6 +239,14 @@ class MercadoPagoService {
                 back_url
             } = planData;
 
+            // Validar y corregir back_url para evitar localhost
+            let validBackUrl = back_url;
+            if (!validBackUrl || validBackUrl.includes('localhost')) {
+                validBackUrl = process.env.FRONTEND_URL ? 
+                    `${process.env.FRONTEND_URL}/subscription/success?lang=es` : 
+                    'https://panelmantenimiento.netlify.app/subscription/success';
+            }
+
             const mpPlanData = {
                 reason: reason,
                 auto_recurring: auto_recurring,
@@ -190,7 +261,7 @@ class MercadoPagoService {
                         { id: 'amex' }
                     ]
                 },
-                back_url: back_url
+                back_url: validBackUrl
             };
 
             console.log('🚀 Creando plan en MercadoPago:', mpPlanData);

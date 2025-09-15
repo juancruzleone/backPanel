@@ -17,8 +17,10 @@ const webhookController = {
                 });
             }
             
-            // Procesar solo webhooks de pagos
-            if (webhookData.type === 'payment') {
+            // Procesar webhooks de pagos y suscripciones
+            if (webhookData.type === 'payment' || webhookData.type === 'preapproval') {
+                console.log(`🔄 Procesando webhook de tipo: ${webhookData.type}`);
+                
                 const result = await paymentProcessingService.processWebhook(webhookData);
                 
                 if (result.processed) {
@@ -30,7 +32,8 @@ const webhookController = {
                         data: {
                             tenant: result.result.tenant?.tenantId,
                             adminUser: result.result.adminUser?.userName,
-                            subscription: result.result.subscription?._id
+                            subscription: result.result.subscription?._id,
+                            type: webhookData.type
                         }
                     });
                 } else {
@@ -39,7 +42,8 @@ const webhookController = {
                     return res.status(200).json({
                         success: true,
                         message: 'Webhook recibido pero no procesado',
-                        reason: result.reason
+                        reason: result.reason,
+                        type: webhookData.type
                     });
                 }
             } else {

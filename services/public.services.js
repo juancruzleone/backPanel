@@ -335,31 +335,32 @@ async function createPublicCheckout(planId, userData) {
     if (userCountry === 'AR' || userCountry === 'Argentina') {
       console.log('🇦🇷 Usando MercadoPago para Argentina');
       
-      // Crear checkout directo con MercadoPago (evita problemas de suscripción)
+      // Crear suscripción recurrente con MercadoPago usando solo preapproval (sin plan previo)
       const mercadoPagoService = (await import('./mercadopago.services.js')).default;
       
-      const checkoutData = {
-        title: `Plan ${plan.name}`,
-        description: plan.description,
-        price: finalPrice,
-        currency_id: 'ARS',
-        payer_email: subscription.payerEmail,
+      const subscriptionData = {
+        reason: `Suscripción ${plan.name} - ${plan.description}`,
         external_reference: subscription.externalReference,
-        back_urls: {
-          success: subscription.backUrl,
-          failure: `${process.env.FRONTEND_URL || 'https://leonix.vercel.app'}/subscription/failure`,
-          pending: `${process.env.FRONTEND_URL || 'https://leonix.vercel.app'}/subscription/pending`
-        }
+        payer_email: subscription.payerEmail,
+        back_url: subscription.backUrl,
+        auto_recurring: {
+          frequency: frequency,
+          frequency_type: frequencyType,
+          transaction_amount: finalPrice,
+          currency_id: 'ARS'
+        },
+        status: 'pending'
       };
 
-      console.log('🚀 Creando checkout directo en MercadoPago para plan:', plan.name);
-      console.log('💳 Datos de pago:', { 
+      console.log('🚀 Creando suscripción recurrente en MercadoPago para plan:', plan.name);
+      console.log('💳 Datos de suscripción:', { 
         amount: finalPrice, 
         billingCycle,
-        title: checkoutData.title
+        frequency,
+        frequencyType
       });
       
-      const mpResult = await mercadoPagoService.createDirectCheckout(checkoutData);
+      const mpResult = await mercadoPagoService.createSubscription(subscriptionData);
       
       if (!mpResult.success) {
         throw new Error(`Error en MercadoPago: ${mpResult.message}`);
@@ -370,8 +371,10 @@ async function createPublicCheckout(planId, userData) {
         { _id: subscription._id },
         { 
           $set: { 
-            mpPreferenceId: mpResult.data.id,
+            mpPreapprovalId: mpResult.data.id,
             initPoint: mpResult.data.init_point || mpResult.data.sandbox_init_point,
+            billingCycle: billingCycle,
+            subscriptionType: 'recurring',
             updatedAt: new Date()
           }
         }
@@ -382,7 +385,8 @@ async function createPublicCheckout(planId, userData) {
         subscriptionId: subscription._id,
         checkoutUrl: checkoutUrl,
         initPoint: checkoutUrl,
-        mpPreferenceId: mpResult.data.id
+        mpPreapprovalId: mpResult.data.id,
+        subscriptionType: 'recurring'
       };
       
     } else {

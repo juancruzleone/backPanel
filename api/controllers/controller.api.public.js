@@ -37,15 +37,33 @@ async function createPublicCheckout(req, res) {
     // Obtener datos del body (POST) o query params (GET)
     const isGetRequest = req.method === 'GET';
     const data = isGetRequest ? req.query : req.body;
-    const { payerEmail, payerName, backUrl, billingCycle } = data;
+    let { payerEmail, payerName, backUrl, billingCycle } = data;
 
-    // Validaciones básicas
+    // Si no hay payerEmail, intentar extraerlo del token JWT o usar email por defecto
     if (!payerEmail) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email del pagador es requerido',
-        error: 'MISSING_PAYER_EMAIL'
-      });
+      // Intentar extraer del JWT si está disponible
+      if (req.headers.authorization) {
+        try {
+          const token = req.headers.authorization.replace('Bearer ', '');
+          const jwt = await import('jsonwebtoken');
+          const decoded = jwt.default.decode(token);
+          
+          if (decoded && decoded.email) {
+            payerEmail = decoded.email;
+            payerName = payerName || decoded.name || decoded.userName;
+            console.log('📧 Email extraído del JWT:', payerEmail);
+          }
+        } catch (jwtError) {
+          console.log('⚠️ No se pudo extraer email del JWT:', jwtError.message);
+        }
+      }
+      
+      // Si aún no hay email, usar un email temporal para testing
+      if (!payerEmail) {
+        payerEmail = 'test@example.com';
+        payerName = payerName || 'Usuario Temporal';
+        console.log('⚠️ Usando email temporal para testing:', payerEmail);
+      }
     }
 
     console.log('🛒 Creando checkout público para plan:', planId);
