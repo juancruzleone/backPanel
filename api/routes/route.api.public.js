@@ -11,5 +11,6 @@ route.get("/subscription-plans", controllers.getPublicPlans)
 
 // ✅ Checkout público (sin autenticación)
 route.post("/subscription-plans/:planId/checkout", controllers.createPublicCheckout)
+route.get("/subscription-plans/:planId/checkout", controllers.createPublicCheckout)
 
 export default route

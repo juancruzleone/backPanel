@@ -3,6 +3,101 @@ import { MP_CONFIG } from '../config/mercadopago.config.js';
 
 class MercadoPagoService {
     
+    // Crear checkout directo (pago único) en MercadoPago
+    async createDirectCheckout(checkoutData) {
+        try {
+            const {
+                title,
+                description,
+                price,
+                currency_id = 'ARS',
+                payer_email,
+                external_reference,
+                back_urls
+            } = checkoutData;
+
+            // Validar y corregir back_urls para evitar localhost en producción
+            let validBackUrls = back_urls;
+            
+            // Si no hay back_urls o contienen localhost, usar URLs por defecto
+            if (!validBackUrls || 
+                validBackUrls.success?.includes('localhost') || 
+                validBackUrls.failure?.includes('localhost') || 
+                validBackUrls.pending?.includes('localhost')) {
+                
+                validBackUrls = {
+                    success: process.env.FRONTEND_URL ? 
+                        `${process.env.FRONTEND_URL}/subscription/success?lang=es` : 
+                        'https://panelmantenimiento.netlify.app/subscription/success',
+                    failure: process.env.FRONTEND_URL ? 
+                        `${process.env.FRONTEND_URL}/subscription/failure` : 
+                        'https://panelmantenimiento.netlify.app/subscription/failure',
+                    pending: process.env.FRONTEND_URL ? 
+                        `${process.env.FRONTEND_URL}/subscription/pending` : 
+                        'https://panelmantenimiento.netlify.app/subscription/pending'
+                };
+            }
+
+            const mpData = {
+                items: [
+                    {
+                        title: title,
+                        description: description,
+                        quantity: 1,
+                        currency_id: currency_id,
+                        unit_price: price
+                    }
+                ],
+                payer: {
+                    email: payer_email
+                },
+                external_reference: external_reference,
+                back_urls: validBackUrls,
+                auto_return: 'approved',
+                payment_methods: {
+                    excluded_payment_methods: [],
+                    excluded_payment_types: [],
+                    installments: 12
+                },
+                notification_url: `${process.env.BACKEND_URL || 'https://backpanel-d4em.onrender.com'}/api/webhooks/mercadopago`
+            };
+
+            console.log('🚀 Creando checkout directo en MercadoPago:', mpData);
+
+            const response = await axios.post(
+                `${MP_CONFIG.BASE_URL}/checkout/preferences`,
+                mpData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            console.log('✅ Checkout directo creado en MercadoPago:', response.data);
+
+            return {
+                success: true,
+                data: {
+                    id: response.data.id,
+                    init_point: response.data.init_point,
+                    sandbox_init_point: response.data.sandbox_init_point,
+                    external_reference: response.data.external_reference
+                }
+            };
+
+        } catch (error) {
+            console.error('❌ Error creando checkout directo en MercadoPago:', error.response?.data || error.message);
+            
+            return {
+                success: false,
+                error: error.response?.data || error.message,
+                message: 'Error al crear checkout directo en MercadoPago'
+            };
+        }
+    }
+    
     // Crear suscripción (preapproval) en MercadoPago
     async createSubscription(subscriptionData) {
         try {
@@ -27,11 +122,9 @@ class MercadoPagoService {
                 external_reference: external_reference,
                 payer_email: payer_email,
                 back_url: validBackUrl,
-                auto_recurring: auto_recurring || {
-                    frequency: 1,
-                    frequency_type: 'months',
-                    transaction_amount: 29,
-                    currency_id: 'ARS'
+                auto_recurring: {
+                    ...auto_recurring,
+                    currency_id: 'ARS' // Forzar ARS para Argentina
                 },
                 status: status
             };

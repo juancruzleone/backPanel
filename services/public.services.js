@@ -246,42 +246,24 @@ async function ensureDefaultPlansExist() {
 // Función para crear checkout público (sin autenticación)
 async function createPublicCheckout(planId, userData) {
   try {
-    const { payerEmail, payerName, backUrl } = userData;
+    const { payerEmail, payerName, backUrl, billingCycle } = userData;
     
-    // Mapeo de IDs fallback a nombres de planes
-    const fallbackMapping = {
-      'starter-plan-fallback': 'Starter',
-      'professional-plan-fallback': 'Professional', 
-      'enterprise-plan-fallback': 'Enterprise'
-    };
-    
+    // Buscar el plan directamente por ID (ya no necesitamos mapeo fallback)
     let plan;
-    
-    // Si es un ID fallback, buscar por nombre
-    if (fallbackMapping[planId]) {
-      console.log(`🔄 Buscando plan por nombre fallback: ${planId} -> ${fallbackMapping[planId]}`);
+    try {
       plan = await subscriptionPlansCollection.findOne({
-        name: fallbackMapping[planId],
+        _id: new ObjectId(planId),
         tenant: 'public',
         status: 'active'
       });
-    } else {
-      // Si es un ObjectId válido, buscar por _id
-      try {
-        console.log(`🔍 Buscando plan por ObjectId: ${planId}`);
-        plan = await subscriptionPlansCollection.findOne({
-          _id: new ObjectId(planId),
-          status: 'active'
-        });
-      } catch (objectIdError) {
-        console.log(`⚠️ ID no es ObjectId válido, intentando buscar por nombre: ${planId}`);
-        // Si falla el ObjectId, intentar buscar por nombre directamente
-        plan = await subscriptionPlansCollection.findOne({
-          name: planId,
-          tenant: 'public',
-          status: 'active'
-        });
-      }
+    } catch (objectIdError) {
+      console.log(`⚠️ ID no es ObjectId válido, intentando buscar por nombre: ${planId}`);
+      // Si falla el ObjectId, intentar buscar por nombre directamente
+      plan = await subscriptionPlansCollection.findOne({
+        name: planId,
+        tenant: 'public',
+        status: 'active'
+      });
     }
 
     if (!plan) {
@@ -329,53 +311,89 @@ async function createPublicCheckout(planId, userData) {
     // Insertar suscripción
     await db.collection('subscriptions').insertOne(subscription);
 
-    // Crear checkout real en MercadoPago
-    const mercadoPagoService = (await import('./mercadopago.services.js')).default;
+    // Determinar precio según el ciclo de facturación
+    let finalPrice = plan.price;
+    let frequencyType = 'months';
+    let frequency = 1;
     
-    const mpData = {
-      reason: subscription.reason,
-      external_reference: subscription.externalReference,
-      payer_email: subscription.payerEmail,
-      back_url: subscription.backUrl,
-      auto_recurring: {
-        frequency: 1,
-        frequency_type: 'months',
-        transaction_amount: plan.price,
-        currency_id: plan.currency
-      },
-      status: 'pending'
-    };
-
-    console.log('🚀 Creando checkout real en MercadoPago para plan:', plan.name);
-    
-    const mpResult = await mercadoPagoService.createSubscription(mpData);
-    
-    if (!mpResult.success) {
-      throw new Error(`Error en MercadoPago: ${mpResult.message}`);
+    if (billingCycle === 'yearly') {
+      // Aplicar descuento del 20% para planes anuales (equivalente a 10 meses)
+      finalPrice = Math.round(plan.price * 10); // 10 meses de precio
+      frequencyType = 'months';
+      frequency = 12;
+      console.log(`💰 Precio anual calculado: ${finalPrice} (descuento aplicado)`);
     }
 
-    // Actualizar suscripción con ID de MercadoPago
-    await db.collection('subscriptions').updateOne(
-      { _id: subscription._id },
-      { 
-        $set: { 
-          mpSubscriptionId: mpResult.data.id,
-          initPoint: mpResult.data.init_point || mpResult.data.sandbox_init_point,
-          updatedAt: new Date()
+    // Determinar proveedor de pago basado en el país del usuario
+    const userCountry = userData.country || 'AR'; // Default a Argentina si no se especifica
+    console.log('🌍 País del usuario:', userCountry);
+    
+    let checkoutUrl;
+    let subscriptionResult;
+    
+    // Enrutamiento por país: Argentina -> MercadoPago, otros países -> Polar.sh
+    if (userCountry === 'AR' || userCountry === 'Argentina') {
+      console.log('🇦🇷 Usando MercadoPago para Argentina');
+      
+      // Crear checkout directo con MercadoPago (evita problemas de suscripción)
+      const mercadoPagoService = (await import('./mercadopago.services.js')).default;
+      
+      const checkoutData = {
+        title: `Plan ${plan.name}`,
+        description: plan.description,
+        price: finalPrice,
+        currency_id: 'ARS',
+        payer_email: subscription.payerEmail,
+        external_reference: subscription.externalReference,
+        back_urls: {
+          success: subscription.backUrl,
+          failure: `${process.env.FRONTEND_URL || 'https://leonix.vercel.app'}/subscription/failure`,
+          pending: `${process.env.FRONTEND_URL || 'https://leonix.vercel.app'}/subscription/pending`
         }
+      };
+
+      console.log('🚀 Creando checkout directo en MercadoPago para plan:', plan.name);
+      console.log('💳 Datos de pago:', { 
+        amount: finalPrice, 
+        billingCycle,
+        title: checkoutData.title
+      });
+      
+      const mpResult = await mercadoPagoService.createDirectCheckout(checkoutData);
+      
+      if (!mpResult.success) {
+        throw new Error(`Error en MercadoPago: ${mpResult.message}`);
       }
-    );
 
-    const checkoutUrl = mpResult.data.init_point || mpResult.data.sandbox_init_point;
+      // Actualizar suscripción con ID de MercadoPago
+      await db.collection('subscriptions').updateOne(
+        { _id: subscription._id },
+        { 
+          $set: { 
+            mpPreferenceId: mpResult.data.id,
+            initPoint: mpResult.data.init_point || mpResult.data.sandbox_init_point,
+            updatedAt: new Date()
+          }
+        }
+      );
 
-    return {
-      success: true,
-      data: {
+      checkoutUrl = mpResult.data.init_point || mpResult.data.sandbox_init_point;
+      subscriptionResult = {
         subscriptionId: subscription._id,
         checkoutUrl: checkoutUrl,
         initPoint: checkoutUrl,
-        mpSubscriptionId: mpResult.data.id
-      }
+        mpPreferenceId: mpResult.data.id
+      };
+      
+    } else {
+      // Para otros países, usar Polar.sh (por ahora retornar error informativo)
+      console.log('🌍 País no soportado actualmente:', userCountry);
+      throw new Error(`Pagos desde ${userCountry} no están disponibles temporalmente. Solo se acepta Argentina por el momento.`);
+    }
+
+    return {
+      success: true,
+      data: subscriptionResult
     };
 
   } catch (error) {

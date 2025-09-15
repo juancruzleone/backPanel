@@ -31,14 +31,52 @@ async function getPublicPlans(req, res) {
 }
 
 async function createPublicCheckout(req, res) {
-  // Endpoint deshabilitado - se requiere autenticación para crear checkouts
-  return res.status(401).json({
-    success: false,
-    code: 'AUTHENTICATION_REQUIRED',
-    message: 'Debe iniciar sesión para continuar con la compra',
-    redirectTo: '/auth/login',
-    details: 'Por seguridad y para asociar correctamente la suscripción a su cuenta, debe autenticarse antes de proceder con el pago.'
-  });
+  try {
+    const { planId } = req.params;
+    
+    // Obtener datos del body (POST) o query params (GET)
+    const isGetRequest = req.method === 'GET';
+    const data = isGetRequest ? req.query : req.body;
+    const { payerEmail, payerName, backUrl, billingCycle } = data;
+
+    // Validaciones básicas
+    if (!payerEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email del pagador es requerido',
+        error: 'MISSING_PAYER_EMAIL'
+      });
+    }
+
+    console.log('🛒 Creando checkout público para plan:', planId);
+    console.log('📧 Email del pagador:', payerEmail);
+    console.log('🔄 Ciclo de facturación:', billingCycle);
+    console.log('🔄 Método HTTP:', req.method);
+
+    const checkoutData = {
+      payerEmail,
+      payerName: payerName || 'Cliente',
+      backUrl: backUrl || `${process.env.FRONTEND_URL || 'https://leonix.vercel.app'}/subscription/success`,
+      billingCycle: billingCycle || 'monthly',
+      country: 'AR' // Forzar Argentina para evitar error de países diferentes
+    };
+
+    const result = await publicServices.createPublicCheckout(planId, checkoutData);
+
+    res.status(200).json({
+      success: true,
+      message: 'Checkout creado exitosamente',
+      data: result.data
+    });
+
+  } catch (error) {
+    console.error('Error en createPublicCheckout:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+      error: error.message
+    });
+  }
 }
 
 export { registerPublic, getPublicPlans, createPublicCheckout }
