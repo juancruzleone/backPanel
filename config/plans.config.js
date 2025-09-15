@@ -2,7 +2,8 @@
 export const PLANS_CONFIG = {
   basic: {
     name: "Básico",
-    price: 29.99,
+    price: 35000,
+    yearlyPrice: 240000, // Máximo permitido por MercadoPago
     maxUsers: 10,
     maxAssets: 100,
     maxWorkOrders: 500,
@@ -26,7 +27,8 @@ export const PLANS_CONFIG = {
   
   professional: {
     name: "Profesional",
-    price: 79.99,
+    price: 75000,
+    yearlyPrice: 249000, // Máximo permitido por MercadoPago
     maxUsers: 50,
     maxAssets: 1000,
     maxWorkOrders: 5000,
@@ -50,7 +52,86 @@ export const PLANS_CONFIG = {
   
   enterprise: {
     name: "Empresarial",
-    price: 199.99,
+    price: 120000,
+    yearlyPrice: 249000, // Máximo permitido por MercadoPago
+    maxUsers: 1000,
+    maxAssets: 10000,
+    maxWorkOrders: 50000,
+    features: {
+      workOrders: true,
+      assets: true,
+      reports: true,
+      pdfGeneration: true,
+      apiAccess: true,
+      customBranding: true,
+      prioritySupport: true,
+      advancedAnalytics: true,
+      integrations: true,
+      whiteLabel: true,
+      dedicatedSupport: true
+    },
+    limits: {
+      storageGB: 100,
+      apiCallsPerMonth: 100000,
+      pdfGenerationsPerMonth: 10000
+    }
+  },
+  
+  // Planes anuales específicos
+  'basic-yearly': {
+    name: "Básico Anual",
+    price: 240000,
+    frequency: 'yearly',
+    maxUsers: 10,
+    maxAssets: 100,
+    maxWorkOrders: 500,
+    features: {
+      workOrders: true,
+      assets: true,
+      reports: true,
+      pdfGeneration: true,
+      apiAccess: false,
+      customBranding: false,
+      prioritySupport: false,
+      advancedAnalytics: false,
+      integrations: false
+    },
+    limits: {
+      storageGB: 5,
+      apiCallsPerMonth: 1000,
+      pdfGenerationsPerMonth: 100
+    }
+  },
+  
+  'professional-yearly': {
+    name: "Profesional Anual",
+    price: 2409000,
+    frequency: 'yearly',
+    maxUsers: 50,
+    maxAssets: 1000,
+    maxWorkOrders: 5000,
+    features: {
+      workOrders: true,
+      assets: true,
+      reports: true,
+      pdfGeneration: true,
+      apiAccess: true,
+      customBranding: true,
+      prioritySupport: false,
+      advancedAnalytics: true,
+      integrations: true
+    },
+    limits: {
+      storageGB: 25,
+      apiCallsPerMonth: 10000,
+      pdfGenerationsPerMonth: 1000
+    }
+  },
+  
+  'enterprise-yearly': {
+    name: "Empresarial Anual",
+    price: 249000,
+    frequency: 'yearly',
     maxUsers: 1000,
     maxAssets: 10000,
     maxWorkOrders: 50000,

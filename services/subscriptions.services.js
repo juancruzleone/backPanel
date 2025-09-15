@@ -33,19 +33,33 @@ async function createMercadoPagoCheckout({ planId, tenantId, successUrl, failure
       console.log('⚠️ Plan no encontrado en BD, usando configuración hardcodeada');
       const { PLANS_CONFIG } = await import('../config/plans.config.js');
       
-      // Mapear planId a configuración
+      // Mapear planId a configuración - incluir soporte para planes anuales
       let planKey = 'basic'; // default
-      if (planId.includes('professional')) planKey = 'professional';
-      if (planId.includes('enterprise')) planKey = 'enterprise';
+      
+      // Detectar si es plan anual por el ID
+      if (planId.includes('yearly') || planId.includes('anual')) {
+        if (planId.includes('professional')) planKey = 'professional-yearly';
+        else if (planId.includes('enterprise')) planKey = 'enterprise-yearly';
+        else planKey = 'basic-yearly';
+      } else {
+        // Planes mensuales
+        if (planId.includes('professional')) planKey = 'professional';
+        else if (planId.includes('enterprise')) planKey = 'enterprise';
+        else planKey = 'basic';
+      }
       
       const planConfig = PLANS_CONFIG[planKey];
+      if (!planConfig) {
+        throw new Error(`Configuración de plan no encontrada para: ${planKey}`);
+      }
+      
       plan = {
         _id: planId,
         planId: planId,
         name: planConfig.name,
         price: planConfig.price,
         currency: 'ARS',
-        frequency: 'monthly',
+        frequency: planConfig.frequency || 'monthly',
         description: `Plan ${planConfig.name}`,
         features: planConfig.features,
         limits: planConfig.limits
@@ -54,7 +68,8 @@ async function createMercadoPagoCheckout({ planId, tenantId, successUrl, failure
       console.log('✅ Usando plan de configuración:', {
         planId: plan.planId,
         name: plan.name,
-        price: plan.price
+        price: plan.price,
+        frequency: plan.frequency
       });
     }
     
@@ -84,14 +99,27 @@ async function createMercadoPagoCheckout({ planId, tenantId, successUrl, failure
     // 3. Crear suscripción en MercadoPago usando el servicio
     const mercadoPagoService = (await import('./mercadopago.services.js')).default;
     
+    // Determinar frecuencia basada en el plan
+    const isYearlyPlan = plan.frequency === 'yearly' || planId.includes('yearly');
+    const frequency = isYearlyPlan ? 12 : 1;
+    const frequencyType = isYearlyPlan ? 'months' : 'months';
+    
+    console.log('📅 Configuración de frecuencia:', {
+      planId,
+      planFrequency: plan.frequency,
+      isYearlyPlan,
+      frequency,
+      frequencyType
+    });
+
     const subscriptionData = {
       reason: `Plan ${plan.name} - ${tenant.name}`,
       external_reference: `${tenantId}_${planId}_${Date.now()}`,
       payer_email: tenant.email || 'contacto@leonix.net.ar',
       back_url: successUrl || 'https://leonix.vercel.app/subscription/success',
       auto_recurring: {
-        frequency: 1,
-        frequency_type: 'months',
+        frequency: frequency,
+        frequency_type: frequencyType,
         transaction_amount: plan.price,
         currency_id: plan.currency || 'ARS'
       },
