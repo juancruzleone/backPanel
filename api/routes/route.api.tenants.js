@@ -21,4 +21,7 @@ route.post("/tenants/:id/force-update-stats", [validateToken, isSuperAdmin], con
 // Ruta pública para verificar tenant por subdominio
 route.get("/tenant/check/:subdomain", controllers.getTenantBySubdomain)
 
+// Ruta pública para verificar si un usuario ya tiene plan activo
+route.get("/tenant/check-active-plan", controllers.checkActivePlan)
+
 export default route 

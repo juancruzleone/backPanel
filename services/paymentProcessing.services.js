@@ -60,12 +60,22 @@ class PaymentProcessingService {
                 console.log('👤 Usuario existente encontrado:', existingUser.email);
                 console.log('🏢 TenantId del usuario existente:', existingUser.tenantId);
                 
+                // VERIFICAR SI YA TIENE UN PLAN ACTIVO
+                const { checkTenantActivePlan } = await import('./tenants.services.js');
+                const planCheck = await checkTenantActivePlan(subscription.payerEmail);
+                
+                if (planCheck.hasActivePlan) {
+                    console.log('⚠️ Usuario ya tiene plan activo:', planCheck.currentPlan);
+                    console.log('🔄 Procediendo con actualización/cambio de plan...');
+                }
+                
                 // 6A. ACTUALIZAR PLAN DEL TENANT EXISTENTE
                 tenantData = await this.updateExistingTenantPlan(existingUser.tenantId, plan);
                 adminUser = existingUser;
                 
                 console.log('✅ Plan actualizado para tenant existente:', {
                     tenantId: existingUser.tenantId,
+                    oldPlan: planCheck.currentPlan || 'sin plan',
                     newPlan: plan.name,
                     userEmail: existingUser.email
                 });
@@ -92,7 +102,8 @@ class PaymentProcessingService {
                 adminUser: adminUser,
                 subscription: subscription,
                 plan: plan,
-                isExistingUser: !!existingUser
+                isExistingUser: !!existingUser,
+                planUpgrade: existingUser ? true : false
             };
             
         } catch (error) {

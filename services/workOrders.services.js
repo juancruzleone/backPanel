@@ -587,7 +587,7 @@ async function getWorkOrderById(id, user, tenantId = null) {
 
     // Si es técnico, solo puede ver sus propias órdenes
     if (
-      user.role === "tecnico" &&
+      (user.role === "tecnico" || user.role === "técnico") &&
       (!orden.tecnicoAsignado || orden.tecnicoAsignado.toString() !== user._id.toString())
     ) {
       throw new Error("No tienes permisos para ver esta orden de trabajo")
@@ -619,7 +619,7 @@ async function getWorkOrderForm(id, user, tenantId = null) {
 
     // Verificar permisos
     if (
-      user.role === "técnico" &&
+      (user.role === "tecnico" || user.role === "técnico") &&
       (!workOrder.tecnicoAsignado || workOrder.tecnicoAsignado.toString() !== user._id.toString())
     ) {
       throw new Error("No tienes permisos para ver esta orden de trabajo")
@@ -689,7 +689,7 @@ async function completeWorkOrder(id, completionData, user) {
 
     // Verificar permisos
     if (
-      user.role === "tecnico" &&
+      (user.role === "tecnico" || user.role === "técnico") &&
       (!workOrder.tecnicoAsignado || workOrder.tecnicoAsignado.toString() !== user._id.toString())
     ) {
       throw new Error("No tienes permisos para completar esta orden de trabajo")
@@ -870,7 +870,7 @@ async function startWorkOrder(id, user) {
 
     // Verificar permisos
     if (
-      user.role === "tecnico" &&
+      (user.role === "tecnico" || user.role === "técnico") &&
       (!workOrder.tecnicoAsignado || workOrder.tecnicoAsignado.toString() !== user._id.toString())
     ) {
       throw new Error("No tienes permisos para iniciar esta orden de trabajo")
@@ -925,7 +925,7 @@ async function getWorkOrderHistory(id, user) {
 
     // Verificar permisos
     if (
-      user.role === "tecnico" &&
+      (user.role === "tecnico" || user.role === "técnico") &&
       (!workOrder.tecnicoAsignado || workOrder.tecnicoAsignado.toString() !== user._id.toString())
     ) {
       throw new Error("No tienes permisos para ver el historial de esta orden de trabajo")

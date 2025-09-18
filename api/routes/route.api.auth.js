@@ -28,6 +28,9 @@ route.post("/cuenta", [
 
 route.post("/cuenta/login", [validateAccountLogin], controllers.login)
 
+// NUEVA RUTA: Login público para landing (sin validación de planes)
+route.post("/cuenta/public-login", [validateAccountLogin], controllers.publicLogin)
+
 route.delete("/cuenta", controllers.logout)
 
 route.get("/cuentas", [

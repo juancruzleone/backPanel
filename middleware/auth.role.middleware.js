@@ -75,7 +75,7 @@ export async function isTechnician(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await cuentaCollection.findOne({ _id: new ObjectId(decoded._id) })
 
-    if (!user || user.role !== "técnico") {
+    if (!user || (user.role !== "técnico" && user.role !== "tecnico")) {
       return res.status(403).json({ error: { message: "Acceso denegado. Se requiere rol de técnico." } })
     }
 
@@ -98,7 +98,7 @@ export async function isAdminOrTechnician(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await cuentaCollection.findOne({ _id: new ObjectId(decoded._id) })
 
-    if (!user || (user.role !== "admin" && user.role !== "técnico")) {
+    if (!user || (user.role !== "admin" && user.role !== "técnico" && user.role !== "tecnico" && user.role !== "super_admin")) {
       return res
         .status(403)
         .json({ error: { message: "Acceso denegado. Se requiere rol de administrador o técnico." } })
@@ -123,7 +123,7 @@ export async function isTechnicianReadOnly(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await cuentaCollection.findOne({ _id: new ObjectId(decoded._id) })
 
-    if (!user || user.role !== "técnico") {
+    if (!user || (user.role !== "técnico" && user.role !== "tecnico")) {
       return res.status(403).json({ error: { message: "Acceso denegado. Se requiere rol de técnico." } })
     }
 

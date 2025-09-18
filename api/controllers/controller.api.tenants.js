@@ -151,6 +151,29 @@ async function forceUpdateTenantStats(req, res) {
   }
 }
 
+// Verificar si el tenant ya tiene un plan activo
+async function checkActivePlan(req, res) {
+  try {
+    const { email } = req.query
+    
+    if (!email) {
+      return res.status(400).json({ 
+        error: { message: "Email es requerido" } 
+      })
+    }
+    
+    const result = await services.checkTenantActivePlan(email)
+    
+    res.status(200).json({
+      success: true,
+      ...result
+    })
+  } catch (err) {
+    console.error("Error verificando plan activo:", err)
+    res.status(400).json({ error: { message: err.message } })
+  }
+}
+
 export {
   createTenant,
   getAllTenants,
@@ -160,5 +183,6 @@ export {
   deleteTenant,
   getTenantStats,
   getGlobalStats,
-  forceUpdateTenantStats
+  forceUpdateTenantStats,
+  checkActivePlan
 } 

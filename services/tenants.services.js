@@ -465,6 +465,84 @@ function generateRandomPassword() {
   return password
 }
 
+// Verificar si el tenant ya tiene un plan activo
+async function checkTenantActivePlan(userEmail) {
+  try {
+    console.log('🔍 [TENANT SERVICE] Verificando plan activo para email:', userEmail);
+    
+    // Buscar usuario por email
+    const user = await cuentaCollection.findOne({ email: userEmail });
+    if (!user) {
+      console.log('❌ [TENANT SERVICE] Usuario no encontrado');
+      return { hasActivePlan: false, message: 'Usuario no encontrado' };
+    }
+    
+    console.log('👤 [TENANT SERVICE] Usuario encontrado:', {
+      userName: user.userName,
+      tenantId: user.tenantId,
+      role: user.role
+    });
+    
+    // Si no tiene tenantId o es "default", no tiene plan activo
+    if (!user.tenantId || user.tenantId === "default") {
+      console.log('✅ [TENANT SERVICE] Usuario sin tenant válido - puede proceder');
+      return { hasActivePlan: false, message: 'Sin plan activo' };
+    }
+    
+    // Buscar el tenant
+    const tenant = await getTenantByTenantId(user.tenantId);
+    if (!tenant) {
+      console.log('❌ [TENANT SERVICE] Tenant no encontrado');
+      return { hasActivePlan: false, message: 'Tenant no encontrado' };
+    }
+    
+    console.log('🏢 [TENANT SERVICE] Tenant encontrado:', {
+      name: tenant.name,
+      plan: tenant.plan,
+      status: tenant.status
+    });
+    
+    // Verificar si tiene un plan activo (no null, no free, no trial)
+    const hasActivePlan = tenant.plan && 
+                         tenant.plan !== 'free' && 
+                         tenant.plan !== 'trial' && 
+                         tenant.status === 'active';
+    
+    if (hasActivePlan) {
+      return {
+        hasActivePlan: true,
+        currentPlan: tenant.plan,
+        tenantName: tenant.name,
+        message: `Ya tienes un plan activo: ${tenant.plan}`,
+        tenant: {
+          _id: tenant._id,
+          tenantId: tenant.tenantId,
+          name: tenant.name,
+          plan: tenant.plan,
+          status: tenant.status,
+          maxUsers: tenant.maxUsers,
+          maxAssets: tenant.maxAssets
+        }
+      };
+    } else {
+      return {
+        hasActivePlan: false,
+        currentPlan: tenant.plan,
+        tenantName: tenant.name,
+        message: 'Sin plan activo válido'
+      };
+    }
+    
+  } catch (error) {
+    console.error('❌ [TENANT SERVICE] Error verificando plan activo:', error);
+    return { 
+      hasActivePlan: false, 
+      error: error.message,
+      message: 'Error verificando plan activo'
+    };
+  }
+}
+
 export {
   createTenant,
   getAllTenants,
@@ -476,5 +554,6 @@ export {
   getTenantStats,
   updateTenantStats,
   forceUpdateTenantStats,
-  checkTenantLimits
+  checkTenantLimits,
+  checkTenantActivePlan
 } 

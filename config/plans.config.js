@@ -1,18 +1,24 @@
 // Configuración de planes y límites para el sistema multi-tenant
+// Actualizado para coincidir EXACTAMENTE con la tabla de comparación del frontend
 export const PLANS_CONFIG = {
-  basic: {
-    name: "Básico",
+  starter: {
+    name: "Starter",
     price: 35000,
-    yearlyPrice: 240000, // Máximo permitido por MercadoPago
-    maxUsers: 10,
-    maxAssets: 100,
-    maxWorkOrders: 500,
+    yearlyPrice: 29750, // 15% descuento
+    maxUsers: 3, // 3 usuarios (frontend)
+    maxFacilities: 2, // 2 instalaciones (frontend)
+    maxAssets: 6, // 6 activos (frontend)
+    maxFormTemplates: 6, // 6 plantillas de formulario (frontend)
+    maxWorkOrders: 100, // 100/mes órdenes de trabajo (frontend)
+    supportType: "email", // Email (frontend)
+    languageSupport: true, // ✓ (frontend)
     features: {
       workOrders: true,
       assets: true,
       reports: true,
       pdfGeneration: true,
-      apiAccess: false,
+      analytics: true, // ✓ (frontend)
+      apiAccess: true, // ✓ (frontend)
       customBranding: false,
       prioritySupport: false,
       advancedAnalytics: false,
@@ -26,20 +32,25 @@ export const PLANS_CONFIG = {
   },
   
   professional: {
-    name: "Profesional",
+    name: "Professional",
     price: 75000,
-    yearlyPrice: 249000, // Máximo permitido por MercadoPago
-    maxUsers: 50,
-    maxAssets: 1000,
-    maxWorkOrders: 5000,
+    yearlyPrice: 63750, // 15% descuento
+    maxUsers: 15, // 15 usuarios (frontend)
+    maxFacilities: 20, // 20 instalaciones (frontend)
+    maxAssets: 30, // 30 activos (frontend)
+    maxFormTemplates: 30, // 30 plantillas de formulario (frontend)
+    maxWorkOrders: 500, // 500/mes órdenes de trabajo (frontend)
+    supportType: "priority", // Prioritario (frontend)
+    languageSupport: true, // ✓ (frontend)
     features: {
       workOrders: true,
       assets: true,
       reports: true,
       pdfGeneration: true,
-      apiAccess: true,
+      analytics: true, // ✓ (frontend)
+      apiAccess: true, // ✓ (frontend)
       customBranding: true,
-      prioritySupport: false,
+      prioritySupport: true,
       advancedAnalytics: true,
       integrations: true
     },
@@ -51,18 +62,23 @@ export const PLANS_CONFIG = {
   },
   
   enterprise: {
-    name: "Empresarial",
+    name: "Enterprise",
     price: 120000,
-    yearlyPrice: 249000, // Máximo permitido por MercadoPago
-    maxUsers: 1000,
-    maxAssets: 10000,
-    maxWorkOrders: 50000,
+    yearlyPrice: 102000, // 15% descuento
+    maxUsers: 30, // 30 usuarios (frontend)
+    maxFacilities: 40, // 40 instalaciones (frontend)
+    maxAssets: 60, // 60 activos (frontend)
+    maxFormTemplates: 60, // 60 plantillas de formulario (frontend)
+    maxWorkOrders: 1000, // 1.000/mes órdenes de trabajo (frontend)
+    supportType: "24/7", // 24/7 (frontend)
+    languageSupport: true, // ✓ (frontend)
     features: {
       workOrders: true,
       assets: true,
       reports: true,
       pdfGeneration: true,
-      apiAccess: true,
+      analytics: true, // ✓ (frontend)
+      apiAccess: true, // ✓ (frontend)
       customBranding: true,
       prioritySupport: true,
       advancedAnalytics: true,
@@ -71,26 +87,31 @@ export const PLANS_CONFIG = {
       dedicatedSupport: true
     },
     limits: {
-      storageGB: 100,
-      apiCallsPerMonth: 100000,
-      pdfGenerationsPerMonth: 10000
+      storageGB: 100, // 100GB para enterprise
+      apiCallsPerMonth: 100000, // 100k llamadas API
+      pdfGenerationsPerMonth: 10000 // 10k PDFs
     }
   },
   
-  // Planes anuales específicos
-  'basic-yearly': {
-    name: "Básico Anual",
-    price: 240000,
+  // Planes anuales específicos - mantienen las mismas características que los mensuales
+  'starter-yearly': {
+    name: "Starter Anual",
+    price: 29750, // 15% descuento anual
     frequency: 'yearly',
-    maxUsers: 10,
-    maxAssets: 100,
-    maxWorkOrders: 500,
+    maxUsers: 3, // 3 usuarios (frontend)
+    maxFacilities: 2, // 2 instalaciones (frontend)
+    maxAssets: 6, // 6 activos (frontend)
+    maxFormTemplates: 6, // 6 plantillas de formulario (frontend)
+    maxWorkOrders: 100, // 100/mes órdenes de trabajo (frontend)
+    supportType: "email", // Email (frontend)
+    languageSupport: true, // ✓ (frontend)
     features: {
       workOrders: true,
       assets: true,
       reports: true,
       pdfGeneration: true,
-      apiAccess: false,
+      analytics: true, // ✓ (frontend)
+      apiAccess: true, // ✓ (frontend)
       customBranding: false,
       prioritySupport: false,
       advancedAnalytics: false,
@@ -104,21 +125,25 @@ export const PLANS_CONFIG = {
   },
   
   'professional-yearly': {
-    name: "Profesional Anual",
-    price: 200750, // $2,409,000 / 12 meses = $200,750 por mes
-    frequency: 'monthly', // Cambiar a mensual para cumplir límite
-    billingCycle: 'yearly', // Pero facturar como anual
-    maxUsers: 50,
-    maxAssets: 1000,
-    maxWorkOrders: 5000,
+    name: "Professional Anual",
+    price: 63750, // 15% descuento anual
+    frequency: 'yearly',
+    maxUsers: 15, // 15 usuarios (frontend)
+    maxFacilities: 20, // 20 instalaciones (frontend)
+    maxAssets: 30, // 30 activos (frontend)
+    maxFormTemplates: 30, // 30 plantillas de formulario (frontend)
+    maxWorkOrders: 500, // 500/mes órdenes de trabajo (frontend)
+    supportType: "priority", // Prioritario (frontend)
+    languageSupport: true, // ✓ (frontend)
     features: {
       workOrders: true,
       assets: true,
       reports: true,
       pdfGeneration: true,
-      apiAccess: true,
+      analytics: true, // ✓ (frontend)
+      apiAccess: true, // ✓ (frontend)
       customBranding: true,
-      prioritySupport: false,
+      prioritySupport: true,
       advancedAnalytics: true,
       integrations: true
     },
@@ -130,18 +155,23 @@ export const PLANS_CONFIG = {
   },
   
   'enterprise-yearly': {
-    name: "Empresarial Anual",
-    price: 249000,
+    name: "Enterprise Anual",
+    price: 102000, // 15% descuento anual
     frequency: 'yearly',
-    maxUsers: 1000,
-    maxAssets: 10000,
-    maxWorkOrders: 50000,
+    maxUsers: 30, // 30 usuarios (frontend)
+    maxFacilities: 40, // 40 instalaciones (frontend)
+    maxAssets: 60, // 60 activos (frontend)
+    maxFormTemplates: 60, // 60 plantillas de formulario (frontend)
+    maxWorkOrders: 1000, // 1.000/mes órdenes de trabajo (frontend)
+    supportType: "24/7", // 24/7 (frontend)
+    languageSupport: true, // ✓ (frontend)
     features: {
       workOrders: true,
       assets: true,
       reports: true,
       pdfGeneration: true,
-      apiAccess: true,
+      analytics: true, // ✓ (frontend)
+      apiAccess: true, // ✓ (frontend)
       customBranding: true,
       prioritySupport: true,
       advancedAnalytics: true,
@@ -150,9 +180,69 @@ export const PLANS_CONFIG = {
       dedicatedSupport: true
     },
     limits: {
-      storageGB: 100,
-      apiCallsPerMonth: 100000,
-      pdfGenerationsPerMonth: 10000
+      storageGB: 100, // 100GB para enterprise
+      apiCallsPerMonth: 100000, // 100k llamadas API
+      pdfGenerationsPerMonth: 10000 // 10k PDFs
+    }
+  },
+
+  // Alias para compatibilidad con nombres anteriores
+  basic: {
+    name: "Starter",
+    price: 35000,
+    yearlyPrice: 29750,
+    maxUsers: 3, // 3 usuarios (frontend)
+    maxFacilities: 2, // 2 instalaciones (frontend)
+    maxAssets: 6, // 6 activos (frontend)
+    maxFormTemplates: 6, // 6 plantillas de formulario (frontend)
+    maxWorkOrders: 100, // 100/mes órdenes de trabajo (frontend)
+    supportType: "email",
+    languageSupport: true,
+    features: {
+      workOrders: true,
+      assets: true,
+      reports: true,
+      pdfGeneration: true,
+      analytics: true,
+      apiAccess: true,
+      customBranding: false,
+      prioritySupport: false,
+      advancedAnalytics: false,
+      integrations: false
+    },
+    limits: {
+      storageGB: 5,
+      apiCallsPerMonth: 1000,
+      pdfGenerationsPerMonth: 100
+    }
+  },
+  'basic-yearly': {
+    name: "Starter Anual",
+    price: 29750,
+    frequency: 'yearly',
+    maxUsers: 3, // 3 usuarios (frontend)
+    maxFacilities: 2, // 2 instalaciones (frontend)
+    maxAssets: 6, // 6 activos (frontend)
+    maxFormTemplates: 6, // 6 plantillas de formulario (frontend)
+    maxWorkOrders: 100, // 100/mes órdenes de trabajo (frontend)
+    supportType: "email",
+    languageSupport: true,
+    features: {
+      workOrders: true,
+      assets: true,
+      reports: true,
+      pdfGeneration: true,
+      analytics: true,
+      apiAccess: true,
+      customBranding: false,
+      prioritySupport: false,
+      advancedAnalytics: false,
+      integrations: false
+    },
+    limits: {
+      storageGB: 5,
+      apiCallsPerMonth: 1000,
+      pdfGenerationsPerMonth: 100
     }
   }
 }

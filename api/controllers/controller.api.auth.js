@@ -28,6 +28,21 @@ async function login(req, res) {
   }
 }
 
+// NUEVO CONTROLADOR: Login público para landing (sin validación de planes)
+async function publicLogin(req, res) {
+  try {
+    const cuenta = await services.publicLogin(req.body, req.tenantId)
+    const token = await tokenService.createToken(cuenta)
+    res.status(200).json({
+      message: "Login público exitoso",
+      token,
+      cuenta,
+    })
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } })
+  }
+}
+
 async function logout(req, res) {
   const token = req.headers["auth-token"]
   try {
@@ -139,4 +154,4 @@ async function verifyAuth(req, res) {
   }
 }
 
-export { createAccount, login, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount, verifyAuth }
+export { createAccount, login, publicLogin, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount, verifyAuth }

@@ -127,44 +127,47 @@ async function login(cuenta, tenantId = null) {
   const esValido = await bcrypt.compare(cuenta.password, existe.password)
   if (!esValido) throw new Error("Credenciales inválidas")
 
-  // VALIDAR PLAN DEL TENANT PARA ACCESO AL PANEL GMAO
-  if (existe.tenantId) {
-    try {
-      const { getTenantByTenantId } = await import("./tenants.services.js")
-      const tenant = await getTenantByTenantId(existe.tenantId)
-      
-      console.log('🏢 [LOGIN] Validando tenant:', {
-        tenantId: tenant.tenantId,
-        plan: tenant.plan,
-        status: tenant.status
-      })
+  // VALIDAR TENANT Y PLAN PARA ACCESO AL PANEL GMAO
+  // Rechazar usuarios sin tenantId válido o con tenantId "default"
+  if (!existe.tenantId || existe.tenantId === "default") {
+    throw new Error("Acceso denegado. Se requiere una cuenta asociada a una organización válida.")
+  }
 
-      // Verificar que el tenant esté activo
-      if (tenant.status !== 'active') {
-        throw new Error(`Cuenta suspendida (${tenant.status}). Contacte al administrador.`)
-      }
+  try {
+    const { getTenantByTenantId } = await import("./tenants.services.js")
+    const tenant = await getTenantByTenantId(existe.tenantId)
+    
+    console.log('🏢 [LOGIN] Validando tenant:', {
+      tenantId: tenant.tenantId,
+      plan: tenant.plan,
+      status: tenant.status
+    })
 
-      // Verificar que el tenant tenga un plan válido (no gratuito)
-      if (!tenant.plan || tenant.plan === 'free' || tenant.plan === 'trial') {
-        throw new Error("Se requiere un plan de suscripción activo para acceder al panel GMAO.")
-      }
-
-      // Verificar fecha de expiración si existe
-      if (tenant.subscriptionExpiresAt) {
-        const now = new Date()
-        const expirationDate = new Date(tenant.subscriptionExpiresAt)
-        
-        if (now > expirationDate) {
-          throw new Error("Su suscripción ha expirado. Renueve su plan para continuar.")
-        }
-      }
-
-      console.log('✅ [LOGIN] Tenant con plan válido - acceso permitido')
-
-    } catch (error) {
-      console.error('❌ [LOGIN] Error validando tenant:', error.message)
-      throw new Error(error.message)
+    // Verificar que el tenant esté activo
+    if (tenant.status !== 'active') {
+      throw new Error(`Cuenta suspendida (${tenant.status}). Contacte al administrador.`)
     }
+
+    // Verificar que el tenant tenga un plan válido (no gratuito)
+    if (!tenant.plan || tenant.plan === 'free' || tenant.plan === 'trial') {
+      throw new Error("Se requiere un plan de suscripción activo para acceder al panel GMAO.")
+    }
+
+    // Verificar fecha de expiración si existe
+    if (tenant.subscriptionExpiresAt) {
+      const now = new Date()
+      const expirationDate = new Date(tenant.subscriptionExpiresAt)
+      
+      if (now > expirationDate) {
+        throw new Error("Su suscripción ha expirado. Renueve su plan para continuar.")
+      }
+    }
+
+    console.log('✅ [LOGIN] Tenant con plan válido - acceso permitido')
+
+  } catch (error) {
+    console.error('❌ [LOGIN] Error validando tenant:', error.message)
+    throw new Error(error.message)
   }
 
   // Actualizar último login
@@ -294,9 +297,55 @@ async function deleteAccount(id, adminUser) {
   return { message: "Cuenta eliminada exitosamente" }
 }
 
+// NUEVA FUNCIÓN: Login público para landing (sin validación de planes)
+async function publicLogin(cuenta, tenantId = null) {
+  // Construir query según si se proporciona tenantId o no
+  const query = { userName: cuenta.userName }
+  if (tenantId) {
+    query.tenantId = tenantId
+  }
+
+  const existe = await cuentaCollection.findOne(query)
+  if (!existe) throw new Error("Credenciales inválidas")
+
+  // Verificar que la cuenta esté activa
+  if (existe.status !== "active") {
+    throw new Error("La cuenta no está activa. Contacte al administrador.")
+  }
+
+  // Verificar la contraseña
+  const esValido = await bcrypt.compare(cuenta.password, existe.password)
+  if (!esValido) throw new Error("Credenciales inválidas")
+
+  // SOLO PERMITIR ACCESO A USUARIOS ADMIN (sin validar planes del tenant)
+  if (existe.role !== "admin") {
+    throw new Error("Acceso denegado. Solo usuarios administradores pueden acceder desde la landing.")
+  }
+
+  console.log('🌐 [PUBLIC LOGIN] Login público exitoso para admin:', {
+    userName: existe.userName,
+    role: existe.role,
+    tenantId: existe.tenantId
+  })
+
+  // Actualizar último login
+  await cuentaCollection.updateOne(
+    { _id: existe._id },
+    {
+      $set: {
+        lastLogin: new Date(),
+        updatedAt: new Date(),
+      },
+    },
+  )
+
+  return { ...existe, password: undefined }
+}
+
 export {
   createAccount,
   login,
+  publicLogin, // ✅ NUEVA FUNCIÓN EXPORTADA
   getAllAccounts,
   getAccountById,
   updateAccountStatus,
