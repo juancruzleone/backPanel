@@ -179,11 +179,8 @@ async function getFormTemplatesByCategory(req, res) {
 async function getAllFormCategories(req, res) {
   try {
     const categories = await service.getAllFormCategories()
-    res.status(200).json({
-      message: "Categorías obtenidas exitosamente",
-      count: categories.length,
-      categories,
-    })
+    // Devolver directamente el array para que el frontend pueda usar .filter()
+    res.status(200).json(categories)
   } catch (error) {
     console.error("Error al obtener categorías:", error)
     res.status(500).json({ error: "Error interno del servidor" })
@@ -209,14 +206,31 @@ async function getFormCategoryById(req, res) {
 async function createFormCategory(req, res) {
   try {
     const categoryData = req.body
+    const adminUser = req.user
+    
+    // Verificar que el usuario sea admin
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      return res.status(403).json({
+        error: "No tienes permisos para crear categorías"
+      })
+    }
+    
+    // Validar datos requeridos
+    if (!categoryData.nombre || categoryData.nombre.trim() === "") {
+      return res.status(400).json({
+        error: "El nombre de la categoría es obligatorio"
+      })
+    }
+    
+    console.log("Creando categoría con datos:", categoryData)
     const newCategory = await service.createFormCategory(categoryData)
     
-    res.status(201).json({
-      message: "Categoría creada exitosamente",
-      category: newCategory,
-    })
+    res.status(201).json(newCategory)
   } catch (error) {
     console.error("Error al crear categoría:", error)
+    if (error.message === "Ya existe una categoría con ese nombre") {
+      return res.status(409).json({ error: error.message })
+    }
     res.status(400).json({ error: error.message || "Error al crear la categoría" })
   }
 }

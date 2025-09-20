@@ -42,8 +42,6 @@ const formTemplateSchema = Yup.object().shape({
     .required("Los campos son obligatorios"),
 })
 
-export { formTemplateSchema, formFieldSchema }
-
 // Esquema para categorías de formularios
 const formCategorySchema = Yup.object().shape({
   nombre: Yup.string()
@@ -57,4 +55,4 @@ const formCategorySchema = Yup.object().shape({
   activa: Yup.boolean().default(true),
 })
 
-export { formCategorySchema }
+export { formTemplateSchema, formFieldSchema, formCategorySchema }
