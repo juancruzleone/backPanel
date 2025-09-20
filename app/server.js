@@ -43,6 +43,7 @@ const corsOptions = {
     'https://panelmantenimiento.netlify.app',
     'https://leonix.net.ar',
     'https://www.leonix.net.ar',
+    'https://cmms.leonix.net.ar',
     process.env.FRONTEND_URL
   ].filter(Boolean),
   credentials: true,
