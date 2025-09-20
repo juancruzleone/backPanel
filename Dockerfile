@@ -29,7 +29,7 @@ RUN npm ci --only=production && npm cache clean --force
 COPY . .
 
 # Crear directorios necesarios con permisos correctos
-RUN mkdir -p /app/public/pdfs && \
+RUN mkdir -p /app/public/pdfs/work-orders && \
     mkdir -p /app/uploads
 
 # Crear usuario no-root para seguridad
