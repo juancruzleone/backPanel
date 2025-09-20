@@ -2,7 +2,7 @@ import axios from 'axios';
 import { db } from '../db.js';
 import { ObjectId } from 'mongodb';
 import bcrypt from 'bcrypt';
-import { uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 import tenantFoldersService from './tenantFolders.services.js';
 import * as subscriptionService from './subscriptions.services.js';
 import { MP_CONFIG } from '../config/mercadopago.config.js';
