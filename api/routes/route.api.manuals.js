@@ -3,7 +3,7 @@ import * as controllers from "../controllers/controller.api.manuals.js"
 import { validateManual, validateManualPatch, validateFileUpload } from "../../middleware/manual.validate.middleware.js"
 import { isAdmin, isAdminOrTechnician } from "../../middleware/auth.role.middleware.js"
 import { validateToken } from "../../middleware/auth.validate.middleware.js"
-import { upload, uploadPDFToCloudinary, handleUploadError } from "../../middleware/upload.middleware.js"
+import { upload, uploadPDFToHetzner, handleUploadError } from "../../middleware/hetzner.upload.middleware.js"
 import { identifyTenantByHeader } from "../../middleware/tenant.middleware.js"
 
 const route = Router()
@@ -19,7 +19,7 @@ route.post(
   [validateToken, identifyTenantByHeader, isAdmin],
   upload.single("archivo"),
   handleUploadError,
-  uploadPDFToCloudinary,
+  uploadPDFToHetzner,
   validateFileUpload,
   validateManual,
   controllers.addManual,
@@ -31,7 +31,7 @@ route.put(
   [validateToken, identifyTenantByHeader, isAdmin],
   upload.single("archivo"),
   handleUploadError,
-  uploadPDFToCloudinary,
+  uploadPDFToHetzner,
   validateManual,
   controllers.putManual,
 )
@@ -45,7 +45,7 @@ route.patch(
   [validateToken, identifyTenantByHeader, isAdmin],
   upload.single("archivo"),
   handleUploadError,
-  uploadPDFToCloudinary,
+  uploadPDFToHetzner,
   validateFileUpload,
   controllers.updateManualFile,
 )

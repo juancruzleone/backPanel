@@ -7,6 +7,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 import cloudinary from "../config/cloudinary.config.js"
 import { Readable } from "stream"
+import tenantFoldersService from './tenantFolders.services.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -142,6 +143,14 @@ async function createInstallation(installationData, adminUser) {
 
     const result = await installationsCollection.insertOne(newInstallation)
     const insertedId = result.insertedId.toString()
+
+    // Crear carpeta para la nueva instalación en Hetzner Object Storage
+    try {
+      await tenantFoldersService.onInstalacionCreated(tenantId, insertedId, company);
+      console.log('✅ Carpeta de instalación creada en Hetzner:', insertedId);
+    } catch (error) {
+      console.error('⚠️ Error al crear carpeta de instalación (continuando):', error);
+    }
 
     return { ...newInstallation, _id: insertedId }
   } catch (error) {
@@ -322,6 +331,19 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
 
     if (result.modifiedCount === 0) {
       throw new Error("No se pudo asignar el activo a la instalación")
+    }
+
+    // Crear carpeta para el nuevo dispositivo en Hetzner Object Storage
+    try {
+      await tenantFoldersService.onDispositivoCreated(
+        installation.tenantId, 
+        installationId, 
+        assetId, 
+        asset.nombre
+      );
+      console.log('✅ Carpeta de dispositivo creada en Hetzner:', assetId);
+    } catch (error) {
+      console.error('⚠️ Error al crear carpeta de dispositivo (continuando):', error);
     }
 
     return {

@@ -1,6 +1,6 @@
 import { db } from "../db.js"
 import { ObjectId } from "mongodb"
-import { deleteFromCloudinary } from "../middleware/upload.middleware.js"
+import { deleteFromHetzner } from "../middleware/hetzner.upload.middleware.js"
 
 const manualsCollection = db.collection("manuales")
 
@@ -191,7 +191,7 @@ const putManual = async (id, manualData, fileData = null, tenantId = null, admin
       // Eliminar archivo anterior de Cloudinary
       if (existingManual.archivo && existingManual.archivo.publicId) {
         try {
-          await deleteFromCloudinary(existingManual.archivo.publicId)
+          await deleteFromHetzner(existingManual.archivo.publicId)
         } catch (error) {
           console.error("Error al eliminar archivo anterior:", error)
         }
@@ -298,9 +298,9 @@ const deleteManual = async (id, tenantId = null, adminUser = null) => {
     // Eliminar archivo de Cloudinary
     if (manual.archivo && manual.archivo.publicId) {
       try {
-        await deleteFromCloudinary(manual.archivo.publicId)
+        await deleteFromHetzner(manual.archivo.publicId)
       } catch (error) {
-        console.error("Error al eliminar archivo de Cloudinary:", error)
+        console.error("Error al eliminar archivo de Hetzner:", error)
       }
     }
 
@@ -333,7 +333,7 @@ const updateManualFile = async (id, fileData, tenantId = null) => {
     // Eliminar archivo anterior de Cloudinary
     if (existingManual.archivo && existingManual.archivo.publicId) {
       try {
-        await deleteFromCloudinary(existingManual.archivo.publicId)
+        await deleteFromHetzner(existingManual.archivo.publicId)
       } catch (error) {
         console.error("Error al eliminar archivo anterior:", error)
       }

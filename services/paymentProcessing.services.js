@@ -2,7 +2,8 @@ import axios from 'axios';
 import { db } from '../db.js';
 import { ObjectId } from 'mongodb';
 import bcrypt from 'bcrypt';
-import { v4 as uuidv4 } from 'uuid';
+import { uuidv4 } from 'uuid';
+import tenantFoldersService from './tenantFolders.services.js';
 import * as subscriptionService from './subscriptions.services.js';
 import { MP_CONFIG } from '../config/mercadopago.config.js';
 
@@ -249,6 +250,14 @@ class PaymentProcessingService {
             };
             
             const result = await tenantCollection.insertOne(newTenant);
+            
+            // Crear carpetas base en Hetzner Object Storage
+            try {
+                await tenantFoldersService.onTenantCreated(tenantId);
+                console.log('✅ Carpetas de Hetzner creadas para tenant:', tenantId);
+            } catch (error) {
+                console.error('⚠️ Error al crear carpetas de Hetzner (continuando):', error);
+            }
             
             console.log('✅ Tenant creado exitosamente:', {
                 tenantId,
