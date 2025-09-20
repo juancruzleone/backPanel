@@ -543,6 +543,92 @@ async function checkTenantActivePlan(userEmail) {
   }
 }
 
+// Obtener información del perfil del usuario actual
+async function getUserProfile(user) {
+  try {
+    // Obtener información completa del usuario
+    const userInfo = await cuentaCollection.findOne({ 
+      _id: new ObjectId(user._id) 
+    })
+    
+    if (!userInfo) {
+      throw new Error("Usuario no encontrado")
+    }
+
+    // Obtener información del tenant
+    let tenant = null
+    if (userInfo.tenantId) {
+      // Buscar por tenantId primero, luego por _id como fallback
+      tenant = await tenantCollection.findOne({ 
+        tenantId: userInfo.tenantId 
+      })
+      
+      if (!tenant) {
+        tenant = await tenantCollection.findOne({ 
+          _id: new ObjectId(userInfo.tenantId) 
+        })
+      }
+    }
+
+    // Obtener información del plan desde la configuración
+    let planInfo = null
+    if (tenant && tenant.plan) {
+      const { plans } = await import("../config/plans.config.js")
+      planInfo = plans[tenant.plan] || null
+    }
+
+    // Obtener información de suscripción si existe
+    const subscriptionCollection = db.collection("subscriptions")
+    let subscriptionInfo = null
+    if (tenant) {
+      subscriptionInfo = await subscriptionCollection.findOne({
+        tenantId: tenant._id.toString()
+      }, { sort: { createdAt: -1 } })
+    }
+
+    return {
+      user: {
+        name: userInfo.name,
+        email: userInfo.email,
+        userName: userInfo.userName,
+        role: userInfo.role,
+        country: userInfo.country,
+        isVerified: userInfo.isVerified,
+        status: userInfo.status,
+        lastLogin: userInfo.lastLogin
+      },
+      tenant: tenant ? {
+        name: tenant.name,
+        address: tenant.address,
+        subdomain: tenant.subdomain,
+        status: tenant.status,
+        subscriptionStatus: tenant.subscriptionStatus,
+        plan: tenant.plan,
+        maxUsers: tenant.maxUsers,
+        maxProjects: tenant.maxProjects,
+        createdAt: tenant.createdAt
+      } : null,
+      plan: planInfo ? {
+        name: planInfo.name,
+        description: planInfo.description,
+        price: planInfo.price,
+        features: planInfo.features,
+        limits: planInfo.limits
+      } : null,
+      subscription: subscriptionInfo ? {
+        status: subscriptionInfo.status,
+        frequency: subscriptionInfo.frequency,
+        expiresAt: subscriptionInfo.expiresAt,
+        createdAt: subscriptionInfo.createdAt,
+        processor: subscriptionInfo.processor
+      } : null
+    }
+  } catch (error) {
+    console.error("Error obteniendo perfil del usuario:", error)
+    throw new Error("Error al obtener información del perfil")
+  }
+}
+
 export {
   createTenant,
   getAllTenants,
@@ -555,5 +641,6 @@ export {
   updateTenantStats,
   forceUpdateTenantStats,
   checkTenantLimits,
-  checkTenantActivePlan
+  checkTenantActivePlan,
+  getUserProfile
 } 

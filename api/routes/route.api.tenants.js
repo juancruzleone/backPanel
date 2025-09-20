@@ -24,4 +24,7 @@ route.get("/tenant/check/:subdomain", controllers.getTenantBySubdomain)
 // Ruta pública para verificar si un usuario ya tiene plan activo
 route.get("/tenant/check-active-plan", controllers.checkActivePlan)
 
+// Ruta para obtener perfil del usuario actual
+route.get("/profile", [validateToken], controllers.getUserProfile)
+
 export default route 

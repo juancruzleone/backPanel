@@ -174,6 +174,20 @@ async function checkActivePlan(req, res) {
   }
 }
 
+// Obtener información del perfil del usuario actual
+async function getUserProfile(req, res) {
+  try {
+    const profile = await services.getUserProfile(req.user)
+    res.status(200).json({
+      message: "Perfil obtenido exitosamente",
+      profile
+    })
+  } catch (err) {
+    console.error("Error al obtener perfil:", err)
+    res.status(400).json({ error: { message: err.message } })
+  }
+}
+
 export {
   createTenant,
   getAllTenants,
@@ -184,5 +198,6 @@ export {
   getTenantStats,
   getGlobalStats,
   forceUpdateTenantStats,
-  checkActivePlan
+  checkActivePlan,
+  getUserProfile
 } 
