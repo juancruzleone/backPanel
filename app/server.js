@@ -32,7 +32,23 @@ app.use("/", express.static("public"))
 app.use("/uploads", express.static(path.join(__dirname, "uploads")))
 app.use("/pdfs", express.static(path.join(__dirname, "..", "public", "pdfs")))
 app.use(express.json())
-app.use(cors())
+// Configuración CORS para permitir requests desde el frontend
+const corsOptions = {
+  origin: [
+    'http://localhost:4321',
+    'https://localhost:4321', 
+    'http://127.0.0.1:4321',
+    'https://127.0.0.1:4321',
+    'https://leonix.netlify.app',
+    'https://panelmantenimiento.netlify.app',
+    process.env.FRONTEND_URL
+  ].filter(Boolean),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}
+
+app.use(cors(corsOptions))
 
 // Health check endpoint para Render
 app.get("/health", (req, res) => {
@@ -61,7 +77,7 @@ app.use("/api/payments", ApiPaymentsRoutes)
 app.use("/api/public", publicRoutes)
 
 
-const PORT = process.env.PORT || 2023
+const PORT = process.env.PORT || 3000
 
 // Iniciar servidor solo después de conectar a la DB
 const startServer = async () => {
