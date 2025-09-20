@@ -15,9 +15,14 @@ const installationsCollection = db.collection("instalaciones")
 const assetsCollection = db.collection("activos")
 
 // Asegurarse de que el directorio de PDFs exista (para respaldo local)
-const pdfDirectory = path.join(__dirname, "..", "..", "public", "pdfs")
-if (!fs.existsSync(pdfDirectory)) {
-  fs.mkdirSync(pdfDirectory, { recursive: true })
+const pdfDirectory = path.join(__dirname, "..", "public", "pdfs")
+try {
+  if (!fs.existsSync(pdfDirectory)) {
+    fs.mkdirSync(pdfDirectory, { recursive: true })
+  }
+} catch (error) {
+  console.warn("No se pudo crear directorio PDF:", error.message)
+  // Continuar sin crear el directorio si hay problemas de permisos
 }
 
 // Función para formatear la fecha en formato DD/MM/YYYY HH:MM

@@ -28,6 +28,10 @@ RUN npm ci --only=production && npm cache clean --force
 # Copiar el código fuente
 COPY . .
 
+# Crear directorios necesarios con permisos correctos
+RUN mkdir -p /app/public/pdfs && \
+    mkdir -p /app/uploads
+
 # Crear usuario no-root para seguridad
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
