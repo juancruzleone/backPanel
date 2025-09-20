@@ -41,6 +41,8 @@ const corsOptions = {
     'https://127.0.0.1:4321',
     'https://leonix.netlify.app',
     'https://panelmantenimiento.netlify.app',
+    'https://leonix.net.ar',
+    'https://www.leonix.net.ar',
     process.env.FRONTEND_URL
   ].filter(Boolean),
   credentials: true,
