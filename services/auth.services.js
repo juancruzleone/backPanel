@@ -128,8 +128,8 @@ async function login(cuenta, tenantId = null) {
   if (!esValido) throw new Error("Credenciales inválidas")
 
   // VALIDAR TENANT Y PLAN PARA ACCESO AL PANEL GMAO
-  // Rechazar usuarios sin tenantId válido o con tenantId "default"
-  if (!existe.tenantId || existe.tenantId === "default") {
+  // Permitir super_admin sin tenantId, rechazar otros usuarios sin tenantId válido
+  if (existe.role !== "super_admin" && (!existe.tenantId || existe.tenantId === "default")) {
     throw new Error("Acceso denegado. Se requiere una cuenta asociada a una organización válida.")
   }
 
