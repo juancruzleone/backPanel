@@ -3,6 +3,12 @@ node_modules/
 
 # Ignorar archivos de entorno
 .env
+.env.local
+.env.production
+.env.development
+
+# Ignorar archivos de configuración con credenciales
+config/*.config.js.backup
 
 # Ignorar la carpeta de build
 /build
