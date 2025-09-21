@@ -12,9 +12,9 @@ const options = {
   // Configuración básica de conexión
   maxPoolSize: 50,
   minPoolSize: 5,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 30000,
-  connectTimeoutMS: 10000,
+  serverSelectionTimeoutMS: 30000,  // Aumentar timeout para VPS
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 30000,          // Aumentar timeout de conexión
   family: 4,
   
   // Configuración de escritura
@@ -39,7 +39,7 @@ const options = {
 };
 
 // Configuración específica por entorno
-if (isProduction || process.env.USE_TLS === 'true') {
+if (process.env.USE_TLS === 'true') {
   console.log("🔧 Configurando MongoDB con TLS...");
   
   // Configuración TLS segura
@@ -57,7 +57,7 @@ if (isProduction || process.env.USE_TLS === 'true') {
 } else {
   console.log("🔓 Configurando MongoDB sin TLS...");
   
-  // Deshabilitar TLS
+  // Deshabilitar TLS para pruebas de conectividad
   options.tls = false;
   options.ssl = false;
   
