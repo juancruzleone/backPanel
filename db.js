@@ -7,6 +7,9 @@ dotenv.config()
 const connectionString = process.env.MONGODB_URI_CUSTOM || process.env.MONGODB_URI || '';
 const isProduction = process.env.NODE_ENV === "production";
 
+// Detectar si estamos en Coolify (mismo network)
+const isInCoolifyNetwork = process.env.COOLIFY_NETWORK === 'true' || connectionString.includes('mongodb://');
+
 // Configuración base común
 const options = {
   // Configuración básica de conexión
