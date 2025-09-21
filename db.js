@@ -20,15 +20,23 @@ const options = {
   writeConcern: { w: "majority", j: true }
 }
 
-// Agregar opciones TLS específicas para producción (opciones correctas)
+// Configuración TLS - usar opciones inseguras para evitar problemas de certificados
 if (process.env.NODE_ENV === "production") {
   options.tls = true
-  options.tlsAllowInvalidCertificates = true // Reemplaza sslValidate
+  options.tlsAllowInvalidCertificates = true
   options.tlsAllowInvalidHostnames = true
+  options.tlsInsecure = true
   options.authSource = "admin"
+  // No usar tlsCAFile ya que la aplicación corre en contenedor separado
 }
 
-const client = new MongoClient(process.env.MONGODB_URI, options)
+// Fallback sin TLS para desarrollo
+if (process.env.DISABLE_TLS === "true") {
+  options.tls = false
+  options.ssl = false
+}
+
+const client = new MongoClient(process.env.MONGODB_URI_CUSTOM || process.env.MONGODB_URI, options)
 const db = client.db("PanelMantenimiento")
 
 let isConnected = false
