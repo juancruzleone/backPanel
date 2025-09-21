@@ -20,19 +20,16 @@ const options = {
   writeConcern: { w: "majority", j: true }
 }
 
-// Configuración TLS - usar opciones compatibles para evitar problemas de certificados
-if (process.env.NODE_ENV === "production") {
+// Deshabilitar TLS por defecto - MongoDB en Coolify no acepta conexiones TLS externas
+options.tls = false
+options.ssl = false
+
+// Solo habilitar TLS si se fuerza explícitamente
+if (process.env.FORCE_TLS === "true") {
   options.tls = true
   options.tlsAllowInvalidCertificates = true
   options.tlsAllowInvalidHostnames = true
   options.authSource = "admin"
-  // Removido tlsInsecure porque es incompatible con tlsAllowInvalidCertificates
-}
-
-// Fallback sin TLS para desarrollo
-if (process.env.DISABLE_TLS === "true") {
-  options.tls = false
-  options.ssl = false
 }
 
 const client = new MongoClient(process.env.MONGODB_URI_CUSTOM || process.env.MONGODB_URI, options)
