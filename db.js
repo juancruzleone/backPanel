@@ -5,32 +5,54 @@ dotenv.config()
 
 // Configuración de opciones de conexión optimizada para escalabilidad
 const options = {
+  // Configuración básica de conexión
   maxPoolSize: 50, // Aumentar pool de conexiones para muchos tenants
-  minPoolSize: 10,
-  serverSelectionTimeoutMS: 30000,
-  socketTimeoutMS: 45000,
+  minPoolSize: 5,
+  serverSelectionTimeoutMS: 5000, // Reducir tiempo de espera para fallar rápido
+  socketTimeoutMS: 30000,
+  connectTimeoutMS: 10000,
   family: 4, // Usar IPv4
+  
+  // Configuración de escritura
   retryWrites: true,
   w: "majority",
+  
   // Configuraciones para mejor rendimiento
   maxIdleTimeMS: 30000,
-  waitQueueTimeoutMS: 2500,
+  waitQueueTimeoutMS: 5000,
+  
   // Configuraciones para replicación
-  readPreference: "secondaryPreferred", // Leer desde secundarios cuando sea posible
-  writeConcern: { w: "majority", j: true }
+  readPreference: "primaryPreferred", // Leer desde primario por defecto, secundario si no está disponible
+  writeConcern: { w: "majority", j: true },
+  
+  // Configuración de reconexión
+  retryReads: true,
+  heartbeatFrequencyMS: 10000,
+  minHeartbeatFrequencyMS: 500
 }
 
-// Habilitar TLS para MongoDB en VPS propio con certificados autogenerados
+// Configuración para producción (Coolify)
 if (process.env.NODE_ENV === "production") {
+  console.log("🔧 Configurando MongoDB para producción en Coolify...")
+  
+  // Configuración segura para producción
   options.tls = true
-  options.tlsAllowInvalidCertificates = true
-  options.tlsAllowInvalidHostnames = true
+  options.tlsAllowInvalidCertificates = true  // Importante para certificados autofirmados
+  options.tlsAllowInvalidHostnames = true    // Ignorar validación de hostname
   options.authSource = "admin"
-  console.log("🔐 TLS habilitado para MongoDB en producción")
+  
+  // Configuración específica para Coolify
+  options.directConnection = true  // Importante para conexiones directas
+  options.retryWrites = true
+  
+  console.log("🔐 Conexión segura a MongoDB configurada (TLS con validación flexible)")
 } else {
-  // Desarrollo sin TLS
+  // Configuración para desarrollo local
   options.tls = false
   options.ssl = false
+  options.directConnection = true
+  
+  console.log("🔓 Conexión local a MongoDB (sin TLS)")
 }
 
 const client = new MongoClient(process.env.MONGODB_URI_CUSTOM || process.env.MONGODB_URI, options)
@@ -44,6 +66,14 @@ const connectDB = async () => {
     console.log("📊 Ya conectado a MongoDB")
     return true
   }
+  
+  // Mostrar información de depuración
+  const connectionString = process.env.MONGODB_URI_CUSTOM || process.env.MONGODB_URI || ''
+  const showConnectionString = connectionString
+    ? `${connectionString.split('@')[0]}@[MASKED]`
+    : 'No se encontró MONGODB_URI'
+    
+  console.log('🔗 Intentando conectar a MongoDB:', showConnectionString)
 
   try {
     console.log("🔄 Conectando a MongoDB...")
