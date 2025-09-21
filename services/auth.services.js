@@ -128,46 +128,51 @@ async function login(cuenta, tenantId = null) {
   if (!esValido) throw new Error("Credenciales inválidas")
 
   // VALIDAR TENANT Y PLAN PARA ACCESO AL PANEL GMAO
-  // Permitir super_admin sin tenantId, rechazar otros usuarios sin tenantId válido
-  if (existe.role !== "super_admin" && (!existe.tenantId || existe.tenantId === "default")) {
-    throw new Error("Acceso denegado. Se requiere una cuenta asociada a una organización válida.")
-  }
-
-  try {
-    const { getTenantByTenantId } = await import("./tenants.services.js")
-    const tenant = await getTenantByTenantId(existe.tenantId)
-    
-    console.log('🏢 [LOGIN] Validando tenant:', {
-      tenantId: tenant.tenantId,
-      plan: tenant.plan,
-      status: tenant.status
-    })
-
-    // Verificar que el tenant esté activo
-    if (tenant.status !== 'active') {
-      throw new Error(`Cuenta suspendida (${tenant.status}). Contacte al administrador.`)
+  // Permitir super_admin sin validación de tenant/plan
+  if (existe.role === "super_admin") {
+    console.log('👑 [LOGIN] Super admin detectado - acceso permitido sin validación de tenant')
+  } else {
+    // Para otros usuarios, validar tenant y plan
+    if (!existe.tenantId || existe.tenantId === "default") {
+      throw new Error("Acceso denegado. Se requiere una cuenta asociada a una organización válida.")
     }
 
-    // Verificar que el tenant tenga un plan válido (no gratuito)
-    if (!tenant.plan || tenant.plan === 'free' || tenant.plan === 'trial') {
-      throw new Error("Se requiere un plan de suscripción activo para acceder al panel GMAO.")
-    }
-
-    // Verificar fecha de expiración si existe
-    if (tenant.subscriptionExpiresAt) {
-      const now = new Date()
-      const expirationDate = new Date(tenant.subscriptionExpiresAt)
+    try {
+      const { getTenantByTenantId } = await import("./tenants.services.js")
+      const tenant = await getTenantByTenantId(existe.tenantId)
       
-      if (now > expirationDate) {
-        throw new Error("Su suscripción ha expirado. Renueve su plan para continuar.")
+      console.log('🏢 [LOGIN] Validando tenant:', {
+        tenantId: tenant.tenantId,
+        plan: tenant.plan,
+        status: tenant.status
+      })
+
+      // Verificar que el tenant esté activo
+      if (tenant.status !== 'active') {
+        throw new Error(`Cuenta suspendida (${tenant.status}). Contacte al administrador.`)
       }
+
+      // Verificar que el tenant tenga un plan válido (no gratuito)
+      if (!tenant.plan || tenant.plan === 'free' || tenant.plan === 'trial') {
+        throw new Error("Se requiere un plan de suscripción activo para acceder al panel GMAO.")
+      }
+
+      // Verificar fecha de expiración si existe
+      if (tenant.subscriptionExpiresAt) {
+        const now = new Date()
+        const expirationDate = new Date(tenant.subscriptionExpiresAt)
+        
+        if (now > expirationDate) {
+          throw new Error("Su suscripción ha expirado. Renueve su plan para continuar.")
+        }
+      }
+
+      console.log('✅ [LOGIN] Tenant con plan válido - acceso permitido')
+
+    } catch (error) {
+      console.error('❌ [LOGIN] Error validando tenant:', error.message)
+      throw new Error(error.message)
     }
-
-    console.log('✅ [LOGIN] Tenant con plan válido - acceso permitido')
-
-  } catch (error) {
-    console.error('❌ [LOGIN] Error validando tenant:', error.message)
-    throw new Error(error.message)
   }
 
   // Actualizar último login
