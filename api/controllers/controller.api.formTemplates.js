@@ -186,7 +186,10 @@ async function getAllFormCategories(req, res) {
       tenantId: req.user.tenantId
     } : 'No autenticado')
     
-    const categories = await service.getAllFormCategories()
+    // Obtener tenantId del usuario autenticado
+    const tenantId = req.user?.tenantId
+    
+    const categories = await service.getAllFormCategories(tenantId)
     console.log('🔍 [DEBUG] getAllFormCategories - Categorías encontradas:', categories.length)
     
     // Devolver directamente el array para que el frontend pueda usar .filter()
@@ -241,8 +244,13 @@ async function createFormCategory(req, res) {
       })
     }
     
+    // Obtener tenantId del usuario autenticado
+    const tenantId = adminUser.tenantId
+    
     console.log("Creando categoría con datos:", categoryData)
-    const newCategory = await service.createFormCategory(categoryData)
+    console.log("TenantId del usuario:", tenantId)
+    
+    const newCategory = await service.createFormCategory(categoryData, tenantId)
     
     res.status(201).json(newCategory)
   } catch (error) {

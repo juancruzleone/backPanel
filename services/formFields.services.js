@@ -247,8 +247,19 @@ async function getFormFieldsByCategory(categoria, templateId = null, tenantId = 
 }
 
 // Funciones para categorías de formularios
-async function getAllFormCategories() {
-  return formCategoriesCollection.find({ activa: true }).sort({ nombre: 1 }).toArray()
+async function getAllFormCategories(tenantId = null) {
+  const query = { activa: true }
+  
+  // Filtrar por tenantId si se proporciona
+  if (tenantId) {
+    query.tenantId = tenantId
+  }
+  
+  console.log('🔍 [DEBUG] getAllFormCategories - Query:', query)
+  const result = await formCategoriesCollection.find(query).sort({ nombre: 1 }).toArray()
+  console.log('🔍 [DEBUG] getAllFormCategories - Resultados:', result.length)
+  
+  return result
 }
 
 async function getFormCategoryById(id) {
@@ -258,15 +269,24 @@ async function getFormCategoryById(id) {
   return formCategoriesCollection.findOne({ _id: new ObjectId(id) })
 }
 
-async function createFormCategory(categoryData) {
+async function createFormCategory(categoryData, tenantId = null) {
   const { nombre, descripcion, activa = true } = categoryData
 
   console.log('🔍 [DEBUG] createFormCategory - Datos recibidos:', categoryData)
+  console.log('🔍 [DEBUG] createFormCategory - TenantId:', tenantId)
 
-  // Verificar si ya existe una categoría con ese nombre (case-insensitive)
-  const existingCategory = await formCategoriesCollection.findOne({ 
+  // Construir query de búsqueda para duplicados
+  const duplicateQuery = { 
     nombre: { $regex: new RegExp(`^${nombre}$`, 'i') }
-  })
+  }
+  
+  // Si hay tenantId, verificar duplicados solo dentro del tenant
+  if (tenantId) {
+    duplicateQuery.tenantId = tenantId
+  }
+
+  // Verificar si ya existe una categoría con ese nombre
+  const existingCategory = await formCategoriesCollection.findOne(duplicateQuery)
   
   if (existingCategory) {
     console.log('❌ [DEBUG] Categoría duplicada encontrada:', existingCategory)
@@ -279,6 +299,11 @@ async function createFormCategory(categoryData) {
     activa,
     createdAt: new Date(),
     updatedAt: new Date(),
+  }
+
+  // Agregar tenantId si se proporciona
+  if (tenantId) {
+    newCategory.tenantId = tenantId
   }
 
   console.log('✅ [DEBUG] Creando nueva categoría:', newCategory)
