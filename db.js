@@ -35,17 +35,29 @@ const options = {
 if (process.env.NODE_ENV === "production") {
   console.log("🔧 Configurando MongoDB para producción en Coolify...")
   
-  // Configuración segura para producción
+  // Configuración TLS segura sin archivos de certificado
   options.tls = true
-  options.tlsAllowInvalidCertificates = true  // Importante para certificados autofirmados
-  options.tlsAllowInvalidHostnames = true    // Ignorar validación de hostname
+  options.tlsAllowInvalidCertificates = true  // Aceptar certificados autofirmados
+  options.tlsAllowInvalidHostnames = true     // Ignorar validación de hostname
   options.authSource = "admin"
   
+  // Forzar configuración para evitar uso de archivos de certificado
+  options.tlsInsecure = false
+  options.tlsCAFile = undefined
+  options.sslValidate = false
+  
   // Configuración específica para Coolify
-  options.directConnection = true  // Importante para conexiones directas
+  options.directConnection = true
   options.retryWrites = true
   
-  console.log("🔐 Conexión segura a MongoDB configurada (TLS con validación flexible)")
+  console.log("🔐 Conexión segura a MongoDB configurada (TLS sin validación estricta de certificados)")
+  console.log("🔧 Opciones de TLS:", {
+    tls: true,
+    tlsAllowInvalidCertificates: true,
+    tlsAllowInvalidHostnames: true,
+    tlsInsecure: false,
+    sslValidate: false
+  })
 } else {
   // Configuración para desarrollo local
   options.tls = false
@@ -78,11 +90,14 @@ const connectDB = async () => {
   try {
     console.log("🔄 Conectando a MongoDB...")
     console.log("🔧 Entorno:", process.env.NODE_ENV || "development")
-
+    
+    // Conectar con opciones explícitas
     await client.connect()
-
-    // Verificar la conexión
-    await client.db("admin").command({ ping: 1 })
+    
+    // Verificar la conexión con un comando simple
+    console.log("🔍 Verificando conexión con el servidor...")
+    const pingResult = await client.db("admin").command({ ping: 1 })
+    console.log("✅ Ping exitoso:", pingResult)
 
     isConnected = true
     console.log("✅ Conectado a la base de datos")
@@ -93,7 +108,14 @@ const connectDB = async () => {
 
     return true
   } catch (error) {
-    console.error("❌ Error al conectar a la base de datos:", error.message)
+    console.error("❌ Error al conectar a la base de datos:")
+    console.error("📌 Tipo de error:", error.name)
+    console.error("📌 Mensaje:", error.message)
+    
+    // Mostrar detalles adicionales del error
+    if (error.name === 'MongoServerSelectionError') {
+      console.error("🔍 Detalles de conexión fallida:", error.errorLabels || 'Sin detalles adicionales')
+    }
 
     // Retry logic para producción
     if (process.env.NODE_ENV === "production") {
