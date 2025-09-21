@@ -20,16 +20,17 @@ const options = {
   writeConcern: { w: "majority", j: true }
 }
 
-// Deshabilitar TLS por defecto - MongoDB en Coolify no acepta conexiones TLS externas
-options.tls = false
-options.ssl = false
-
-// Solo habilitar TLS si se fuerza explícitamente
-if (process.env.FORCE_TLS === "true") {
+// Habilitar TLS para MongoDB en VPS propio con certificados autogenerados
+if (process.env.NODE_ENV === "production") {
   options.tls = true
   options.tlsAllowInvalidCertificates = true
   options.tlsAllowInvalidHostnames = true
   options.authSource = "admin"
+  console.log("🔐 TLS habilitado para MongoDB en producción")
+} else {
+  // Desarrollo sin TLS
+  options.tls = false
+  options.ssl = false
 }
 
 const client = new MongoClient(process.env.MONGODB_URI_CUSTOM || process.env.MONGODB_URI, options)
