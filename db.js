@@ -40,17 +40,16 @@ const options = {
 
 // Configuración específica por entorno
 if (isProduction) {
-  console.log("🔧 Configurando MongoDB para PRODUCCIÓN con TLS optimizado...");
+  console.log("🔧 Configurando MongoDB para PRODUCCIÓN...");
   
-  // Configuración TLS específica para contenedores VPS
-  options.tls = true;
-  options.tlsAllowInvalidCertificates = true;  // Aceptar certificados autofirmados
-  options.tlsAllowInvalidHostnames = true;     // Ignorar validación de hostname
-  options.authSource = 'admin';
+  // SOLUCIÓN DEFINITIVA: MongoDB en Coolify NO acepta conexiones TLS externas
+  // Solo tiene TLS configurado para comunicación interna entre contenedores
+  options.tls = false;
+  options.ssl = false;
   
   // Timeouts aumentados para VPS/contenedores
   options.serverSelectionTimeoutMS = 60000;   // 60 segundos para VPS
-  options.connectTimeoutMS = 60000;           // 60 segundos para handshake TLS
+  options.connectTimeoutMS = 60000;           // 60 segundos para conexión
   options.socketTimeoutMS = 90000;            // 90 segundos para operaciones
   
   // No usar directConnection con SRV
@@ -58,7 +57,7 @@ if (isProduction) {
     options.directConnection = true;
   }
   
-  console.log("🔐 Conexión TLS para VPS configurada (timeouts extendidos para contenedores)");
+  console.log("🔓 Conexión SIN TLS para aplicaciones externas (MongoDB Coolify configurado solo para TLS interno)");
 } else if (process.env.USE_TLS === 'true') {
   console.log("🔧 Configurando MongoDB con TLS para desarrollo...");
   
