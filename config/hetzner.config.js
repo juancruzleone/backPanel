@@ -3,18 +3,30 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Verificar si estamos en desarrollo y si faltan credenciales
+const isDevelopment = process.env.NODE_ENV !== 'production';
+const hasCredentials = process.env.HETZNER_SECRET_KEY && process.env.HETZNER_ACCESS_KEY;
+
 // Configuración de Hetzner Object Storage (S3 Compatible)
 const hetznerConfig = {
-  accessKeyId: process.env.HETZNER_ACCESS_KEY || '1FPJGHH21OGY80SORF45',
-  secretAccessKey: process.env.HETZNER_SECRET_KEY,
+  accessKeyId: process.env.HETZNER_ACCESS_KEY || 'fake-dev-key',
+  secretAccessKey: process.env.HETZNER_SECRET_KEY || 'fake-dev-secret',
   endpoint: process.env.HETZNER_ENDPOINT || 'https://fsn1.your-objectstorage.com',
   region: process.env.HETZNER_REGION || 'fsn1',
   s3ForcePathStyle: true, // Necesario para Hetzner
   signatureVersion: 'v4'
 };
 
-// Crear cliente S3 para Hetzner
-const s3Client = new AWS.S3(hetznerConfig);
+// Crear cliente S3 para Hetzner solo si tenemos credenciales reales
+let s3Client = null;
+if (hasCredentials) {
+  s3Client = new AWS.S3(hetznerConfig);
+  console.log('✅ Cliente Hetzner S3 configurado');
+} else if (isDevelopment) {
+  console.log('⚠️ Modo desarrollo: Hetzner deshabilitado (faltan credenciales)');
+} else {
+  console.error('❌ Credenciales de Hetzner requeridas en producción');
+}
 
 // Configuración del bucket
 export const HETZNER_CONFIG = {

@@ -90,57 +90,109 @@ class HetznerStorageService {
 
   /**
    * Subir manual PDF a carpeta de tenant
-   * @param {Buffer} buffer - Buffer del archivo
-   * @param {string} originalName - Nombre original del archivo
+   * @param {object} file - Archivo a subir
    * @param {string} tenantId - ID del tenant
+   * @param {string} filename - Nombre del archivo
    * @returns {Promise<Object>} - Información del archivo subido
    */
-  async uploadManualPDF(buffer, originalName, tenantId) {
+  async uploadManualPDF(file, tenantId, filename) {
     try {
-      // Generar nombre único para el archivo
+      console.log(`📤 Subiendo manual PDF para tenant: ${tenantId}`);
+      
+      // En desarrollo sin credenciales, simular subida local
+      if (!s3Client) {
+        console.log('⚠️ Modo desarrollo: Simulando subida de manual');
+        
+        const timestamp = Date.now();
+        const simulatedKey = `tenants/${tenantId}/manuals/${timestamp}_${filename}`;
+        
+        const fileData = {
+          key: simulatedKey,
+          location: `http://localhost:2023/uploads/${simulatedKey}`,
+          bucket: 'local-dev',
+          etag: `"${timestamp}"`,
+          publicUrl: `http://localhost:2023/uploads/${simulatedKey}`,
+          filename: filename,
+          contentType: file.mimetype,
+          size: file.size,
+          tenantId: tenantId,
+          uploadedAt: new Date(),
+          isDevelopment: true
+        };
+        
+        console.log(`✅ Manual PDF simulado exitosamente:`, {
+          key: fileData.key,
+          publicUrl: fileData.publicUrl,
+          size: fileData.size
+        });
+        
+        return fileData;
+      }
+      
+      // Generar key único para el archivo
       const timestamp = Date.now();
-      const fileName = originalName.split('.')[0];
-      const finalFileName = `manual_${fileName}_${timestamp}.pdf`;
-      const key = FOLDER_STRUCTURE.getManualPath(tenantId, finalFileName);
-
-      // Parámetros para la subida
+      const key = FOLDER_STRUCTURE.getManualPath(tenantId, `${timestamp}_${filename}`);
+      
+      // Convertir buffer a stream si es necesario
+      let body = file.buffer;
+      
+      // Manejar diferentes tipos de buffer
+      if (file.buffer instanceof ArrayBuffer) {
+        body = Buffer.from(file.buffer);
+      } else if (Buffer.isBuffer(file.buffer)) {
+        body = file.buffer;
+      } else {
+        body = Buffer.from(file.buffer);
+      }
+      
       const uploadParams = {
         Bucket: HETZNER_CONFIG.bucket,
         Key: key,
-        Body: buffer,
-        ContentType: 'application/pdf',
-        ContentDisposition: `inline; filename="${originalName}"`,
-        ACL: 'public-read',
+        Body: body,
+        ContentType: file.mimetype || 'application/pdf',
+        ContentDisposition: `inline; filename="${filename}"`,
+        // Metadatos adicionales
         Metadata: {
-          'original-name': originalName,
-          'upload-timestamp': timestamp.toString(),
-          'content-type': 'application/pdf',
           'tenant-id': tenantId,
-          'file-type': 'manual'
+          'upload-date': new Date().toISOString(),
+          'original-name': filename
         }
       };
-
+      
+      console.log(`📋 Parámetros de subida:`, {
+        bucket: uploadParams.Bucket,
+        key: uploadParams.Key,
+        contentType: uploadParams.ContentType,
+        tenantId
+      });
+      
       const result = await s3Client.upload(uploadParams).promise();
-      const publicUrl = `${HETZNER_CONFIG.publicUrl}/${key}`;
-
-      return {
-        secure_url: publicUrl,
-        public_id: key,
-        original_filename: originalName,
-        bytes: buffer.length,
-        format: 'pdf',
-        resource_type: 'raw',
-        created_at: new Date().toISOString(),
-        bucket: HETZNER_CONFIG.bucket,
-        key: key,
-        etag: result.ETag,
+      
+      const fileData = {
+        key: result.Key,
         location: result.Location,
-        tenant_id: tenantId,
-        file_type: 'manual'
+        bucket: result.Bucket,
+        etag: result.ETag,
+        // URL pública para acceso directo
+        publicUrl: `${HETZNER_CONFIG.publicUrl}/${result.Key}`,
+        // Información adicional
+        filename: filename,
+        contentType: file.mimetype,
+        size: file.size,
+        tenantId: tenantId,
+        uploadedAt: new Date()
       };
-
+      
+      console.log(`✅ Manual PDF subido exitosamente:`, {
+        key: fileData.key,
+        publicUrl: fileData.publicUrl,
+        size: fileData.size
+      });
+      
+      return fileData;
+      
     } catch (error) {
-      console.error('Error al subir manual PDF:', error);
+      console.error('❌ Error al subir manual PDF:', error);
       throw new Error(`Error al subir manual: ${error.message}`);
     }
   }

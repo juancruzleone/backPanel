@@ -37,19 +37,19 @@ const uploadPDFToHetzner = async (req, res, next) => {
 
     // Subir manual PDF a carpeta específica del tenant
     const result = await hetznerService.uploadManualPDF(
-      req.file.buffer, 
-      req.file.originalname,
-      tenantId
+      req.file, 
+      tenantId,
+      req.file.originalname
     );
 
     // Agregar información del archivo subido al request
     // Mantener la misma estructura que Cloudinary para compatibilidad
     req.cloudinaryFile = {
-      secure_url: result.secure_url,
-      public_id: result.public_id,
-      original_filename: result.original_filename,
-      bytes: result.bytes,
-      format: result.format,
+      secure_url: result.publicUrl || result.location,
+      public_id: result.key,
+      original_filename: result.filename,
+      bytes: result.size,
+      format: 'pdf',
       resource_type: result.resource_type,
       created_at: result.created_at,
       // Información adicional de Hetzner
