@@ -20,14 +20,13 @@ const options = {
   writeConcern: { w: "majority", j: true }
 }
 
-// Configuración TLS - usar opciones inseguras para evitar problemas de certificados
+// Configuración TLS - usar opciones compatibles para evitar problemas de certificados
 if (process.env.NODE_ENV === "production") {
   options.tls = true
   options.tlsAllowInvalidCertificates = true
   options.tlsAllowInvalidHostnames = true
-  options.tlsInsecure = true
   options.authSource = "admin"
-  // No usar tlsCAFile ya que la aplicación corre en contenedor separado
+  // Removido tlsInsecure porque es incompatible con tlsAllowInvalidCertificates
 }
 
 // Fallback sin TLS para desarrollo
