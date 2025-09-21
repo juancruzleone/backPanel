@@ -50,8 +50,8 @@ const uploadPDFToHetzner = async (req, res, next) => {
       original_filename: result.filename,
       bytes: result.size,
       format: 'pdf',
-      resource_type: result.resource_type,
-      created_at: result.created_at,
+      resource_type: 'raw', // Para PDFs
+      created_at: result.uploadedAt || new Date(),
       // Información adicional de Hetzner
       hetzner: {
         bucket: result.bucket,
@@ -61,7 +61,7 @@ const uploadPDFToHetzner = async (req, res, next) => {
       }
     };
 
-    console.log(`✅ Archivo subido a Hetzner: ${result.secure_url}`);
+    console.log(`✅ Archivo subido a Hetzner: ${result.publicUrl}`);
     next();
 
   } catch (error) {

@@ -47,14 +47,28 @@ const addManual = async (req, res) => {
     const adminUser = req.user
     const tenantId = req.user.tenantId
     
+    console.log("📋 [ADD MANUAL] Datos recibidos:", {
+      manualData,
+      fileData: fileData ? { 
+        secure_url: fileData.secure_url, 
+        public_id: fileData.public_id,
+        bytes: fileData.bytes,
+        format: fileData.format 
+      } : null,
+      adminUser: { id: adminUser.id, role: adminUser.role },
+      tenantId
+    })
+    
     // Verificar que el usuario sea admin del tenant
     if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+      console.log("❌ [ADD MANUAL] Error de permisos")
       return res.status(403).json({
         error: { message: "No tienes permisos para crear manuales" }
       })
     }
 
     if (!fileData) {
+      console.log("❌ [ADD MANUAL] No se encontró archivo")
       return res.status(400).json({
         error: { message: "Se requiere un archivo PDF" },
       })
@@ -62,20 +76,39 @@ const addManual = async (req, res) => {
 
     // Agregar tenantId a los datos del manual
     manualData.tenantId = tenantId
-    manualData.createdBy = adminUser._id
+    manualData.createdBy = adminUser.id || adminUser._id
+
+    console.log("🔄 [ADD MANUAL] Llamando al servicio con datos:", {
+      tenantId: manualData.tenantId,
+      createdBy: manualData.createdBy,
+      assetId: manualData.assetId,
+      categoria: manualData.categoria
+    })
 
     const newManual = await service.addManual(manualData, fileData, adminUser)
+    console.log("✅ [ADD MANUAL] Manual creado exitosamente:", newManual._id)
     res.status(201).json(newManual)
   } catch (error) {
-    console.error("Error al agregar manual:", error)
+    console.error("❌ [ADD MANUAL] Error completo:", error)
+    console.error("❌ [ADD MANUAL] Stack trace:", error.stack)
     
     // Manejar errores específicos de duplicados
     if (error.message.includes("Ya existe un manual de la categoría")) {
+      console.log("⚠️ [ADD MANUAL] Error de duplicado:", error.message)
       return res.status(409).json({
         error: { message: error.message },
       })
     }
     
+    // Manejar errores de validación
+    if (error.message.includes("Se requiere") || error.message.includes("no es válido")) {
+      console.log("⚠️ [ADD MANUAL] Error de validación:", error.message)
+      return res.status(400).json({
+        error: { message: error.message },
+      })
+    }
+    
+    console.log("💥 [ADD MANUAL] Error interno del servidor:", error.message)
     res.status(500).json({
       error: { message: error.message || "Error interno del servidor" },
     })
