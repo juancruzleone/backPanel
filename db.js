@@ -3,15 +3,19 @@ import dotenv from "dotenv"
 
 dotenv.config()
 
-// Configuración de opciones de conexión optimizada para escalabilidad
+// Primero obtenemos la cadena de conexión para determinar si es local o remota
+const connectionString = process.env.MONGODB_URI_CUSTOM || process.env.MONGODB_URI || '';
+const isProduction = process.env.NODE_ENV === "production";
+
+// Configuración base común
 const options = {
   // Configuración básica de conexión
-  maxPoolSize: 50, // Aumentar pool de conexiones para muchos tenants
+  maxPoolSize: 50,
   minPoolSize: 5,
-  serverSelectionTimeoutMS: 5000, // Reducir tiempo de espera para fallar rápido
+  serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 30000,
   connectTimeoutMS: 10000,
-  family: 4, // Usar IPv4
+  family: 4,
   
   // Configuración de escritura
   retryWrites: true,
@@ -22,50 +26,50 @@ const options = {
   waitQueueTimeoutMS: 5000,
   
   // Configuraciones para replicación
-  readPreference: "primaryPreferred", // Leer desde primario por defecto, secundario si no está disponible
+  readPreference: "primaryPreferred",
   writeConcern: { w: "majority", j: true },
   
   // Configuración de reconexión
   retryReads: true,
   heartbeatFrequencyMS: 10000,
-  minHeartbeatFrequencyMS: 500
+  minHeartbeatFrequencyMS: 500,
+  
+  // Configuración de autenticación
+  authSource: "admin"
+};
+
+// Configuración específica por entorno
+if (isProduction || process.env.USE_TLS === 'true') {
+  console.log("🔧 Configurando MongoDB con TLS...");
+  
+  // Configuración TLS segura
+  options.tls = true;
+  options.tlsAllowInvalidCertificates = true;  // Aceptar certificados autofirmados
+  options.tlsAllowInvalidHostnames = true;     // Ignorar validación de hostname
+  options.authSource = 'admin';
+  
+  // No usar directConnection con SRV
+  if (!connectionString.includes('mongodb+srv://')) {
+    options.directConnection = true;
+  }
+  
+  console.log("🔐 Conexión segura a MongoDB configurada (TLS con validación flexible)");
+} else {
+  console.log("🔓 Configurando MongoDB sin TLS...");
+  
+  // Deshabilitar TLS
+  options.tls = false;
+  options.ssl = false;
+  
+  // Solo usar directConnection si no es una cadena SRV
+  if (!connectionString.includes('mongodb+srv://')) {
+    options.directConnection = true;
+  }
+  
+  console.log("🔓 Conexión a MongoDB sin TLS");
 }
 
-// Configuración para producción (Coolify)
-if (process.env.NODE_ENV === "production") {
-  console.log("🔧 Configurando MongoDB para producción en Coolify...")
-  
-  // Configuración TLS segura sin archivos de certificado
-  options.tls = true
-  options.tlsAllowInvalidCertificates = true  // Aceptar certificados autofirmados
-  options.tlsAllowInvalidHostnames = true     // Ignorar validación de hostname
-  options.authSource = "admin"
-  
-  // Forzar configuración para evitar uso de archivos de certificado
-  options.tlsInsecure = false
-  options.tlsCAFile = undefined
-  options.sslValidate = false
-  
-  // Configuración específica para Coolify
-  options.directConnection = true
-  options.retryWrites = true
-  
-  console.log("🔐 Conexión segura a MongoDB configurada (TLS sin validación estricta de certificados)")
-  console.log("🔧 Opciones de TLS:", {
-    tls: true,
-    tlsAllowInvalidCertificates: true,
-    tlsAllowInvalidHostnames: true,
-    tlsInsecure: false,
-    sslValidate: false
-  })
-} else {
-  // Configuración para desarrollo local
-  options.tls = false
-  options.ssl = false
-  options.directConnection = true
-  
-  console.log("🔓 Conexión local a MongoDB (sin TLS)")
-}
+// La configuración ahora está arriba, en la definición de options
 
 const client = new MongoClient(process.env.MONGODB_URI_CUSTOM || process.env.MONGODB_URI, options)
 const db = client.db("PanelMantenimiento")
@@ -79,13 +83,18 @@ const connectDB = async () => {
     return true
   }
   
-  // Mostrar información de depuración
-  const connectionString = process.env.MONGODB_URI_CUSTOM || process.env.MONGODB_URI || ''
+  // Mostrar información de depuración segura
   const showConnectionString = connectionString
     ? `${connectionString.split('@')[0]}@[MASKED]`
     : 'No se encontró MONGODB_URI'
     
   console.log('🔗 Intentando conectar a MongoDB:', showConnectionString)
+  console.log('🔧 Opciones de conexión:', {
+    tls: options.tls,
+    tlsAllowInvalidCertificates: options.tlsAllowInvalidCertificates,
+    directConnection: options.directConnection,
+    isProduction: isProduction
+  })
 
   try {
     console.log("🔄 Conectando a MongoDB...")
