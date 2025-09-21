@@ -32,7 +32,10 @@ async function getFormTemplateById(id, tenantId = null) {
       query.tenantId = tenantId
     }
 
+    console.log('🔍 [DEBUG] getFormTemplateById - Query:', query)
     const template = await formTemplatesCollection.findOne(query)
+    console.log('🔍 [DEBUG] getFormTemplateById - Resultado:', template ? 'Encontrada' : 'No encontrada')
+    
     return template
   } catch (error) {
     console.error("Error en getFormTemplateById:", error)
@@ -41,8 +44,11 @@ async function getFormTemplateById(id, tenantId = null) {
 }
 
 // Crear una nueva plantilla de formulario
-async function createFormTemplate(templateData) {
+async function createFormTemplate(templateData, tenantId = null) {
   const { nombre, descripcion, categoria, campos } = templateData
+
+  console.log('🔍 [DEBUG] createFormTemplate - Datos recibidos:', templateData)
+  console.log('🔍 [DEBUG] createFormTemplate - TenantId:', tenantId)
 
   // Validar que los campos tengan la estructura correcta
   if (!Array.isArray(campos) || campos.length === 0) {
@@ -72,6 +78,12 @@ async function createFormTemplate(templateData) {
     updatedAt: new Date(),
   }
 
+  // Agregar tenantId si se proporciona
+  if (tenantId) {
+    newTemplate.tenantId = tenantId
+  }
+
+  console.log('✅ [DEBUG] Creando nueva plantilla:', newTemplate)
   const result = await formTemplatesCollection.insertOne(newTemplate)
   return { ...newTemplate, _id: result.insertedId }
 }
@@ -117,7 +129,9 @@ async function updateFormTemplate(id, templateData, tenantId = null) {
       query.tenantId = tenantId
     }
 
+    console.log('🔍 [DEBUG] updateFormTemplate - Query:', query)
     const result = await formTemplatesCollection.updateOne(query, { $set: updatedTemplate })
+    console.log('🔍 [DEBUG] updateFormTemplate - Resultado:', result.matchedCount, 'documentos encontrados')
 
     if (result.matchedCount === 0) {
       throw new Error("Plantilla no encontrada")
@@ -152,7 +166,9 @@ async function deleteFormTemplate(id, tenantId = null) {
       query.tenantId = tenantId
     }
 
+    console.log('🔍 [DEBUG] deleteFormTemplate - Query:', query)
     const result = await formTemplatesCollection.deleteOne(query)
+    console.log('🔍 [DEBUG] deleteFormTemplate - Resultado:', result.deletedCount, 'documentos eliminados')
 
     if (result.deletedCount === 0) {
       throw new Error("Plantilla no encontrada")
@@ -173,7 +189,10 @@ async function getFormTemplatesByCategory(categoria, tenantId = null) {
       query.tenantId = tenantId
     }
     
+    console.log('🔍 [DEBUG] getFormTemplatesByCategory - Query:', query)
     const templates = await formTemplatesCollection.find(query).sort({ nombre: 1 }).toArray()
+    console.log('🔍 [DEBUG] getFormTemplatesByCategory - Resultados:', templates.length)
+    
     return templates
   } catch (error) {
     console.error("Error en getFormTemplatesByCategory:", error)

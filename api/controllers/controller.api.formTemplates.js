@@ -4,7 +4,11 @@ import * as service from "../../services/formFields.services.js"
 async function getAllFormTemplates(req, res) {
   try {
     const tenantId = req.user.tenantId
+    console.log('🔍 [DEBUG] getAllFormTemplates - TenantId:', tenantId)
+    
     const templates = await service.getAllFormTemplates(tenantId)
+    console.log('🔍 [DEBUG] getAllFormTemplates - Plantillas encontradas:', templates.length)
+    
     res.status(200).json(templates)
   } catch (error) {
     console.error("Error al obtener plantillas:", error)
@@ -17,6 +21,8 @@ async function getFormTemplateById(req, res) {
   try {
     const { id } = req.params
     const tenantId = req.user.tenantId
+    console.log('🔍 [DEBUG] getFormTemplateById - ID:', id, 'TenantId:', tenantId)
+    
     const template = await service.getFormTemplateById(id, tenantId)
     if (!template) {
       return res.status(404).json({ error: "Plantilla no encontrada" })
@@ -93,11 +99,10 @@ async function createFormTemplate(req, res) {
       })
     }
 
-    // Agregar tenantId a los datos de la plantilla
-    templateData.tenantId = tenantId
+    // Agregar createdBy a los datos de la plantilla
     templateData.createdBy = adminUser._id
 
-    const newTemplate = await service.createFormTemplate(templateData, adminUser)
+    const newTemplate = await service.createFormTemplate(templateData, tenantId)
     res.status(201).json(newTemplate)
   } catch (error) {
     console.error("Error al crear plantilla:", error)
@@ -132,7 +137,8 @@ async function updateFormTemplate(req, res) {
       })
     }
 
-    const updatedTemplate = await service.updateFormTemplate(id, templateData, tenantId, adminUser)
+    console.log('🔍 [DEBUG] updateFormTemplate - ID:', id, 'TenantId:', tenantId)
+    const updatedTemplate = await service.updateFormTemplate(id, templateData, tenantId)
     res.status(200).json(updatedTemplate)
   } catch (error) {
     console.error("Error al actualizar plantilla:", error)
@@ -154,7 +160,8 @@ async function deleteFormTemplate(req, res) {
       })
     }
     
-    await service.deleteFormTemplate(id, tenantId, adminUser)
+    console.log('🔍 [DEBUG] deleteFormTemplate - ID:', id, 'TenantId:', tenantId)
+    await service.deleteFormTemplate(id, tenantId)
     res.status(200).json({ message: "Plantilla eliminada exitosamente" })
   } catch (error) {
     console.error("Error al eliminar plantilla:", error)
@@ -167,6 +174,8 @@ async function getFormTemplatesByCategory(req, res) {
   try {
     const { categoria } = req.params
     const tenantId = req.user.tenantId
+    console.log('🔍 [DEBUG] getFormTemplatesByCategory - Categoría:', categoria, 'TenantId:', tenantId)
+    
     const templates = await service.getFormTemplatesByCategory(categoria, tenantId)
     res.status(200).json(templates)
   } catch (error) {
