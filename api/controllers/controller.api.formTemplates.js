@@ -178,7 +178,17 @@ async function getFormTemplatesByCategory(req, res) {
 // Controladores para categorías de formularios
 async function getAllFormCategories(req, res) {
   try {
+    console.log('🔍 [DEBUG] getAllFormCategories - Headers recibidos:', req.headers)
+    console.log('🔍 [DEBUG] getAllFormCategories - Usuario autenticado:', req.user ? {
+      id: req.user._id,
+      email: req.user.email,
+      role: req.user.role,
+      tenantId: req.user.tenantId
+    } : 'No autenticado')
+    
     const categories = await service.getAllFormCategories()
+    console.log('🔍 [DEBUG] getAllFormCategories - Categorías encontradas:', categories.length)
+    
     // Devolver directamente el array para que el frontend pueda usar .filter()
     res.status(200).json(categories)
   } catch (error) {
@@ -205,6 +215,15 @@ async function getFormCategoryById(req, res) {
 
 async function createFormCategory(req, res) {
   try {
+    console.log('🔍 [DEBUG] createFormCategory - Headers recibidos:', req.headers)
+    console.log('🔍 [DEBUG] createFormCategory - Usuario autenticado:', req.user ? {
+      id: req.user._id,
+      email: req.user.email,
+      role: req.user.role,
+      tenantId: req.user.tenantId
+    } : 'No autenticado')
+    console.log('🔍 [DEBUG] createFormCategory - Datos recibidos:', req.body)
+    
     const categoryData = req.body
     const adminUser = req.user
     

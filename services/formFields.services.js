@@ -261,20 +261,27 @@ async function getFormCategoryById(id) {
 async function createFormCategory(categoryData) {
   const { nombre, descripcion, activa = true } = categoryData
 
-  // Verificar si ya existe una categoría con ese nombre
-  const existingCategory = await formCategoriesCollection.findOne({ nombre })
+  console.log('🔍 [DEBUG] createFormCategory - Datos recibidos:', categoryData)
+
+  // Verificar si ya existe una categoría con ese nombre (case-insensitive)
+  const existingCategory = await formCategoriesCollection.findOne({ 
+    nombre: { $regex: new RegExp(`^${nombre}$`, 'i') }
+  })
+  
   if (existingCategory) {
-    throw new Error("Ya existe una categoría con ese nombre")
+    console.log('❌ [DEBUG] Categoría duplicada encontrada:', existingCategory)
+    throw new Error(`Ya existe una categoría con el nombre "${nombre}"`)
   }
 
   const newCategory = {
-    nombre,
-    descripcion,
+    nombre: nombre.trim(),
+    descripcion: descripcion ? descripcion.trim() : '',
     activa,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
 
+  console.log('✅ [DEBUG] Creando nueva categoría:', newCategory)
   const result = await formCategoriesCollection.insertOne(newCategory)
   return { ...newCategory, _id: result.insertedId }
 }
