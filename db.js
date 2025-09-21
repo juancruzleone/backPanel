@@ -39,16 +39,36 @@ const options = {
 };
 
 // Configuración específica por entorno
-if (process.env.USE_TLS === 'true') {
-  console.log("🔧 Configurando MongoDB con TLS...");
+if (isProduction) {
+  console.log("🔧 Configurando MongoDB para PRODUCCIÓN con TLS optimizado...");
   
-  // Configuración TLS segura
+  // Configuración TLS específica para contenedores VPS
   options.tls = true;
   options.tlsAllowInvalidCertificates = true;  // Aceptar certificados autofirmados
   options.tlsAllowInvalidHostnames = true;     // Ignorar validación de hostname
+  options.tlsInsecure = false;                 // No usar tlsInsecure con tlsAllowInvalidCertificates
   options.authSource = 'admin';
   
+  // Timeouts aumentados para VPS/contenedores
+  options.serverSelectionTimeoutMS = 60000;   // 60 segundos para VPS
+  options.connectTimeoutMS = 60000;           // 60 segundos para handshake TLS
+  options.socketTimeoutMS = 90000;            // 90 segundos para operaciones
+  
   // No usar directConnection con SRV
+  if (!connectionString.includes('mongodb+srv://')) {
+    options.directConnection = true;
+  }
+  
+  console.log("🔐 Conexión TLS para VPS configurada (timeouts extendidos para contenedores)");
+} else if (process.env.USE_TLS === 'true') {
+  console.log("🔧 Configurando MongoDB con TLS para desarrollo...");
+  
+  // Configuración TLS para desarrollo local
+  options.tls = true;
+  options.tlsAllowInvalidCertificates = true;
+  options.tlsAllowInvalidHostnames = true;
+  options.authSource = 'admin';
+  
   if (!connectionString.includes('mongodb+srv://')) {
     options.directConnection = true;
   }
