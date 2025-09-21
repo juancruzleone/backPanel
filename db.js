@@ -46,7 +46,6 @@ if (isProduction) {
   options.tls = true;
   options.tlsAllowInvalidCertificates = true;  // Aceptar certificados autofirmados
   options.tlsAllowInvalidHostnames = true;     // Ignorar validación de hostname
-  options.tlsInsecure = false;                 // No usar tlsInsecure con tlsAllowInvalidCertificates
   options.authSource = 'admin';
   
   // Timeouts aumentados para VPS/contenedores
