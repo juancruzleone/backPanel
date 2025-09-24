@@ -3,8 +3,8 @@
 export const PLANS_CONFIG = {
   starter: {
     name: "Starter",
-    price: 35000,
-    yearlyPrice: 29750, // 15% descuento
+    price: 15,
+    yearlyPrice: 12.75, // 15% descuento
     maxUsers: 3, // 3 usuarios (frontend)
     maxFacilities: 2, // 2 instalaciones (frontend)
     maxAssets: 6, // 6 activos (frontend)
@@ -96,7 +96,7 @@ export const PLANS_CONFIG = {
   // Planes anuales específicos - mantienen las mismas características que los mensuales
   'starter-yearly': {
     name: "Starter Anual",
-    price: 29750, // 15% descuento anual
+    price: 12.75, // 15% descuento anual
     frequency: 'yearly',
     maxUsers: 3, // 3 usuarios (frontend)
     maxFacilities: 2, // 2 instalaciones (frontend)
@@ -189,8 +189,8 @@ export const PLANS_CONFIG = {
   // Alias para compatibilidad con nombres anteriores
   basic: {
     name: "Starter",
-    price: 35000,
-    yearlyPrice: 29750,
+    price: 15,
+    yearlyPrice: 12.75,
     maxUsers: 3, // 3 usuarios (frontend)
     maxFacilities: 2, // 2 instalaciones (frontend)
     maxAssets: 6, // 6 activos (frontend)
@@ -218,7 +218,7 @@ export const PLANS_CONFIG = {
   },
   'basic-yearly': {
     name: "Starter Anual",
-    price: 29750,
+    price: 12.75,
     frequency: 'yearly',
     maxUsers: 3, // 3 usuarios (frontend)
     maxFacilities: 2, // 2 instalaciones (frontend)
