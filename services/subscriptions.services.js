@@ -115,7 +115,7 @@ async function createMercadoPagoCheckout({ planId, tenantId, successUrl, failure
     const subscriptionData = {
       reason: `Plan ${plan.name} - ${tenant.name}`,
       external_reference: `${tenantId}_${planId}_${Date.now()}`,
-      payer_email: tenant.email || 'contacto@leonix.net.ar',
+      payer_email: 'test_user_622478383@testuser.com',
       back_url: successUrl || 'https://leonix.vercel.app/subscription/success',
       auto_recurring: {
         frequency: frequency,
@@ -202,27 +202,54 @@ async function processPaymentNotification(paymentId) {
     console.log('💳 Datos del pago:', JSON.stringify(paymentData, null, 2));
 
     // 2. Extraer información relevante
-    const { external_reference, status, status_detail } = paymentData;
+    const { external_reference, status, status_detail, payer } = paymentData;
+    
+    if (!external_reference) {
+      console.log('⚠️ No hay external_reference en el pago, buscando por preapproval_id');
+      // Si no hay external_reference, intentar encontrar la suscripción por preapproval_id
+      const preapprovalId = paymentData.preapproval_id;
+      if (preapprovalId) {
+        const subscription = await subscriptionsCollection.findOne({ 
+          mpSubscriptionId: preapprovalId 
+        });
+        if (subscription) {
+          return await processSubscriptionPaymentById(paymentId, subscription.tenantId, subscription.planId);
+        }
+      }
+      throw new Error('No se pudo identificar la suscripción para este pago');
+    }
+
     const [tenantId, planId] = external_reference.split('_');
 
-    // 3. Guardar información del pago
+    // 3. Manejar payer_email vacío - usar email del tenant
+    let payerEmail = payer?.email || '';
+    if (!payerEmail) {
+      console.log('⚠️ payer_email vacío, obteniendo email del tenant');
+      const tenant = await tenantsCollection.findOne({ tenantId: tenantId });
+      payerEmail = tenant?.email || 'sin-email@leonix.net.ar';
+      console.log('📧 Email del tenant usado:', payerEmail);
+    }
+
+    // 4. Guardar información del pago
     const paymentRecord = {
       paymentId: paymentId,
       externalReference: external_reference,
       tenantId,
-      planId: new ObjectId(planId),
+      planId: planId,
       status,
       statusDetail: status_detail,
       amount: paymentData.transaction_amount,
       currency: paymentData.currency_id,
       paymentMethod: paymentData.payment_method_id,
+      payerEmail: payerEmail,
+      preapprovalId: paymentData.preapproval_id,
       rawData: paymentData,
       processedAt: new Date()
     };
 
     await paymentsCollection.insertOne(paymentRecord);
 
-    // 4. Actualizar suscripción si el pago fue aprobado
+    // 5. Actualizar suscripción si el pago fue aprobado
     if (status === 'approved') {
       await activateSubscription(tenantId, planId, paymentData);
     }
@@ -232,11 +259,125 @@ async function processPaymentNotification(paymentId) {
       message: 'Notificación procesada',
       status,
       tenantId,
-      planId
+      planId,
+      payerEmail
     };
 
   } catch (error) {
     console.error('❌ Error procesando notificación:', error);
+    throw error;
+  }
+}
+
+// Procesar notificación de subscription_preapproval
+async function processSubscriptionPreapproval(subscriptionId) {
+  try {
+    console.log('📋 Procesando subscription_preapproval:', subscriptionId);
+
+    // 1. Obtener información de la suscripción desde MercadoPago
+    const mpResponse = await fetch(`${MP_CONFIG.BASE_URL}/preapproval/${subscriptionId}`, {
+      headers: {
+        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`
+      }
+    });
+
+    if (!mpResponse.ok) {
+      throw new Error(`Error obteniendo suscripción: ${mpResponse.status}`);
+    }
+
+    const subscriptionData = await mpResponse.json();
+    console.log('📋 Datos de suscripción:', JSON.stringify(subscriptionData, null, 2));
+
+    // 2. Extraer información relevante
+    const { external_reference, status, payer_email } = subscriptionData;
+    
+    if (!external_reference) {
+      throw new Error('No hay external_reference en la suscripción');
+    }
+
+    const [tenantId, planId] = external_reference.split('_');
+
+    // 3. Actualizar el registro de suscripción con el ID real de MercadoPago
+    await subscriptionsCollection.updateOne(
+      { 
+        tenantId: tenantId,
+        externalReference: external_reference
+      },
+      {
+        $set: {
+          mpSubscriptionId: subscriptionId,
+          status: status,
+          payerEmail: payer_email || '',
+          subscriptionData: subscriptionData,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    console.log('✅ Suscripción actualizada con ID de MercadoPago:', subscriptionId);
+
+    return {
+      success: true,
+      message: 'Subscription preapproval procesado',
+      subscriptionId,
+      tenantId,
+      planId,
+      status
+    };
+
+  } catch (error) {
+    console.error('❌ Error procesando subscription_preapproval:', error);
+    throw error;
+  }
+}
+
+// Procesar pago autorizado de suscripción
+async function processSubscriptionPayment(paymentId) {
+  try {
+    console.log('🔄 Procesando pago de suscripción:', paymentId);
+    
+    // Usar el mismo flujo que processPaymentNotification pero con lógica específica para suscripciones
+    return await processPaymentNotification(paymentId);
+    
+  } catch (error) {
+    console.error('❌ Error procesando pago de suscripción:', error);
+    throw error;
+  }
+}
+
+// Función auxiliar para procesar pagos por ID de suscripción
+async function processSubscriptionPaymentById(paymentId, tenantId, planId) {
+  try {
+    console.log('🔄 Procesando pago por ID de suscripción:', { paymentId, tenantId, planId });
+
+    // Obtener información del pago
+    const mpResponse = await fetch(`${MP_CONFIG.BASE_URL}/v1/payments/${paymentId}`, {
+      headers: {
+        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`
+      }
+    });
+
+    if (!mpResponse.ok) {
+      throw new Error(`Error obteniendo pago: ${mpResponse.status}`);
+    }
+
+    const paymentData = await mpResponse.json();
+    
+    // Activar suscripción si el pago fue aprobado
+    if (paymentData.status === 'approved') {
+      await activateSubscription(tenantId, planId, paymentData);
+    }
+
+    return {
+      success: true,
+      message: 'Pago de suscripción procesado',
+      status: paymentData.status,
+      tenantId,
+      planId
+    };
+
+  } catch (error) {
+    console.error('❌ Error procesando pago por ID:', error);
     throw error;
   }
 }
@@ -357,6 +498,8 @@ async function getSubscriptionStatus(tenantId) {
 export { 
   createMercadoPagoCheckout, 
   processPaymentNotification, 
+  processSubscriptionPreapproval,
+  processSubscriptionPayment,
   activateSubscription,
   getSubscriptionStatus 
 };

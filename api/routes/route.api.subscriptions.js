@@ -31,4 +31,7 @@ route.get("/status", [
   identifyTenantByToken
 ], controllers.getSubscriptionStatus)
 
+// ✅ Activar suscripción manualmente (para testing)
+route.post("/activate/:subscriptionId", controllers.activateSubscriptionManually)
+
 export default route

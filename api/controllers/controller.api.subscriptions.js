@@ -94,9 +94,24 @@ async function mercadoPagoWebhook(req, res) {
     
     console.log('🔔 Webhook MercadoPago recibido:', { type, data });
 
+    // Manejar diferentes tipos de eventos
     if (type === 'payment') {
+      console.log('💳 Procesando notificación de pago:', data.id);
       const result = await subscriptionServices.processPaymentNotification(data.id);
       console.log('✅ Pago procesado:', result);
+    } 
+    else if (type === 'subscription_preapproval') {
+      console.log('📋 Procesando notificación de suscripción preapproval:', data.id);
+      const result = await subscriptionServices.processSubscriptionPreapproval(data.id);
+      console.log('✅ Suscripción preapproval procesada:', result);
+    }
+    else if (type === 'subscription_authorized_payment') {
+      console.log('🔄 Procesando pago autorizado de suscripción:', data.id);
+      const result = await subscriptionServices.processSubscriptionPayment(data.id);
+      console.log('✅ Pago de suscripción procesado:', result);
+    }
+    else {
+      console.log('⚠️ Tipo de evento no manejado:', type);
     }
 
     res.status(200).send('OK');
@@ -132,8 +147,70 @@ async function getSubscriptionStatus(req, res) {
   }
 }
 
+// Activar suscripción manualmente (para testing)
+async function activateSubscriptionManually(req, res) {
+  try {
+    const { subscriptionId } = req.params;
+    
+    console.log('🔧 Activando suscripción manualmente:', subscriptionId);
+    
+    // Buscar la suscripción en BD
+    const { db } = await import('../../db.js');
+    const subscription = await db.collection('subscriptions').findOne({
+      mpSubscriptionId: subscriptionId
+    });
+    
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Suscripción no encontrada'
+      });
+    }
+    
+    console.log('📋 Suscripción encontrada:', {
+      tenantId: subscription.tenantId,
+      planId: subscription.planId,
+      status: subscription.status
+    });
+    
+    // Simular datos de pago exitoso
+    const mockPaymentData = {
+      id: `manual_${Date.now()}`,
+      status: 'approved',
+      external_reference: subscription.externalReference,
+      transaction_amount: subscription.amount,
+      currency_id: subscription.currency,
+      preapproval_id: subscriptionId
+    };
+    
+    // Activar la suscripción
+    const result = await subscriptionServices.activateSubscription(
+      subscription.tenantId, 
+      subscription.planId, 
+      mockPaymentData
+    );
+    
+    console.log('✅ Suscripción activada manualmente:', result);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Suscripción activada exitosamente',
+      data: result
+    });
+    
+  } catch (error) {
+    console.error('❌ Error activando suscripción manualmente:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+      error: error.message
+    });
+  }
+}
+
 export { 
   createCheckout, 
   mercadoPagoWebhook, 
-  getSubscriptionStatus 
+  getSubscriptionStatus,
+  activateSubscriptionManually
 };

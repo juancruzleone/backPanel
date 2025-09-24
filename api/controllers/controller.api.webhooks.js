@@ -47,6 +47,34 @@ const webhookController = {
                         type: webhookData.type
                     });
                 }
+            } else if (webhookData.type === 'subscription_preapproval') {
+                console.log(`📋 Procesando webhook de subscription_preapproval: ${webhookData.data.id}`);
+                
+                // Importar el servicio de suscripciones
+                const subscriptionServices = await import('../../services/subscriptions.services.js');
+                const result = await subscriptionServices.processSubscriptionPreapproval(webhookData.data.id);
+                
+                console.log('✅ Subscription preapproval procesado:', result);
+                
+                return res.status(200).json({
+                    success: true,
+                    message: 'Subscription preapproval procesado exitosamente',
+                    data: result
+                });
+            } else if (webhookData.type === 'subscription_authorized_payment') {
+                console.log(`🔄 Procesando webhook de subscription_authorized_payment: ${webhookData.data.id}`);
+                
+                // Importar el servicio de suscripciones
+                const subscriptionServices = await import('../../services/subscriptions.services.js');
+                const result = await subscriptionServices.processSubscriptionPayment(webhookData.data.id);
+                
+                console.log('✅ Subscription authorized payment procesado:', result);
+                
+                return res.status(200).json({
+                    success: true,
+                    message: 'Subscription authorized payment procesado exitosamente',
+                    data: result
+                });
             } else if (webhookData.type === 'preapproval') {
                 console.log(`🔄 Procesando webhook de suscripción: ${webhookData.type}`);
                 
