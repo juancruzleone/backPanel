@@ -56,6 +56,7 @@ class PaymentsController {
       const requestData = {
         country: userCountry, // País del usuario desde BD
         tenantId: tenantId, // Agregar tenantId
+        userEmail: userEmail, // Agregar email del usuario
         ip: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
         userAgent: req.headers['user-agent'],
         acceptLanguage: req.headers['accept-language']

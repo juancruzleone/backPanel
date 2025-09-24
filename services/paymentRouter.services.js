@@ -175,6 +175,7 @@ class PaymentRouterService {
       const result = await subscriptionsService.createMercadoPagoCheckout({
         planId: planId,
         tenantId: tenantId,
+        userEmail: requestData?.userEmail,
         successUrl: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/success?lang=es`,
         failureUrl: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/failed?lang=es`,
         pendingUrl: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/pending?lang=es`

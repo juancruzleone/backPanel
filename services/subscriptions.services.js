@@ -9,7 +9,7 @@ const subscriptionsCollection = db.collection("subscriptions")
 const paymentsCollection = db.collection("payments")
 
 // Crear checkout de MercadoPago
-async function createMercadoPagoCheckout({ planId, tenantId, successUrl, failureUrl, pendingUrl }) {
+async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successUrl, failureUrl, pendingUrl }) {
   try {
     console.log('🛒 Creando checkout para:', { planId, tenantId });
 
@@ -115,7 +115,7 @@ async function createMercadoPagoCheckout({ planId, tenantId, successUrl, failure
     const subscriptionData = {
       reason: `Plan ${plan.name} - ${tenant.name}`,
       external_reference: `${tenantId}_${planId}_${Date.now()}`,
-      payer_email: 'test_user_622478383@testuser.com',
+      payer_email: userEmail,
       back_url: successUrl || 'https://leonix.vercel.app/subscription/success',
       auto_recurring: {
         frequency: frequency,
