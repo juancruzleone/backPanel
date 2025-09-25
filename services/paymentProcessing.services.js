@@ -134,16 +134,29 @@ class PaymentProcessingService {
                 });
                 
             } else {
-                console.log('🆕 Usuario nuevo, creando tenant y cuenta...');
-                
-                // 6B. CREAR NUEVO TENANT Y USUARIO (flujo original)
-                tenantData = await this.createTenantForClient(client, plan, subscription._id === 'test_subscription_id');
-                adminUser = await this.createAdminUser(client, tenantData.tenantId, subscription.payerEmail, subscription._id === 'test_subscription_id');
-                
-                console.log('✅ Nuevo tenant y usuario creados:', {
-                    tenantId: tenantData.tenantId,
-                    userEmail: adminUser.email
-                });
+                // Si no existe usuario pero la suscripción trae tenantId, actualizar ese tenant existente
+                if (subscription.tenantId) {
+                    console.log('🏢 No hay usuario existente, pero hay tenantId en suscripción. Actualizando tenant existente:', subscription.tenantId);
+                    tenantData = await this.updateExistingTenantPlan(subscription.tenantId, plan);
+                    // Intentar obtener un admin existente del tenant para vincular
+                    adminUser = await cuentaCollection.findOne({ tenantId: tenantData.tenantId, role: { $in: ['admin', 'super_admin'] } });
+                    if (!adminUser) {
+                        console.log('ℹ️ No se encontró admin existente para el tenant, no se asignará assignedTo en la suscripción');
+                    } else {
+                        console.log('👤 Admin existente encontrado para tenant:', adminUser.email);
+                    }
+                } else {
+                    console.log('🆕 Usuario nuevo, creando tenant y cuenta...');
+                    
+                    // 6B. CREAR NUEVO TENANT Y USUARIO (flujo original)
+                    tenantData = await this.createTenantForClient(client, plan, subscription._id === 'test_subscription_id');
+                    adminUser = await this.createAdminUser(client, tenantData.tenantId, subscription.payerEmail, subscription._id === 'test_subscription_id');
+                    
+                    console.log('✅ Nuevo tenant y usuario creados:', {
+                        tenantId: tenantData.tenantId,
+                        userEmail: adminUser.email
+                    });
+                }
             }
             
             // 7. Actualizar suscripción con información del tenant
@@ -203,9 +216,11 @@ class PaymentProcessingService {
                 features: tenantFeatures,
                 
                 // Actualizar información de la suscripción
-                subscriptionPlan: newPlan._id,
+                subscriptionPlan: newPlan._id || newPlan.name,
                 subscriptionFrequency: newPlan.frequency,
                 subscriptionAmount: newPlan.price,
+                // Expiración de suscripción (30 días mensual, 365 días anual)
+                subscriptionExpiresAt: new Date(Date.now() + (newPlan.frequency === 'annual' ? 365 : 30) * 24 * 60 * 60 * 1000),
                 
                 // Mantener estado activo y actualizar timestamp
                 status: 'active',
@@ -757,6 +772,65 @@ class PaymentProcessingService {
                     }
                 }
             );
+            
+            // Si la suscripción se autorizó, activar el plan del tenant
+            if (subscriptionInfo.status === 'authorized') {
+                console.log('✅ Suscripción autorizada, activando plan del tenant');
+                
+                // Obtener la suscripción de nuestra BD para obtener tenantId y planId
+                const subscription = await db.collection('subscriptions').findOne({
+                    externalReference: subscriptionInfo.external_reference
+                });
+                
+                if (subscription && subscription.tenantId && subscription.planId) {
+                    console.log(`🎯 Activando plan ${subscription.planId} para tenant ${subscription.tenantId}`);
+                    
+                    // Mapear planId a plan real
+                    const planMapping = {
+                        'starter-plan-fallback': 'starter',
+                        'professional-plan-fallback': 'professional', 
+                        'enterprise-plan-fallback': 'enterprise',
+                        'starter': 'starter',
+                        'professional': 'professional',
+                        'enterprise': 'enterprise'
+                    };
+                    
+                    const realPlan = planMapping[subscription.planId] || subscription.planId;
+                    
+                    // Actualizar tenant con el plan correcto usando servicio centralizado (maneja tenantId o _id)
+                    const { getPlanConfig } = await import('../config/plans.config.js');
+                    const planObj = getPlanConfig(realPlan);
+                    if (!planObj) {
+                        console.log(`❌ Plan no encontrado en configuración: ${realPlan}`);
+                    } else {
+                        try {
+                            const updatedTenant = await this.updateExistingTenantPlan(subscription.tenantId, planObj);
+                            console.log(`✅ Tenant ${updatedTenant.tenantId || subscription.tenantId} actualizado con plan ${updatedTenant.plan}`);
+                        } catch (e) {
+                            console.log(`⚠️ No se pudo actualizar el tenant ${subscription.tenantId} por servicio, intentando fallback directo`);
+                            // Fallback: intentar por _id si tenantId no coincide (caso conocido)
+                            const tenantUpdateResult = await tenantCollection.updateOne(
+                                { _id: new ObjectId(subscription.tenantId) },
+                                { 
+                                    $set: { 
+                                        plan: realPlan,
+                                        status: 'active',
+                                        subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // +30 días
+                                        updatedAt: new Date()
+                                    }
+                                }
+                            );
+                            if (tenantUpdateResult.modifiedCount > 0) {
+                                console.log(`✅ Tenant (por _id) ${subscription.tenantId} actualizado con plan ${realPlan}`);
+                            } else {
+                                console.log(`⚠️ No se pudo actualizar el tenant (por _id) ${subscription.tenantId}`);
+                            }
+                        }
+                    }
+                } else {
+                    console.log('⚠️ No se encontró suscripción o faltan datos (tenantId/planId)');
+                }
+            }
             
             return { processed: true, action: 'subscription_updated' };
             
