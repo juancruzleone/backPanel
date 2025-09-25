@@ -1,4 +1,7 @@
-import express from "express"
+import express from 'express'
+import cors from 'cors'
+import cron from 'node-cron'
+import { db } from '../db.js'
 import ApiAssetsRoutes from "../api/routes/route.api.assets.js"
 import ApiClientsRoutes from "../api/routes/route.api.clients.js"
 import ApiInstallationsRoutes from "../api/routes/route.api.installations.js"
@@ -13,6 +16,7 @@ import ApiSubscriptionPlansRoutes from "../api/routes/route.api.subscriptionPlan
 import ApiSubscriptionsRoutes from "../api/routes/route.api.subscriptions.js"
 import ApiWebhooksRoutes from "../api/routes/route.api.webhooks.js"
 import ApiPaymentsRoutes from "../api/routes/route.api.payments.js"
+import ApiMonitoringRoutes from "../api/routes/route.api.monitoring.js"
 import publicRoutes from '../api/routes/route.api.public.js' 
 import { connectDB } from "../db.js"
 import cors from "cors"
@@ -81,6 +85,7 @@ app.use("/api/subscription-plans", ApiSubscriptionPlansRoutes)
 app.use("/api/subscriptions", ApiSubscriptionsRoutes)
 app.use("/api/webhooks", ApiWebhooksRoutes)
 app.use("/api/payments", ApiPaymentsRoutes)
+app.use("/api/monitoring", ApiMonitoringRoutes)
 app.use("/api/public", publicRoutes)
 
 
@@ -95,11 +100,15 @@ const startServer = async () => {
     const dbConnected = await connectDB()
 
     if (dbConnected) {
+      // Iniciar servidor
       app.listen(PORT, "0.0.0.0", () => {
         console.log(`🚀 Servidor escuchando en el puerto ${PORT}`)
         console.log(`🌐 Entorno: ${process.env.NODE_ENV || "development"}`)
         console.log(`🔗 Health check: http://localhost:${PORT}/health`)
       })
+
+      // Inicializar cron jobs para monitoreo de suscripciones
+      await initializeSubscriptionMonitoring()
     } else {
       console.error("❌ No se pudo conectar a la base de datos")
       if (process.env.NODE_ENV === "production") {
@@ -114,6 +123,67 @@ const startServer = async () => {
   } catch (error) {
     console.error("❌ Error al iniciar servidor:", error)
     process.exit(1)
+  }
+}
+
+// Inicializar sistema de monitoreo automático de suscripciones
+async function initializeSubscriptionMonitoring() {
+  try {
+    console.log('🔄 Inicializando sistema de monitoreo de suscripciones...')
+    
+    const subscriptionMonitoringService = await import('../services/subscriptionMonitoring.services.js')
+    const monitoring = subscriptionMonitoringService.default
+
+    // Cron job cada hora para verificar suscripciones activas
+    // Ejecuta a los minutos 15 de cada hora (ej: 1:15, 2:15, 3:15...)
+    cron.schedule('15 * * * *', async () => {
+      try {
+        console.log('⏰ [CRON] Ejecutando verificación automática de suscripciones activas...')
+        const result = await monitoring.checkActiveSubscriptions()
+        console.log(`✅ [CRON] Verificación completada: ${result.processed} suscripciones procesadas`)
+      } catch (error) {
+        console.error('❌ [CRON] Error en verificación de suscripciones activas:', error)
+      }
+    }, {
+      timezone: "America/Argentina/Buenos_Aires"
+    })
+
+    // Cron job cada 6 horas para verificar suscripciones expiradas
+    // Ejecuta a las 00:30, 06:30, 12:30, 18:30
+    cron.schedule('30 */6 * * *', async () => {
+      try {
+        console.log('⏰ [CRON] Ejecutando verificación de suscripciones expiradas...')
+        const result = await monitoring.checkExpiredSubscriptions()
+        console.log(`✅ [CRON] Verificación de expiradas completada: ${result.processed} tenants procesados`)
+      } catch (error) {
+        console.error('❌ [CRON] Error en verificación de suscripciones expiradas:', error)
+      }
+    }, {
+      timezone: "America/Argentina/Buenos_Aires"
+    })
+
+    // Cron job diario para limpieza y estadísticas (opcional)
+    // Ejecuta todos los días a las 3:00 AM
+    cron.schedule('0 3 * * *', async () => {
+      try {
+        console.log('⏰ [CRON] Ejecutando mantenimiento diario del sistema...')
+        
+        // Aquí puedes agregar tareas de limpieza, estadísticas, etc.
+        console.log('🧹 Mantenimiento diario completado')
+      } catch (error) {
+        console.error('❌ [CRON] Error en mantenimiento diario:', error)
+      }
+    }, {
+      timezone: "America/Argentina/Buenos_Aires"
+    })
+
+    console.log('✅ Sistema de monitoreo automático inicializado:')
+    console.log('   📅 Verificación de suscripciones activas: cada hora (minuto 15)')
+    console.log('   📅 Verificación de suscripciones expiradas: cada 6 horas (minuto 30)')
+    console.log('   📅 Mantenimiento diario: 3:00 AM')
+
+  } catch (error) {
+    console.error('❌ Error inicializando monitoreo de suscripciones:', error)
   }
 }
 

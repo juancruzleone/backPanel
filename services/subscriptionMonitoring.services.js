@@ -1,10 +1,13 @@
 /**
  * Servicio para monitorear suscripciones y suspender planes por falta de pago
  * Maneja webhooks de MercadoPago y Polar.sh para pagos fallidos/cancelados
+ * Verifica periódicamente el estado de suscripciones activas
  */
 
 import { db } from '../db.js';
 import { getTenantByTenantId } from './tenants.services.js';
+import { MP_CONFIG } from '../config/mercadopago.config.js';
+import axios from 'axios';
 
 const tenantCollection = db.collection("tenants");
 const subscriptionCollection = db.collection("subscriptions");
@@ -344,6 +347,279 @@ class SubscriptionMonitoringService {
 
         } catch (error) {
             console.error('❌ Error verificando suscripciones expiradas:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Verificar estado de suscripciones activas en MercadoPago/Polar
+     * Esta función se ejecuta periódicamente para sincronizar estados
+     */
+    async checkActiveSubscriptions() {
+        try {
+            console.log('🔄 Verificando estado de suscripciones activas...');
+
+            // Buscar todas las suscripciones activas o autorizadas
+            const activeSubscriptions = await subscriptionCollection.find({
+                status: { $in: ['active', 'authorized', 'pending'] }
+            }).toArray();
+
+            console.log(`📋 Encontradas ${activeSubscriptions.length} suscripciones para verificar`);
+
+            const results = [];
+            for (const subscription of activeSubscriptions) {
+                try {
+                    let result;
+                    
+                    // Verificar según el procesador de pagos
+                    if (subscription.mercadoPagoId || subscription.externalReference) {
+                        result = await this.checkMercadoPagoSubscriptionStatus(subscription);
+                    } else if (subscription.polarSubscriptionId) {
+                        result = await this.checkPolarSubscriptionStatus(subscription);
+                    } else {
+                        console.log(`⚠️ Suscripción sin procesador identificado: ${subscription._id}`);
+                        continue;
+                    }
+
+                    if (result) {
+                        results.push(result);
+                    }
+                } catch (error) {
+                    console.error(`❌ Error verificando suscripción ${subscription._id}:`, error);
+                }
+            }
+
+            console.log(`✅ Verificación completada: ${results.length} suscripciones procesadas`);
+            return {
+                success: true,
+                processed: results.length,
+                results
+            };
+
+        } catch (error) {
+            console.error('❌ Error verificando suscripciones activas:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Verificar estado de suscripción en MercadoPago
+     */
+    async checkMercadoPagoSubscriptionStatus(subscription) {
+        try {
+            console.log(`🔍 Verificando suscripción MercadoPago: ${subscription.mercadoPagoId || subscription.externalReference}`);
+
+            // Si tiene mercadoPagoId, verificar directamente la suscripción
+            if (subscription.mercadoPagoId) {
+                const mpResponse = await axios.get(
+                    `${MP_CONFIG.BASE_URL}/preapproval/${subscription.mercadoPagoId}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`
+                        },
+                        timeout: 10000
+                    }
+                );
+
+                const mpSubscription = mpResponse.data;
+                console.log(`📋 Estado MercadoPago: ${mpSubscription.status}`);
+
+                return await this.updateSubscriptionStatus(subscription, mpSubscription.status, 'mercadopago', mpSubscription);
+            }
+
+            // Si no tiene mercadoPagoId pero tiene externalReference, buscar pagos recientes
+            if (subscription.externalReference) {
+                // Buscar pagos de los últimos 30 días para esta suscripción
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+                const paymentsResponse = await axios.get(
+                    `${MP_CONFIG.BASE_URL}/v1/payments/search`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`
+                        },
+                        params: {
+                            external_reference: subscription.externalReference,
+                            begin_date: thirtyDaysAgo.toISOString(),
+                            end_date: new Date().toISOString()
+                        },
+                        timeout: 10000
+                    }
+                );
+
+                const payments = paymentsResponse.data.results || [];
+                console.log(`📋 Encontrados ${payments.length} pagos para external_reference: ${subscription.externalReference}`);
+
+                if (payments.length > 0) {
+                    // Obtener el pago más reciente
+                    const latestPayment = payments.sort((a, b) => new Date(b.date_created) - new Date(a.date_created))[0];
+                    console.log(`💳 Último pago: ${latestPayment.status} - ${latestPayment.date_created}`);
+
+                    return await this.updateSubscriptionStatus(subscription, latestPayment.status, 'mercadopago', latestPayment);
+                } else {
+                    // No hay pagos recientes - verificar si la suscripción debería estar vencida
+                    const daysSinceCreated = Math.floor((new Date() - new Date(subscription.createdAt)) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysSinceCreated > 35) { // Más de 35 días sin pagos
+                        console.log(`⚠️ Suscripción sin pagos por ${daysSinceCreated} días`);
+                        return await this.updateSubscriptionStatus(subscription, 'no_payment', 'mercadopago', { reason: 'No payments found' });
+                    }
+                }
+            }
+
+            return null;
+
+        } catch (error) {
+            console.error(`❌ Error verificando MercadoPago para suscripción ${subscription._id}:`, error);
+            
+            // Si es error 404 o 400, la suscripción puede estar cancelada
+            if (error.response?.status === 404 || error.response?.status === 400) {
+                console.log(`🚫 Suscripción no encontrada en MercadoPago - marcando como cancelada`);
+                return await this.updateSubscriptionStatus(subscription, 'cancelled', 'mercadopago', { error: error.response.data });
+            }
+            
+            return null;
+        }
+    }
+
+    /**
+     * Verificar estado de suscripción en Polar.sh
+     */
+    async checkPolarSubscriptionStatus(subscription) {
+        try {
+            console.log(`🔍 Verificando suscripción Polar: ${subscription.polarSubscriptionId}`);
+
+            // TODO: Implementar verificación con Polar.sh API
+            // const polarService = await import('./polar.services.js');
+            // const status = await polarService.default.getSubscriptionStatus(subscription.polarSubscriptionId);
+            
+            console.log('ℹ️ Verificación Polar.sh pendiente de implementación');
+            return null;
+
+        } catch (error) {
+            console.error(`❌ Error verificando Polar para suscripción ${subscription._id}:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * Actualizar estado de suscripción según resultado de verificación
+     */
+    async updateSubscriptionStatus(subscription, newStatus, processor, externalData = {}) {
+        try {
+            console.log(`🔄 Actualizando suscripción ${subscription._id}: ${subscription.status} → ${newStatus}`);
+
+            let subscriptionUpdate = {
+                updatedAt: new Date(),
+                lastCheckedAt: new Date(),
+                processor: processor
+            };
+
+            let tenantAction = null;
+            let actionReason = '';
+
+            // Determinar acción según el nuevo estado
+            switch (newStatus) {
+                case 'approved':
+                case 'authorized':
+                case 'active':
+                    // Pago exitoso - asegurar que el tenant esté activo
+                    if (subscription.status !== 'active') {
+                        subscriptionUpdate.status = 'active';
+                        subscriptionUpdate.activatedAt = new Date();
+                        
+                        // Extender expiración según frecuencia
+                        const isYearly = subscription.frequency === 'yearly' || subscription.billingCycle === 'yearly';
+                        const extensionDays = isYearly ? 365 : 30;
+                        subscriptionUpdate.expiresAt = new Date(Date.now() + extensionDays * 24 * 60 * 60 * 1000);
+                        
+                        tenantAction = 'activate';
+                        actionReason = `Payment successful - ${processor}`;
+                    }
+                    break;
+
+                case 'cancelled':
+                case 'paused':
+                case 'rejected':
+                    // Pago fallido o cancelado - suspender tenant
+                    subscriptionUpdate.status = 'cancelled';
+                    subscriptionUpdate.cancelledAt = new Date();
+                    tenantAction = 'suspend';
+                    actionReason = `Subscription ${newStatus} - ${processor}`;
+                    break;
+
+                case 'pending':
+                    // Pago pendiente - mantener estado actual pero actualizar timestamp
+                    subscriptionUpdate.status = 'pending';
+                    break;
+
+                case 'no_payment':
+                    // Sin pagos recientes - suspender si está activa
+                    if (subscription.status === 'active') {
+                        subscriptionUpdate.status = 'payment_failed';
+                        subscriptionUpdate.suspendedAt = new Date();
+                        tenantAction = 'suspend';
+                        actionReason = 'No recent payments found';
+                    }
+                    break;
+
+                default:
+                    console.log(`⚠️ Estado no manejado: ${newStatus}`);
+                    break;
+            }
+
+            // Actualizar suscripción en BD
+            await subscriptionCollection.updateOne(
+                { _id: subscription._id },
+                { $set: subscriptionUpdate }
+            );
+
+            // Ejecutar acción en el tenant si es necesaria
+            let tenantResult = null;
+            if (tenantAction && subscription.tenantId) {
+                if (tenantAction === 'activate') {
+                    // Restaurar/activar plan del tenant
+                    const paymentProcessingService = await import('./paymentProcessing.services.js');
+                    
+                    // Mapear planId a configuración de plan
+                    const { getPlanConfig } = await import('../config/plans.config.js');
+                    let planName = subscription.planId || 'starter';
+                    if (planName.includes('professional')) planName = 'professional';
+                    else if (planName.includes('enterprise')) planName = 'enterprise';
+                    else planName = 'starter';
+                    
+                    const planConfig = getPlanConfig(planName);
+                    if (planConfig) {
+                        tenantResult = await paymentProcessingService.default.updateExistingTenantPlan(
+                            subscription.tenantId, 
+                            planConfig
+                        );
+                    }
+                } else if (tenantAction === 'suspend') {
+                    // Suspender plan del tenant
+                    tenantResult = await this.suspendTenantPlan(
+                        subscription.tenantId,
+                        actionReason,
+                        processor
+                    );
+                }
+            }
+
+            console.log(`✅ Suscripción actualizada: ${subscription._id} - ${newStatus}`);
+
+            return {
+                subscriptionId: subscription._id,
+                oldStatus: subscription.status,
+                newStatus: subscriptionUpdate.status || subscription.status,
+                tenantAction,
+                tenantResult,
+                processor,
+                timestamp: new Date()
+            };
+
+        } catch (error) {
+            console.error(`❌ Error actualizando estado de suscripción ${subscription._id}:`, error);
             throw error;
         }
     }
