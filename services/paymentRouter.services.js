@@ -273,7 +273,7 @@ class PaymentRouterService {
       if (processor === 'mercadopago') {
         // Los webhooks de MercadoPago ya están implementados
         const paymentProcessingService = await import('./paymentProcessing.services.js');
-        return await paymentProcessingService.default.processMercadoPagoWebhook(data);
+        return await paymentProcessingService.default.processWebhook(data);
         
       } else if (processor === 'polar') {
         // Verificar signature de Polar.sh

@@ -107,19 +107,36 @@ class PaymentsController {
   async webhookMercadoPago(req, res) {
     try {
       console.log('🔔 Webhook MercadoPago recibido');
+      console.log('📋 Datos completos del webhook:', JSON.stringify(req.body, null, 2));
+      console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
       
-      const result = await paymentRouterService.processWebhook(
-        'mercadopago',
-        req.body.type || 'payment',
-        req.body,
-        null,
-        JSON.stringify(req.body)
-      );
+      // Responder inmediatamente a MercadoPago
+      res.status(200).json({ success: true, message: 'Webhook recibido' });
       
-      res.json({ success: true, result });
+      // Procesar el webhook de forma asíncrona
+      setImmediate(async () => {
+        try {
+          console.log('🔄 Iniciando procesamiento asíncrono del webhook...');
+          
+          const result = await paymentRouterService.processWebhook(
+            'mercadopago',
+            req.body.type || 'payment',
+            req.body,
+            null,
+            JSON.stringify(req.body)
+          );
+          
+          console.log('✅ Webhook procesado exitosamente:', JSON.stringify(result, null, 2));
+          
+        } catch (error) {
+          console.error('❌ Error procesando webhook de forma asíncrona:', error);
+          console.error('Stack trace:', error.stack);
+        }
+      });
       
     } catch (error) {
       console.error('❌ Error en webhook MercadoPago:', error);
+      console.error('Stack trace:', error.stack);
       res.status(500).json({
         success: false,
         message: error.message

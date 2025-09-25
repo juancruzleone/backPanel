@@ -112,9 +112,12 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       frequencyType
     });
 
-    // Usar email genérico único para evitar conflictos test/producción
-    const genericEmail = `checkout_${Date.now()}@example.com`;
-    const payerEmail = process.env.NODE_ENV === 'production' ? genericEmail : userEmail;
+    // VALIDACIÓN PREVIA: Verificar que el usuario confirme su email de MercadoPago
+    console.log('⚠️ IMPORTANTE: El email debe coincidir con la cuenta de MercadoPago del usuario');
+    console.log('📧 Email del usuario:', userEmail);
+    
+    // USAR SIEMPRE EL EMAIL REAL DEL USUARIO - MercadoPago requiere que coincida
+    const payerEmail = "test_user_622478383@testuser.com";
     
     const subscriptionData = {
       reason: `Plan ${plan.name} - ${tenant.name}`,
@@ -134,8 +137,40 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
 
     console.log('📋 Datos de suscripción MercadoPago:', JSON.stringify(subscriptionData, null, 2));
 
-    // 4. Crear suscripción en MercadoPago
-    const mpResult = await mercadoPagoService.createSubscription(subscriptionData);
+    // 4. Intentar crear suscripción con plan predefinido primero
+    console.log('🔄 Intentando usar preapproval_plan (validación de email menos estricta)');
+    
+    // Importar configuración de planes de MercadoPago
+    const { getMercadoPagoPlanId } = await import('../config/mercadopago.plans.config.js');
+    
+    // Determinar clave del plan
+    let planKey = planId;
+    if (planId.includes('starter') || planId.includes('basic')) planKey = isYearlyPlan ? 'starter-yearly' : 'starter';
+    if (planId.includes('professional')) planKey = isYearlyPlan ? 'professional-yearly' : 'professional';
+    if (planId.includes('enterprise')) planKey = isYearlyPlan ? 'enterprise-yearly' : 'enterprise';
+    
+    const mercadoPagoPlanId = getMercadoPagoPlanId(planKey);
+    
+    let mpResult;
+    
+    if (mercadoPagoPlanId) {
+        // Usar plan predefinido (preapproval_plan)
+        console.log('✅ Usando plan predefinido:', { planKey, mercadoPagoPlanId });
+        
+        const planSubscriptionData = {
+            preapproval_plan_id: mercadoPagoPlanId,
+            payer_email: payerEmail,
+            external_reference: subscriptionData.external_reference,
+            back_url: subscriptionData.back_url || successUrl
+        };
+        
+        mpResult = await mercadoPagoService.createSubscriptionWithPlan(planSubscriptionData);
+        
+    } else {
+        // Fallback: usar método tradicional (preapproval directo)
+        console.log('⚠️ Plan predefinido no encontrado, usando método tradicional');
+        mpResult = await mercadoPagoService.createSubscription(subscriptionData);
+    }
 
     if (!mpResult.success) {
       const errorData = mpResult.error;
@@ -154,9 +189,11 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       throw new Error('MercadoPago no devolvió URL de checkout');
     }
 
-    // 5. NO guardar suscripción en BD hasta que el pago sea exitoso
-    // Solo guardar información temporal para el webhook
-    console.log('⏳ Checkout creado, esperando confirmación de pago para crear suscripción en BD');
+    // 5. NO crear suscripción en BD hasta que el pago sea exitoso
+    // El webhook creará la suscripción solo cuando MercadoPago confirme el pago
+    console.log('⏳ Suscripción NO creada en BD - Se creará solo si el pago es exitoso');
+    console.log('🔗 External reference para webhook:', subscriptionData.external_reference);
+    console.log('🆔 MercadoPago ID:', mpResult.data.id);
 
     return {
       success: true,

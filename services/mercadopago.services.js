@@ -158,6 +158,72 @@ class MercadoPagoService {
         }
     }
     
+    // Crear suscripción usando plan predefinido (preapproval_plan)
+    async createSubscriptionWithPlan(subscriptionData) {
+        try {
+            const {
+                preapproval_plan_id,
+                payer_email,
+                external_reference,
+                back_url
+            } = subscriptionData;
+
+            // Validar y corregir back_url para MercadoPago
+            let validBackUrl = back_url;
+            if (!validBackUrl || validBackUrl.includes('localhost')) {
+                validBackUrl = process.env.FRONTEND_URL ? 
+                    `${process.env.FRONTEND_URL}/subscription/success?lang=es` : 
+                    'https://cmms.leonix.net.ar/subscription/success';
+            }
+
+            const mpData = {
+                preapproval_plan_id: preapproval_plan_id,
+                payer_email: payer_email,
+                external_reference: external_reference,
+                back_url: validBackUrl,
+                status: 'pending'
+            };
+
+            console.log('🚀 Creando suscripción con plan predefinido (preapproval_plan)');
+            console.log('📋 Datos enviados a MercadoPago:', JSON.stringify(mpData, null, 2));
+            
+            const response = await axios.post(
+                `${MP_CONFIG.BASE_URL}/preapproval`,
+                mpData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`,
+                        'Content-Type': 'application/json',
+                        'X-Idempotency-Key': `${external_reference}_${Date.now()}`
+                    }
+                }
+            );
+
+            console.log('✅ Suscripción con plan creada en MercadoPago:', response.data);
+
+            return {
+                success: true,
+                data: {
+                    id: response.data.id,
+                    init_point: response.data.init_point,
+                    sandbox_init_point: response.data.sandbox_init_point,
+                    status: response.data.status,
+                    external_reference: response.data.external_reference,
+                    type: 'preapproval_plan_subscription'
+                }
+            };
+
+        } catch (error) {
+            console.error('❌ Error creando suscripción con plan en MercadoPago:', error.response?.data || error.message);
+            
+            return {
+                success: false,
+                error: error.response?.data || error.message,
+                message: 'Error al crear suscripción con plan en MercadoPago'
+            };
+        }
+    }
+
     // Crear suscripción (preapproval) en MercadoPago
     async createSubscription(subscriptionData) {
         try {
