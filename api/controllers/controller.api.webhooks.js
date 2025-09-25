@@ -59,6 +59,67 @@ const webhookController = {
             });
         }
     },
+
+    // Webhook de Polar.sh para pagos de suscripciones
+    polarWebhook: async (req, res) => {
+        try {
+            console.log('🔔 Webhook de Polar.sh recibido:', req.body);
+            
+            const webhookData = req.body;
+            const eventType = req.headers['x-polar-webhook-event'] || webhookData.type;
+            
+            // Verificar que el webhook sea válido
+            if (!eventType || !webhookData.data) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Webhook inválido - falta event type o data'
+                });
+            }
+            
+            // Importar el servicio de Polar.sh
+            const polarService = await import('../../services/polar.services.js');
+            
+            // Verificar signature del webhook (opcional en sandbox)
+            const signature = req.headers['x-polar-signature'];
+            if (signature && process.env.NODE_ENV === 'production') {
+                const isValid = polarService.default.verifyWebhookSignature(
+                    JSON.stringify(req.body), 
+                    signature
+                );
+                
+                if (!isValid) {
+                    console.error('❌ Signature inválida del webhook de Polar.sh');
+                    return res.status(401).json({
+                        success: false,
+                        message: 'Signature inválida'
+                    });
+                }
+            }
+            
+            console.log(`🔄 Procesando webhook de Polar.sh: ${eventType}`);
+            
+            // Procesar el webhook usando el servicio de Polar.sh
+            const result = await polarService.default.processWebhook(eventType, webhookData.data);
+            
+            console.log('✅ Webhook de Polar.sh procesado exitosamente:', result);
+            
+            return res.status(200).json({
+                success: true,
+                message: `Webhook ${eventType} procesado exitosamente`,
+                data: result
+            });
+            
+        } catch (error) {
+            console.error('❌ Error procesando webhook de Polar.sh:', error);
+            
+            // Responder 200 para evitar reenvíos
+            return res.status(200).json({
+                success: false,
+                message: 'Error procesando webhook',
+                error: error.message
+            });
+        }
+    },
     
     // Endpoint manual para procesar pago exitoso (para testing)
     processSuccessfulPayment: async (req, res) => {

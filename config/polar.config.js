@@ -4,8 +4,8 @@
  */
 
 const POLAR_CONFIG = {
-  // API Key de Polar.sh
-  apiKey: process.env.POLAR_API_KEY || 'polar_oat_3llekY5XYbiKK3V0ZlGZGXNptdDTHrYHOxC5M1xBj5J',
+  // API Key de Polar.sh (usar sandbox para testing)
+  apiKey: process.env.POLAR_API_KEY || (process.env.NODE_ENV === 'development' ? 'TU_API_KEY_DEL_SANDBOX' : 'polar_oat_3llekY5XYbiKK3V0ZlGZGXNptdDTHrYHOxC5M1xBj5J'),
   
   // URLs de la API (usar sandbox para testing)
   apiUrl: process.env.POLAR_API_URL || (process.env.NODE_ENV === 'development' ? 'https://sandbox-api.polar.sh' : 'https://api.polar.sh'),
@@ -14,8 +14,8 @@ const POLAR_CONFIG = {
   organizationName: process.env.POLAR_ORG_NAME || 'Leonix',
   
   // URLs de retorno
-  successUrl: process.env.POLAR_SUCCESS_URL || 'https://panelmantenimiento.netlify.app/subscription/success',
-  cancelUrl: process.env.POLAR_CANCEL_URL || 'https://panelmantenimiento.netlify.app/plans',
+  successUrl: process.env.POLAR_SUCCESS_URL || 'https://cmms.leonix.net.ar/subscription/success',
+  cancelUrl: process.env.POLAR_CANCEL_URL || 'https://cmms.leonix.net.ar/plans',
   
   // Webhook configuration
   webhookSecret: process.env.POLAR_WEBHOOK_SECRET || 'polar_webhook_secret_key',

@@ -6,6 +6,9 @@ const router = express.Router();
 // Webhook de MercadoPago (SIN autenticación - MercadoPago necesita acceso directo)
 router.post('/mercadopago', webhookController.mercadoPagoWebhook);
 
+// Webhook de Polar.sh (SIN autenticación - Polar.sh necesita acceso directo)
+router.post('/polar', webhookController.polarWebhook);
+
 // Endpoints para testing y administración (CON autenticación)
 router.post('/process-payment', webhookController.processSuccessfulPayment);
 
