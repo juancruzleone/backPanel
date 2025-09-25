@@ -7,8 +7,8 @@ const POLAR_CONFIG = {
   // API Key de Polar.sh
   apiKey: process.env.POLAR_API_KEY || 'polar_oat_3llekY5XYbiKK3V0ZlGZGXNptdDTHrYHOxC5M1xBj5J',
   
-  // URLs de la API
-  apiUrl: process.env.POLAR_API_URL || 'https://api.polar.sh',
+  // URLs de la API (usar sandbox para testing)
+  apiUrl: process.env.POLAR_API_URL || (process.env.NODE_ENV === 'development' ? 'https://sandbox-api.polar.sh' : 'https://api.polar.sh'),
   
   // Configuración de la organización
   organizationName: process.env.POLAR_ORG_NAME || 'Leonix',

@@ -19,7 +19,6 @@ import ApiPaymentsRoutes from "../api/routes/route.api.payments.js"
 import ApiMonitoringRoutes from "../api/routes/route.api.monitoring.js"
 import publicRoutes from '../api/routes/route.api.public.js' 
 import { connectDB } from "../db.js"
-import cors from "cors"
 import dotenv from "dotenv"
 import path from "path"
 import { fileURLToPath } from "url"
