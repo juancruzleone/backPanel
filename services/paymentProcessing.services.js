@@ -659,6 +659,17 @@ class PaymentProcessingService {
                 throw new Error('No se pudo obtener información de la suscripción');
             }
             
+            // Verificar si la suscripción tiene credenciales inválidas
+            if (subscriptionInfo.status === 'invalid_credentials') {
+                console.log('⚠️ Webhook ignorado - suscripción no pertenece a estas credenciales');
+                return { 
+                    processed: false, 
+                    reason: 'Subscription does not belong to current credentials',
+                    subscriptionId: subscriptionId,
+                    error: subscriptionInfo.error
+                };
+            }
+            
             console.log('📋 Información de suscripción:', JSON.stringify(subscriptionInfo, null, 2));
             
             // Procesar según la acción
@@ -859,6 +870,24 @@ class PaymentProcessingService {
             
         } catch (error) {
             console.error('❌ Error obteniendo información de suscripción:', error.response?.data || error.message);
+            
+            // Manejar casos específicos de error
+            if (error.response?.status === 400 && 
+                error.response?.data?.message?.includes('preapprovalId is not valid for callerId')) {
+                console.log('⚠️ La suscripción no pertenece a estas credenciales de MercadoPago');
+                console.log('💡 Esto puede suceder si:');
+                console.log('   - La suscripción fue creada con otras credenciales');
+                console.log('   - Hay un mismatch entre TEST/PRODUCCIÓN');
+                console.log('   - La suscripción pertenece a otra cuenta');
+                
+                return {
+                    id: subscriptionId,
+                    status: 'invalid_credentials',
+                    error: 'Suscripción no pertenece a estas credenciales',
+                    original_error: error.response.data
+                };
+            }
+            
             throw error;
         }
     }
