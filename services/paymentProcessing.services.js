@@ -597,19 +597,41 @@ class PaymentProcessingService {
             const authorizedPaymentId = webhookData.data.id;
             console.log('🔍 ID del pago autorizado:', authorizedPaymentId);
             
-            // Obtener información del pago autorizado
-            const paymentInfo = await this.getAuthorizedPaymentInfo(authorizedPaymentId);
-            
-            if (paymentInfo && paymentInfo.status === 'authorized') {
-                console.log('✅ Pago autorizado confirmado, procesando...');
-                // Procesar pago exitoso usando el ID del pago real si está disponible
-                const paymentId = paymentInfo.payment_id || authorizedPaymentId;
-                const result = await this.processSuccessfulPayment(paymentId, 'mercadopago');
-                return { processed: true, result };
-            } else {
-                console.log('⚠️ Pago autorizado no confirmado o en estado diferente:', paymentInfo?.status);
-                return { processed: false, reason: `Authorized payment status: ${paymentInfo?.status}` };
+            try {
+                // Intentar obtener información del pago autorizado
+                const paymentInfo = await this.getAuthorizedPaymentInfo(authorizedPaymentId);
+                
+                if (paymentInfo && (paymentInfo.status === 'authorized' || paymentInfo.status === 'approved')) {
+                    console.log('✅ Pago autorizado confirmado, procesando...');
+                    const paymentId = paymentInfo.payment_id || authorizedPaymentId;
+                    const result = await this.processSuccessfulPayment(paymentId, 'mercadopago');
+                    return { processed: true, result };
+                }
+            } catch (error) {
+                console.log('⚠️ Error obteniendo pago autorizado, intentando como pago normal...');
             }
+            
+            // Fallback: intentar procesar directamente como pago normal
+            try {
+                console.log('🔄 Intentando procesar como pago normal...');
+                const result = await this.processSuccessfulPayment(authorizedPaymentId, 'mercadopago');
+                
+                if (result.success) {
+                    console.log('✅ Pago procesado exitosamente como pago normal');
+                    return { processed: true, result };
+                }
+            } catch (fallbackError) {
+                console.log('❌ También falló como pago normal:', fallbackError.message);
+            }
+            
+            // Si todo falla, marcar como no procesado pero sin error
+            console.log('⚠️ No se pudo procesar el pago autorizado automáticamente');
+            return { 
+                processed: false, 
+                reason: 'Could not process authorized payment automatically',
+                authorizedPaymentId: authorizedPaymentId,
+                suggestion: 'Use manual processing script'
+            };
             
         } catch (error) {
             console.error('❌ Error procesando webhook de pago autorizado:', error);
