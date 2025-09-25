@@ -13,12 +13,19 @@ const cuentaCollection = db.collection("cuentas");
 class PaymentProcessingService {
     
     // Procesar pago exitoso de suscripción
-    async processSuccessfulPayment(mpPaymentData) {
+    async processSuccessfulPayment(paymentData) {
         try {
-            console.log('🎉 Procesando pago exitoso:', mpPaymentData);
+            console.log('🎉 Procesando pago exitoso:', paymentData);
+            
+            // Detectar si es MercadoPago o Polar.sh
+            const processor = paymentData.processor || 'mercadopago';
+            
+            if (processor === 'polar') {
+                return await this.processPolarPayment(paymentData);
+            }
             
             // 1. Obtener la suscripción desde MercadoPago
-            const subscriptionId = mpPaymentData.external_reference;
+            const subscriptionId = paymentData.external_reference;
             if (!subscriptionId) {
                 throw new Error('No se encontró referencia externa en el pago');
             }
@@ -175,6 +182,127 @@ class PaymentProcessingService {
         } catch (error) {
             console.error('❌ Error procesando pago exitoso:', error);
             throw new Error(`Error procesando pago: ${error.message}`);
+        }
+    }
+    
+    // Procesar pago exitoso de Polar.sh
+    async processPolarPayment(paymentData) {
+        try {
+            console.log('🌐 Procesando pago de Polar.sh:', paymentData);
+            
+            const { userEmail, planId, billingCycle, subscriptionId, checkoutId, orderId } = paymentData;
+            
+            if (!userEmail || !planId) {
+                throw new Error('Datos insuficientes: se requiere userEmail y planId');
+            }
+            
+            // 1. Buscar el usuario por email
+            const user = await cuentaCollection.findOne({ email: userEmail });
+            if (!user) {
+                throw new Error(`Usuario no encontrado con email: ${userEmail}`);
+            }
+            
+            // 2. Buscar el tenant del usuario
+            let tenant = await tenantCollection.findOne({ 
+                $or: [
+                    { tenantId: user.tenantId },
+                    { _id: new ObjectId(user.tenantId) }
+                ]
+            });
+            
+            if (!tenant) {
+                throw new Error(`Tenant no encontrado para el usuario: ${userEmail}`);
+            }
+            
+            // 3. Obtener información del plan
+            const plansCollection = db.collection('subscriptionPlans');
+            let plan = await plansCollection.findOne({ 
+                $or: [
+                    { _id: new ObjectId(planId) },
+                    { name: planId.replace('-plan-fallback', '') }
+                ]
+            });
+            
+            if (!plan) {
+                // Plan fallback si no se encuentra
+                plan = {
+                    name: 'starter',
+                    maxUsers: 10,
+                    maxProjects: 100,
+                    price: 30,
+                    frequency: billingCycle || 'monthly'
+                };
+            }
+            
+            // 4. Actualizar el tenant con el nuevo plan
+            const tenantFeatures = this.getTenantFeatures(plan);
+            const subscriptionExpiresAt = new Date(Date.now() + (billingCycle === 'annual' ? 365 : 30) * 24 * 60 * 60 * 1000);
+            
+            const updateData = {
+                plan: plan.name.toLowerCase().replace(' ', '_'),
+                maxUsers: plan.maxUsers || 10,
+                maxAssets: plan.maxProjects || 100,
+                maxWorkOrders: this.calculateWorkOrderLimit(plan),
+                features: tenantFeatures,
+                subscriptionPlan: plan._id || plan.name,
+                subscriptionFrequency: billingCycle || 'monthly',
+                subscriptionAmount: paymentData.amount / 100, // Convertir de centavos
+                subscriptionExpiresAt: subscriptionExpiresAt,
+                status: 'active',
+                updatedAt: new Date(),
+                updatedBy: 'polar_payment_system'
+            };
+            
+            const tenantUpdateResult = await tenantCollection.updateOne(
+                { _id: tenant._id },
+                { $set: updateData }
+            );
+            
+            console.log('✅ Tenant actualizado:', tenantUpdateResult.modifiedCount);
+            
+            // 5. Crear o actualizar suscripción en MongoDB
+            const subscriptionsCollection = db.collection('subscriptions');
+            const subscriptionData = {
+                tenantId: tenant.tenantId || tenant._id.toString(),
+                userId: user._id,
+                planId: plan._id || planId,
+                processor: 'polar',
+                externalReference: subscriptionId || checkoutId || orderId,
+                checkoutId: checkoutId,
+                subscriptionId: subscriptionId,
+                status: 'active',
+                amount: paymentData.amount / 100,
+                currency: paymentData.currency || 'USD',
+                billingCycle: billingCycle || 'monthly',
+                startDate: new Date(),
+                expiresAt: subscriptionExpiresAt,
+                metadata: paymentData.metadata || {},
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            
+            const subscriptionResult = await subscriptionsCollection.insertOne(subscriptionData);
+            console.log('✅ Suscripción creada:', subscriptionResult.insertedId);
+            
+            // 6. Crear carpetas del tenant si no existen
+            try {
+                await tenantFoldersService.createTenantFolders(tenant.tenantId || tenant._id.toString());
+            } catch (folderError) {
+                console.warn('⚠️ Error creando carpetas del tenant:', folderError.message);
+            }
+            
+            return {
+                success: true,
+                tenant: tenant,
+                user: user,
+                subscription: subscriptionData,
+                plan: plan,
+                action: 'plan_activated'
+            };
+            
+        } catch (error) {
+            console.error('❌ Error procesando pago de Polar.sh:', error);
+            throw new Error(`Error procesando pago de Polar.sh: ${error.message}`);
         }
     }
     

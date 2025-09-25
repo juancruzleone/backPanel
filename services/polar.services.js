@@ -331,10 +331,27 @@ class PolarService {
       const metadata = checkoutData.metadata || {};
       const planId = metadata.planId;
       const billingCycle = metadata.billingCycle || 'monthly';
-      const userEmail = checkoutData.customer_email;
       
-      if (!planId || !userEmail) {
-        throw new Error('Datos insuficientes en el checkout para procesar el pago');
+      // Intentar obtener el email del cliente de diferentes campos
+      const userEmail = checkoutData.customer_email || 
+                       checkoutData.customer?.email ||
+                       checkoutData.email ||
+                       metadata.userEmail;
+      
+      console.log('📧 Email detectado:', userEmail);
+      console.log('🔍 Datos disponibles para email:', {
+        customer_email: checkoutData.customer_email,
+        customer: checkoutData.customer,
+        email: checkoutData.email,
+        metadata_userEmail: metadata.userEmail
+      });
+      
+      if (!planId) {
+        throw new Error('No se encontró planId en los metadatos del checkout');
+      }
+      
+      if (!userEmail) {
+        throw new Error('No se encontró email del cliente en el checkout. Campos disponibles: ' + Object.keys(checkoutData).join(', '));
       }
       
       // Importar el servicio de procesamiento de pagos
