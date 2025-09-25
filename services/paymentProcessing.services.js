@@ -574,6 +574,9 @@ class PaymentProcessingService {
                 return await this.processPaymentWebhook(webhookData);
             } else if (webhookData.type === 'subscription_preapproval') {
                 return await this.processSubscriptionWebhook(webhookData);
+            } else if (webhookData.type === 'subscription_authorized_payment') {
+                console.log('💳 Procesando webhook de pago autorizado de suscripción');
+                return await this.processAuthorizedPaymentWebhook(webhookData);
             } else {
                 console.log(`ℹ️ Webhook ignorado - tipo no soportado: ${webhookData.type}`);
                 return { processed: false, reason: `Unsupported webhook type: ${webhookData.type}` };
@@ -581,6 +584,35 @@ class PaymentProcessingService {
             
         } catch (error) {
             console.error('❌ Error procesando webhook:', error);
+            throw error;
+        }
+    }
+
+    // Procesar webhook de pago autorizado de suscripción
+    async processAuthorizedPaymentWebhook(webhookData) {
+        try {
+            console.log('💳 Procesando webhook de pago autorizado de suscripción');
+            
+            // Para subscription_authorized_payment, el ID es del pago autorizado
+            const authorizedPaymentId = webhookData.data.id;
+            console.log('🔍 ID del pago autorizado:', authorizedPaymentId);
+            
+            // Obtener información del pago autorizado
+            const paymentInfo = await this.getAuthorizedPaymentInfo(authorizedPaymentId);
+            
+            if (paymentInfo && paymentInfo.status === 'authorized') {
+                console.log('✅ Pago autorizado confirmado, procesando...');
+                // Procesar pago exitoso usando el ID del pago real si está disponible
+                const paymentId = paymentInfo.payment_id || authorizedPaymentId;
+                const result = await this.processSuccessfulPayment(paymentId, 'mercadopago');
+                return { processed: true, result };
+            } else {
+                console.log('⚠️ Pago autorizado no confirmado o en estado diferente:', paymentInfo?.status);
+                return { processed: false, reason: `Authorized payment status: ${paymentInfo?.status}` };
+            }
+            
+        } catch (error) {
+            console.error('❌ Error procesando webhook de pago autorizado:', error);
             throw error;
         }
     }
@@ -828,6 +860,42 @@ class PaymentProcessingService {
         } catch (error) {
             console.error('❌ Error obteniendo información de suscripción:', error.response?.data || error.message);
             throw error;
+        }
+    }
+
+    // Obtener información de pago autorizado de suscripción
+    async getAuthorizedPaymentInfo(authorizedPaymentId) {
+        try {
+            console.log('🔍 Obteniendo información del pago autorizado:', authorizedPaymentId);
+            
+            const response = await axios.get(
+                `${MP_CONFIG.BASE_URL}/v1/authorized_payments/${authorizedPaymentId}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`
+                    },
+                    timeout: 10000 // 10 segundos timeout
+                }
+            );
+            
+            console.log('✅ Información del pago autorizado obtenida exitosamente');
+            console.log('📋 Status del pago autorizado:', response.data.status);
+            console.log('📋 Payment ID asociado:', response.data.payment_id);
+            
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error obteniendo información de pago autorizado:', error.response?.data || error.message);
+            console.error('📋 Status code:', error.response?.status);
+            console.error('📋 Authorized Payment ID que falló:', authorizedPaymentId);
+            
+            // Si falla, intentar obtener directamente como pago normal
+            console.log('🔄 Intentando obtener como pago normal...');
+            try {
+                return await this.getPaymentInfo(authorizedPaymentId);
+            } catch (fallbackError) {
+                console.error('❌ También falló como pago normal:', fallbackError.message);
+                throw error; // Lanzar el error original
+            }
         }
     }
 }
