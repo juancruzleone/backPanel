@@ -119,7 +119,7 @@ class MercadoPagoService {
                     excluded_payment_types: [],
                     installments: 12
                 },
-                notification_url: `${process.env.BACKEND_URL || 'https://backpanel-d4em.onrender.com'}/api/webhooks/mercadopago`
+                notification_url: `${process.env.BACKEND_URL || (process.env.NODE_ENV === 'production' ? 'https://backpanel-d4em.onrender.com' : 'http://localhost:2023')}/api/webhooks/mercadopago`
             };
 
             console.log('🚀 Creando checkout directo en MercadoPago:', mpData);

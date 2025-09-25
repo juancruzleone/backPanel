@@ -112,10 +112,14 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       frequencyType
     });
 
+    // Usar email genérico único para evitar conflictos test/producción
+    const genericEmail = `checkout_${Date.now()}@example.com`;
+    const payerEmail = process.env.NODE_ENV === 'production' ? genericEmail : userEmail;
+    
     const subscriptionData = {
       reason: `Plan ${plan.name} - ${tenant.name}`,
       external_reference: `${tenantId}_${planId}_${Date.now()}`,
-      payer_email: userEmail,
+      payer_email: payerEmail,
       back_url: successUrl || 'https://leonix.vercel.app/subscription/success',
       auto_recurring: {
         frequency: frequency,
@@ -125,6 +129,8 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       },
       status: 'pending'
     };
+    
+    console.log('📧 Email usado para MercadoPago:', payerEmail);
 
     console.log('📋 Datos de suscripción MercadoPago:', JSON.stringify(subscriptionData, null, 2));
 
@@ -148,22 +154,9 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       throw new Error('MercadoPago no devolvió URL de checkout');
     }
 
-    // 5. Guardar registro de intento de suscripción
-    const subscriptionAttempt = {
-      tenantId,
-      planId: planId, // No convertir a ObjectId, guardar como string
-      mpSubscriptionId: mpResult.data.id,
-      externalReference: subscriptionData.external_reference,
-      amount: plan.price,
-      currency: plan.currency || 'ARS',
-      status: 'pending',
-      checkoutUrl: checkoutUrl,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    await subscriptionsCollection.insertOne(subscriptionAttempt);
-    console.log('💾 Registro de suscripción guardado en BD');
+    // 5. NO guardar suscripción en BD hasta que el pago sea exitoso
+    // Solo guardar información temporal para el webhook
+    console.log('⏳ Checkout creado, esperando confirmación de pago para crear suscripción en BD');
 
     return {
       success: true,
@@ -316,14 +309,60 @@ async function processSubscriptionPreapproval(subscriptionId) {
 
     console.log('✅ Suscripción actualizada con ID de MercadoPago:', subscriptionId);
 
-    return {
-      success: true,
-      message: 'Subscription preapproval procesado',
-      subscriptionId,
-      tenantId,
-      planId,
-      status
-    };
+    // 4. ACTIVAR EL PLAN DEL TENANT automáticamente
+    if (status === 'authorized' || status === 'active') {
+      console.log('🎯 Activando plan del tenant automáticamente...');
+      
+      try {
+        const activationResult = await activateSubscription(tenantId, planId, {
+          preapproval_id: subscriptionId,
+          id: subscriptionId,
+          external_reference: external_reference,
+          transaction_amount: subscriptionData.auto_recurring?.transaction_amount,
+          currency_id: subscriptionData.auto_recurring?.currency_id
+        });
+        
+        console.log('✅ Plan del tenant activado automáticamente:', activationResult.subscription.planName);
+        
+        return {
+          success: true,
+          message: 'Subscription preapproval procesado y tenant activado',
+          subscriptionId,
+          tenantId,
+          planId,
+          status,
+          tenantActivated: true,
+          activationResult
+        };
+        
+      } catch (activationError) {
+        console.error('❌ Error activando tenant:', activationError);
+        
+        return {
+          success: true,
+          message: 'Subscription preapproval procesado pero error activando tenant',
+          subscriptionId,
+          tenantId,
+          planId,
+          status,
+          tenantActivated: false,
+          activationError: activationError.message
+        };
+      }
+    } else {
+      console.log('⏳ Suscripción no está autorizada aún, status:', status);
+      
+      return {
+        success: true,
+        message: 'Subscription preapproval procesado',
+        subscriptionId,
+        tenantId,
+        planId,
+        status,
+        tenantActivated: false,
+        reason: `Status ${status} no permite activación`
+      };
+    }
 
   } catch (error) {
     console.error('❌ Error procesando subscription_preapproval:', error);
@@ -382,69 +421,141 @@ async function processSubscriptionPaymentById(paymentId, tenantId, planId) {
   }
 }
 
-// Activar suscripción después del pago
+// Crear y activar suscripción después del pago exitoso
 async function activateSubscription(tenantId, planId, paymentData) {
   try {
-    console.log('🎯 Activando suscripción para:', { tenantId, planId });
+    console.log('🎯 Creando y activando suscripción para:', { tenantId, planId });
 
     // 1. Obtener el plan
-    const plan = await subscriptionPlansCollection.findOne({ _id: new ObjectId(planId) });
+    let plan;
+    
+    // Si planId parece ser un ObjectId válido, buscar por _id
+    if (planId && planId.length === 24 && /^[0-9a-fA-F]{24}$/.test(planId)) {
+      plan = await subscriptionPlansCollection.findOne({ _id: new ObjectId(planId) });
+    }
+    
+    // Si no se encontró o no es ObjectId válido, buscar por planId string
+    if (!plan) {
+      plan = await subscriptionPlansCollection.findOne({ planId: planId });
+    }
+    
+    // Si aún no se encuentra, usar configuración de planes hardcodeada
+    if (!plan) {
+      const { PLANS_CONFIG } = await import('../config/plans.config.js');
+      
+      let planKey = 'basic';
+      if (planId.includes('yearly') || planId.includes('anual')) {
+        if (planId.includes('professional')) planKey = 'professional-yearly';
+        else if (planId.includes('enterprise')) planKey = 'enterprise-yearly';
+        else planKey = 'basic-yearly';
+      } else {
+        if (planId.includes('professional')) planKey = 'professional';
+        else if (planId.includes('enterprise')) planKey = 'enterprise';
+        else planKey = 'basic';
+      }
+      
+      const planConfig = PLANS_CONFIG[planKey];
+      if (planConfig) {
+        plan = {
+          _id: planId,
+          planId: planId,
+          name: planConfig.name,
+          price: planConfig.price,
+          currency: 'ARS',
+          frequency: planConfig.frequency || 'monthly',
+          maxUsers: planConfig.limits?.maxUsers || 10,
+          maxProjects: planConfig.limits?.maxAssets || 100,
+          features: planConfig.features,
+          limits: planConfig.limits
+        };
+      }
+    }
+
     if (!plan) {
       throw new Error('Plan no encontrado');
     }
 
-    // 2. Actualizar el tenant con el nuevo plan
+    // 2. Calcular fechas de activación y expiración
     const startDate = new Date();
     const endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + 1); // Suscripción mensual por defecto
+    
+    // Determinar duración basada en la frecuencia del plan
+    const isYearlyPlan = plan.frequency === 'yearly' || planId.includes('yearly');
+    if (isYearlyPlan) {
+      endDate.setFullYear(endDate.getFullYear() + 1); // +1 año para planes anuales
+    } else {
+      endDate.setMonth(endDate.getMonth() + 1); // +1 mes para planes mensuales
+    }
 
+    // 3. Actualizar el tenant con el nuevo plan
+    // Mapear nombre del plan a string simple
+    let planName = 'starter'; // default
+    if (plan.name.toLowerCase().includes('professional')) planName = 'professional';
+    else if (plan.name.toLowerCase().includes('enterprise')) planName = 'enterprise';
+    else if (plan.name.toLowerCase().includes('starter')) planName = 'starter';
+    
+    console.log('📋 Actualizando tenant con plan:', planName);
+    
     await tenantsCollection.updateOne(
       { tenantId: tenantId },
       {
         $set: {
           subscriptionStatus: 'active',
-          plan: {
+          plan: planName, // String simple: "starter", "professional", "enterprise"
+          
+          // Información detallada del plan en campo separado
+          planDetails: {
             _id: plan._id,
             name: plan.name,
             price: plan.price,
-            maxUsers: plan.maxUsers,
-            maxProjects: plan.maxProjects,
+            frequency: plan.frequency,
             activatedAt: startDate,
             expiresAt: endDate
           },
-          maxUsers: plan.maxUsers || 999,
-          maxProjects: plan.maxProjects || 999,
+          
+          // Límites del plan
+          maxUsers: plan.maxUsers || 10,
+          maxProjects: plan.maxProjects || 100,
+          
+          // Fecha de expiración para validación
+          subscriptionExpiresAt: endDate,
           updatedAt: new Date()
         }
       }
     );
+    
+    console.log('✅ Tenant actualizado con plan:', planName);
 
-    // 3. Actualizar registro de suscripción
-    await subscriptionsCollection.updateOne(
-      { 
-        tenantId: tenantId,
-        planId: new ObjectId(planId),
-        status: 'pending'
-      },
-      {
-        $set: {
-          status: 'active',
-          activatedAt: startDate,
-          expiresAt: endDate,
-          paymentId: paymentData.id,
-          updatedAt: new Date()
-        }
-      }
-    );
+    // 4. CREAR la suscripción en BD (ahora que el pago fue exitoso)
+    const newSubscription = {
+      tenantId: tenantId,
+      planId: planId, // Guardar como string
+      mpSubscriptionId: paymentData.preapproval_id || paymentData.id,
+      externalReference: paymentData.external_reference,
+      amount: paymentData.transaction_amount || plan.price,
+      currency: paymentData.currency_id || plan.currency || 'ARS',
+      status: 'active', // Directamente activa
+      paymentId: paymentData.id,
+      activatedAt: startDate,
+      expiresAt: endDate,
+      frequency: plan.frequency || 'monthly',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const insertResult = await subscriptionsCollection.insertOne(newSubscription);
+    console.log('✅ Suscripción creada en BD con status active:', insertResult.insertedId);
 
     console.log('✅ Suscripción activada exitosamente');
 
     return {
       success: true,
-      message: 'Suscripción activada',
+      message: 'Suscripción creada y activada',
       subscription: {
+        _id: insertResult.insertedId,
         tenantId,
         planName: plan.name,
+        frequency: plan.frequency,
         activatedAt: startDate,
         expiresAt: endDate
       }
