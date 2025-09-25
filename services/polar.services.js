@@ -279,6 +279,16 @@ class PolarService {
             return await this.handleSuccessfulPayment(data);
           }
           break;
+
+        case 'order.updated':
+          console.log('📦 Orden actualizada:', data.id, 'Estado:', data.status);
+          
+          // Verificar si la orden tiene una suscripción activa
+          if (data.subscription && data.subscription.status === 'active') {
+            console.log('💰 Orden con suscripción activa - procesando pago...');
+            return await this.handleSuccessfulOrderPayment(data);
+          }
+          break;
           
         case 'subscription.created':
           console.log('📅 Suscripción creada:', data.id);
@@ -348,6 +358,48 @@ class PolarService {
       
     } catch (error) {
       console.error('❌ Error procesando pago exitoso:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Manejar pago exitoso desde order.updated
+   */
+  async handleSuccessfulOrderPayment(orderData) {
+    try {
+      console.log('💰 Procesando pago exitoso desde orden de Polar.sh:', orderData.id);
+      
+      const metadata = orderData.metadata || {};
+      const subscription = orderData.subscription;
+      const planId = metadata.planId;
+      const billingCycle = metadata.billingCycle || 'monthly';
+      const userEmail = orderData.customer?.email;
+      
+      if (!planId || !userEmail || !subscription) {
+        throw new Error('Datos insuficientes en la orden para procesar el pago');
+      }
+      
+      // Importar el servicio de procesamiento de pagos
+      const paymentProcessingService = await import('./paymentProcessing.services.js');
+      
+      // Procesar el pago exitoso (asignar plan al tenant)
+      const result = await paymentProcessingService.default.processSuccessfulPayment({
+        processor: 'polar',
+        orderId: orderData.id,
+        subscriptionId: subscription.id,
+        planId: planId,
+        userEmail: userEmail,
+        billingCycle: billingCycle,
+        amount: orderData.amount,
+        currency: subscription.currency || 'USD',
+        metadata: metadata
+      });
+      
+      console.log('✅ Pago desde orden procesado exitosamente:', result);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Error procesando pago desde orden:', error);
       throw error;
     }
   }
