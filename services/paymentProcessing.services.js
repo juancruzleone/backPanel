@@ -216,12 +216,22 @@ class PaymentProcessingService {
             
             // 3. Obtener información del plan
             const plansCollection = db.collection('subscriptionPlans');
-            let plan = await plansCollection.findOne({ 
-                $or: [
-                    { _id: new ObjectId(planId) },
-                    { name: planId.replace('-plan-fallback', '') }
-                ]
-            });
+            let plan;
+            
+            // Intentar buscar por ObjectId solo si planId parece ser un ObjectId válido
+            if (planId && planId.length === 24 && /^[0-9a-fA-F]{24}$/.test(planId)) {
+                plan = await plansCollection.findOne({ 
+                    $or: [
+                        { _id: new ObjectId(planId) },
+                        { name: planId.replace('-plan-fallback', '') }
+                    ]
+                });
+            } else {
+                // Buscar solo por nombre si no es un ObjectId válido
+                plan = await plansCollection.findOne({ 
+                    name: planId.replace('-plan-fallback', '') 
+                });
+            }
             
             if (!plan) {
                 // Plan fallback si no se encuentra
