@@ -245,7 +245,6 @@ class PaymentProcessingService {
             }
             
             // 4. Actualizar el tenant con el nuevo plan
-            const tenantFeatures = this.getTenantFeatures(plan);
             const subscriptionExpiresAt = new Date(Date.now() + (billingCycle === 'annual' ? 365 : 30) * 24 * 60 * 60 * 1000);
             
             const updateData = {
@@ -253,7 +252,12 @@ class PaymentProcessingService {
                 maxUsers: plan.maxUsers || 10,
                 maxAssets: plan.maxProjects || 100,
                 maxWorkOrders: this.calculateWorkOrderLimit(plan),
-                features: tenantFeatures,
+                features: {
+                    analytics: true,
+                    reports: true,
+                    api_access: plan.name !== 'starter',
+                    priority_support: plan.name === 'enterprise'
+                },
                 subscriptionPlan: plan._id || plan.name,
                 subscriptionFrequency: billingCycle || 'monthly',
                 subscriptionAmount: paymentData.amount / 100, // Convertir de centavos
