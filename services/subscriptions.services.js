@@ -112,15 +112,17 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       frequencyType
     });
 
-    // SOLUCIÓN: Omitir payer_email para evitar conflictos usuario test/real
-    // MercadoPago permite checkout sin email - usuario elige en el formulario
-    console.log('✅ SOLUCIÓN: Sin payer_email - Usuario elige email en checkout de MercadoPago');
-    console.log('📧 Email del usuario registrado:', userEmail);
+    // VALIDACIÓN PREVIA: Verificar que el usuario confirme su email de MercadoPago
+    console.log('⚠️ IMPORTANTE: El email debe coincidir con la cuenta de MercadoPago del usuario');
+    console.log('📧 Email del usuario:', userEmail);
+    
+    // USAR SIEMPRE EL EMAIL REAL DEL USUARIO - MercadoPago requiere que coincida
+    const payerEmail = userEmail;
     
     const subscriptionData = {
       reason: `Plan ${plan.name} - ${tenant.name}`,
       external_reference: `${tenantId}_${planId}_${Date.now()}`,
-      // payer_email: OMITIDO - Usuario elige email en checkout de MercadoPago
+      payer_email: payerEmail,
       back_url: successUrl || 'https://leonix.vercel.app/subscription/success',
       auto_recurring: {
         frequency: frequency,
@@ -130,6 +132,8 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       },
       status: 'pending'
     };
+    
+    console.log('📧 Email usado para MercadoPago:', payerEmail);
     
     console.log('📋 Datos de suscripción MercadoPago:', JSON.stringify(subscriptionData, null, 2));
 
