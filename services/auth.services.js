@@ -347,6 +347,53 @@ async function publicLogin(cuenta, tenantId = null) {
   return { ...existe, password: undefined }
 }
 
+// Obtener perfil completo del usuario con información del tenant y suscripción
+async function getUserProfile(userId) {
+  try {
+    // Obtener información del usuario
+    const user = await cuentaCollection.findOne(
+      { _id: new ObjectId(userId) },
+      { projection: { password: 0 } } // Excluir la contraseña
+    );
+
+    if (!user) {
+      throw new Error("Usuario no encontrado");
+    }
+
+    let tenant = null;
+    let subscription = null;
+
+    // Si el usuario tiene tenantId, obtener información del tenant
+    if (user.tenantId) {
+      const { db } = await import("../db.js");
+      const tenantsCollection = db.collection("tenants");
+      const subscriptionsCollection = db.collection("subscriptions");
+
+      // Obtener información del tenant
+      tenant = await tenantsCollection.findOne({ 
+        _id: new ObjectId(user.tenantId) 
+      });
+
+      // Obtener información de la suscripción
+      if (tenant) {
+        subscription = await subscriptionsCollection.findOne({ 
+          tenantId: tenant._id.toString() 
+        });
+      }
+    }
+
+    return {
+      user,
+      tenant,
+      subscription,
+      plan: tenant?.planDetails || null
+    };
+  } catch (error) {
+    console.error("Error en getUserProfile:", error);
+    throw error;
+  }
+}
+
 export {
   createAccount,
   login,
@@ -356,4 +403,5 @@ export {
   updateAccountStatus,
   deleteAccount,
   getAccountsByRole, // ✅ EXPORTAR la nueva función
+  getUserProfile, // ✅ NUEVA FUNCIÓN EXPORTADA
 }

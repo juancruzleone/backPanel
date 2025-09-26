@@ -154,4 +154,25 @@ async function verifyAuth(req, res) {
   }
 }
 
-export { createAccount, login, publicLogin, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount, verifyAuth }
+// Obtener perfil completo del usuario con información del tenant y suscripción
+async function getProfile(req, res) {
+  try {
+    const userId = req.user._id;
+    const profile = await services.getUserProfile(userId);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Perfil obtenido exitosamente',
+      profile
+    });
+  } catch (error) {
+    console.error('Error en getProfile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener el perfil',
+      error: error.message
+    });
+  }
+}
+
+export { createAccount, login, publicLogin, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount, verifyAuth, getProfile }

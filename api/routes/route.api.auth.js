@@ -54,6 +54,11 @@ route.get("/verify", [
   validateToken
 ], controllers.verifyAuth)
 
+// Obtener perfil completo del usuario
+route.get("/profile", [
+  validateToken
+], controllers.getProfile)
+
 // Esta ruta debe ir DESPUÉS de las rutas específicas
 route.get("/cuentas/:id", [
   validateToken,
