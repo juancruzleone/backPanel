@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import tenantFoldersService from './tenantFolders.services.js';
 import * as subscriptionService from './subscriptions.services.js';
 import { MP_CONFIG } from '../config/mercadopago.config.js';
+import { getPlanConfig } from '../config/plans.config.js';
 
 const tenantCollection = db.collection("tenants");
 const cuentaCollection = db.collection("cuentas");
@@ -619,7 +620,11 @@ class PaymentProcessingService {
     }
     
     // Mapear características del plan a configuración del tenant
-    mapPlanToTenantFeatures(plan) {
+    mapPlanToTenantFeatures(planName) {
+        // Obtener la configuración completa del plan
+        const planKey = planName.toLowerCase().replace(' ', '_').replace('-', '_');
+        const plan = getPlanConfig(planKey) || getPlanConfig('starter');
+        
         const baseFeatures = {
             workOrders: true,
             assets: true,
@@ -629,13 +634,13 @@ class PaymentProcessingService {
         
         // Características avanzadas basadas en el plan
         const advancedFeatures = {
-            apiAccess: plan.features?.includes('API completa') || false,
-            customBranding: plan.features?.includes('Branding personalizado') || false,
-            prioritySupport: plan.features?.includes('Soporte prioritario') || false,
-            advancedAnalytics: plan.features?.includes('Reportes avanzados') || false,
-            integrations: plan.features?.includes('Integración con terceros') || false,
-            whiteLabel: plan.features?.includes('White label') || false,
-            backupAutomatico: plan.features?.includes('Backup automático') || false
+            apiAccess: plan.features?.apiAccess || false,
+            customBranding: plan.features?.customBranding || false,
+            prioritySupport: plan.features?.prioritySupport || false,
+            advancedAnalytics: plan.features?.advancedAnalytics || false,
+            integrations: plan.features?.integrations || false,
+            whiteLabel: plan.features?.whiteLabel || false,
+            analytics: plan.features?.analytics || false
         };
         
         return { ...baseFeatures, ...advancedFeatures };
