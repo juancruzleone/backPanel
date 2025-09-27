@@ -30,11 +30,11 @@ const webhookController = {
                     success: true,
                     message: `Webhook ${webhookData.type} procesado exitosamente`,
                     data: {
-                        tenant: result.result.tenant?.tenantId,
-                        adminUser: result.result.adminUser?.userName,
-                        subscription: result.result.subscription?._id,
+                        tenant: result.result?.tenant?.tenantId || result.tenant?.tenantId,
+                        adminUser: result.result?.adminUser?.userName || result.adminUser?.userName,
+                        subscription: result.result?.subscription?._id || result.subscription?._id,
                         type: webhookData.type,
-                        action: result.result.action
+                        action: result.result?.action || result.action
                     }
                 });
             } else {

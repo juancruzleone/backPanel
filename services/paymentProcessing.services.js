@@ -51,15 +51,15 @@ class PaymentProcessingService {
                     tenantId: tenantId,
                     planId: planId,
                     subscriptionPlan: planId,
-                    payerEmail: mpPaymentData.payer?.email || 'unknown@example.com',
+                    payerEmail: paymentData.payer?.email || 'unknown@example.com',
                     status: 'approved', // Directamente aprobada porque viene del webhook exitoso
-                    amount: mpPaymentData.transaction_amount || 0,
-                    currency: mpPaymentData.currency_id || 'ARS',
+                    amount: paymentData.transaction_amount || 0,
+                    currency: paymentData.currency_id || 'ARS',
                     frequency: 'monthly', // Default
                     billingCycle: 'monthly',
                     createdAt: new Date(),
                     updatedAt: new Date(),
-                    mercadoPagoId: mpPaymentData.id
+                    mercadoPagoId: paymentData.id
                 };
                 
                 // Insertar en BD
