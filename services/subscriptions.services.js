@@ -116,8 +116,8 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
     console.log('⚠️ IMPORTANTE: El email debe coincidir con la cuenta de MercadoPago del usuario');
     console.log('📧 Email del usuario:', userEmail);
     
-    // HARDCODEADO PARA TESTING - Usar email de test de MercadoPago
-    const payerEmail = 'test_user_622478383@testuser.com';
+    // USAR SIEMPRE EL EMAIL REAL DEL USUARIO - MercadoPago requiere que coincida
+    const payerEmail = userEmail;
     
     const subscriptionData = {
       reason: `Plan ${plan.name} - ${tenant.name}`,
