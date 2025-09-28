@@ -10,7 +10,7 @@ const subscriptionPlansCollection = db.collection("subscriptionplans")
 
 async function registerPublicUser(userData) {
   const { 
-    userName, password, name, email, tenantName, tenantAddress, country,
+    userName, password, email, tenantName, tenantAddress, country,
     // Campos fiscales para Argentina
     razonSocial, tipoDocumento, numeroDocumento, condicionIVA, 
     direccionFiscal, ciudad, provincia, codigoPostal,
@@ -19,7 +19,7 @@ async function registerPublicUser(userData) {
   } = userData
 
   // Validaciones
-  if (!userName || !password || !name || !email || !tenantName) {
+  if (!userName || !password || !email) {
     throw new Error("Todos los campos obligatorios son requeridos")
   }
 
@@ -38,16 +38,17 @@ async function registerPublicUser(userData) {
   // Generar tenantId único
   const tenantId = uuidv4()
 
-  // Generar un subdomain único basado en el nombre
-  const safeTenantName = tenantName.toLowerCase().replace(/[^a-z0-9]/g, "-")
+  // Generar un subdomain único basado en el userName o razonSocial
+  const baseName = razonSocial || userName
+  const safeTenantName = baseName.toLowerCase().replace(/[^a-z0-9]/g, "-")
   const subdomain = `${safeTenantName}-${Date.now()}`
 
-  // Crear el tenant primero
+  // Crear el tenant primero usando razonSocial como nombre de la empresa
   const newTenant = {
     _id: new ObjectId(),
     tenantId,
-    name: tenantName,
-    address: tenantAddress || "",
+    name: razonSocial || `Empresa de ${userName}`,
+    address: direccionFiscal || addressIntl || "",
     subdomain, // 👈 agregado para evitar null duplicados
     status: "active",
     subscriptionStatus: "trial",
@@ -73,7 +74,6 @@ async function registerPublicUser(userData) {
   const newUser = {
     userName,
     password: hashedPassword,
-    name,
     email,
     role: "admin",
     tenantId: tenantIdString,
@@ -122,15 +122,14 @@ async function registerPublicUser(userData) {
     message: "Registro exitoso",
     tenant: {
       _id: tenantIdString,
-      name: tenantName,
-      address: tenantAddress || "",
+      name: razonSocial || `Empresa de ${userName}`,
+      address: direccionFiscal || addressIntl || "",
       subdomain,
       status: "active"
     },
     user: {
       _id: userResult.insertedId,
       userName,
-      name,
       email,
       role: "admin",
       tenantId: tenantIdString
