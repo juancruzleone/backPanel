@@ -672,11 +672,43 @@ async function getSubscriptionStatus(tenantId) {
   }
 }
 
+// Cancelar suscripción
+async function cancelSubscription(tenantId, processor) {
+  try {
+    console.log('🚫 Cancelando suscripción:', { tenantId, processor });
+
+    // Actualizar estado de suscripción en BD
+    const result = await subscriptionsCollection.updateMany(
+      { tenantId: tenantId, processor: processor },
+      { 
+        $set: { 
+          status: 'cancelled',
+          cancelledAt: new Date()
+        }
+      }
+    );
+
+    console.log('✅ Suscripción cancelada en BD:', result.modifiedCount);
+
+    return {
+      success: true,
+      message: 'Suscripción cancelada exitosamente',
+      modifiedCount: result.modifiedCount
+    };
+
+  } catch (error) {
+    console.error('❌ Error cancelando suscripción:', error);
+    throw error;
+  }
+}
+
 export { 
   createMercadoPagoCheckout, 
   processPaymentNotification, 
   processSubscriptionPreapproval,
   processSubscriptionPayment,
   activateSubscription,
-  getSubscriptionStatus 
+  getSubscriptionStatus,
+  cancelSubscription,
+  updateTenantPlan
 };

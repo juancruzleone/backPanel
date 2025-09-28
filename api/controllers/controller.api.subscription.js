@@ -1,6 +1,6 @@
-const subscriptionService = require('../../services/subscriptions.services');
-const mercadopagoService = require('../../services/mercadopago.services');
-const polarService = require('../../services/polar.services');
+import { cancelSubscription as cancelSubscriptionService, updateTenantPlan } from '../../services/subscriptions.services.js';
+import mercadopagoService from '../../services/mercadopago.services.js';
+import polarService from '../../services/polar.services.js';
 
 /**
  * Cancelar suscripción del usuario
@@ -41,8 +41,8 @@ async function cancelSubscription(req, res) {
       
       if (cancelResult.success) {
         // Actualizar estado en la base de datos y establecer plan en null
-        await subscriptionService.cancelSubscription(tenantId, 'mercadopago');
-        await subscriptionService.updateTenantPlan(tenantId, null);
+        await cancelSubscriptionService(tenantId, 'mercadopago');
+        await updateTenantPlan(tenantId, null);
       }
 
     } else if (paymentProvider === 'polar') {
@@ -58,8 +58,8 @@ async function cancelSubscription(req, res) {
       
       if (cancelResult.success) {
         // Actualizar estado en la base de datos y establecer plan en null
-        await subscriptionService.cancelSubscription(tenantId, 'polar');
-        await subscriptionService.updateTenantPlan(tenantId, null);
+        await cancelSubscriptionService(tenantId, 'polar');
+        await updateTenantPlan(tenantId, null);
       }
 
     } else {
@@ -95,6 +95,6 @@ async function cancelSubscription(req, res) {
   }
 }
 
-module.exports = {
+export default {
   cancelSubscription
 };

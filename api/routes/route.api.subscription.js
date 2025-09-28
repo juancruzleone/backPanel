@@ -1,9 +1,10 @@
-const express = require('express');
+import express from 'express';
+import subscriptionController from '../controllers/controller.api.subscription.js';
+import { validateToken } from '../../middleware/auth.validate.middleware.js';
+
 const router = express.Router();
-const subscriptionController = require('../controllers/controller.api.subscription');
-const authMiddleware = require('../../middleware/auth.middleware');
 
 // Cancelar suscripción
-router.post('/cancel', authMiddleware, subscriptionController.cancelSubscription);
+router.post('/cancel', validateToken, subscriptionController.cancelSubscription);
 
-module.exports = router;
+export default router;

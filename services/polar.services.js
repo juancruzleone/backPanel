@@ -674,4 +674,4 @@ class PolarService {
   }
 }
 
-module.exports = new PolarService();
+export default new PolarService();
