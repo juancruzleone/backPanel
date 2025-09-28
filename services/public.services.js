@@ -9,7 +9,14 @@ const tenantCollection = db.collection("tenants")
 const subscriptionPlansCollection = db.collection("subscriptionplans")
 
 async function registerPublicUser(userData) {
-  const { userName, password, name, email, tenantName, tenantAddress, country } = userData
+  const { 
+    userName, password, name, email, tenantName, tenantAddress, country,
+    // Campos fiscales para Argentina
+    razonSocial, tipoDocumento, numeroDocumento, condicionIVA, 
+    direccionFiscal, ciudad, provincia, codigoPostal,
+    // Campos fiscales para internacional
+    taxIdType, taxIdNumber, addressIntl, cityIntl, postalCodeIntl
+  } = userData
 
   // Validaciones
   if (!userName || !password || !name || !email || !tenantName) {
@@ -62,7 +69,7 @@ async function registerPublicUser(userData) {
   // Hashear la contraseña
   const hashedPassword = await bcrypt.hash(password, 10)
 
-  // Crear el usuario admin
+  // Crear el usuario admin con datos fiscales
   const newUser = {
     userName,
     password: hashedPassword,
@@ -70,7 +77,27 @@ async function registerPublicUser(userData) {
     email,
     role: "admin",
     tenantId: tenantIdString,
-    country: country || 'AR', // Guardar país del usuario
+    country: country || 'AR',
+    // Datos fiscales según país
+    ...(country === 'AR' ? {
+      // Campos para Argentina
+      razonSocial,
+      tipoDocumento,
+      numeroDocumento,
+      condicionIVA,
+      direccionFiscal,
+      ciudad,
+      provincia,
+      codigoPostal
+    } : {
+      // Campos para internacional
+      razonSocial, // Usar razonSocial como nombre de empresa
+      taxIdType,
+      taxIdNumber,
+      addressIntl,
+      cityIntl,
+      postalCodeIntl
+    }),
     isVerified: true,
     status: "active",
     createdAt: new Date(),

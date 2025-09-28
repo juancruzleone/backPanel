@@ -74,6 +74,136 @@ const publicRegister = yup.object({
     .matches(/^[A-Z]{2}$/, "El código de país debe estar en mayúsculas")
     .default("US")
     .optional(),
+
+  // Campos fiscales para Argentina
+  razonSocial: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: 'AR',
+      then: (schema) => schema.required('La razón social es obligatoria para Argentina'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(255, "La razón social no puede tener más de 255 caracteres"),
+
+  tipoDocumento: yup
+    .string()
+    .when('country', {
+      is: 'AR',
+      then: (schema) => schema.required('El tipo de documento es obligatorio para Argentina')
+        .oneOf(['CUIT', 'CUIL', 'DNI'], 'Tipo de documento inválido'),
+      otherwise: (schema) => schema.optional()
+    }),
+
+  numeroDocumento: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: 'AR',
+      then: (schema) => schema.required('El número de documento es obligatorio para Argentina'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(50, "El número de documento no puede tener más de 50 caracteres"),
+
+  condicionIVA: yup
+    .string()
+    .when('country', {
+      is: 'AR',
+      then: (schema) => schema.required('La condición de IVA es obligatoria para Argentina')
+        .oneOf(['Consumidor Final', 'Responsable Inscripto', 'Exento', 'Monotributista'], 'Condición de IVA inválida'),
+      otherwise: (schema) => schema.optional()
+    }),
+
+  direccionFiscal: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: 'AR',
+      then: (schema) => schema.required('La dirección fiscal es obligatoria para Argentina'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(255, "La dirección fiscal no puede tener más de 255 caracteres"),
+
+  ciudad: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: 'AR',
+      then: (schema) => schema.required('La ciudad es obligatoria para Argentina'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(100, "La ciudad no puede tener más de 100 caracteres"),
+
+  provincia: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: 'AR',
+      then: (schema) => schema.required('La provincia es obligatoria para Argentina'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(100, "La provincia no puede tener más de 100 caracteres"),
+
+  codigoPostal: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: 'AR',
+      then: (schema) => schema.required('El código postal es obligatorio para Argentina'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(20, "El código postal no puede tener más de 20 caracteres"),
+
+  // Campos fiscales para países internacionales
+  taxIdType: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: (val) => val && val !== 'AR',
+      then: (schema) => schema.required('El tipo de identificación fiscal es obligatorio'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(50, "El tipo de identificación fiscal no puede tener más de 50 caracteres"),
+
+  taxIdNumber: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: (val) => val && val !== 'AR',
+      then: (schema) => schema.required('El número de identificación fiscal es obligatorio'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(100, "El número de identificación fiscal no puede tener más de 100 caracteres"),
+
+  addressIntl: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: (val) => val && val !== 'AR',
+      then: (schema) => schema.required('La dirección es obligatoria'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(255, "La dirección no puede tener más de 255 caracteres"),
+
+  cityIntl: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: (val) => val && val !== 'AR',
+      then: (schema) => schema.required('La ciudad es obligatoria'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(100, "La ciudad no puede tener más de 100 caracteres"),
+
+  postalCodeIntl: yup
+    .string()
+    .trim()
+    .when('country', {
+      is: (val) => val && val !== 'AR',
+      then: (schema) => schema.required('El código postal es obligatorio'),
+      otherwise: (schema) => schema.optional()
+    })
+    .max(20, "El código postal no puede tener más de 20 caracteres"),
 })
 
 export { cuentaRegistro, cuentaLogin, publicRegister }
