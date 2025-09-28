@@ -17,6 +17,7 @@ import ApiSubscriptionsRoutes from "../api/routes/route.api.subscriptions.js"
 import ApiWebhooksRoutes from "../api/routes/route.api.webhooks.js"
 import ApiPaymentsRoutes from "../api/routes/route.api.payments.js"
 // import ApiMonitoringRoutes from "../api/routes/route.api.monitoring.js" // Comentado temporalmente
+import ApiSubscriptionRoutes from "../api/routes/route.api.subscription.js"
 import publicRoutes from '../api/routes/route.api.public.js' 
 import { connectDB } from "../db.js"
 import dotenv from "dotenv"
@@ -85,6 +86,7 @@ app.use("/api/subscriptions", ApiSubscriptionsRoutes)
 app.use("/api/webhooks", ApiWebhooksRoutes)
 app.use("/api/payments", ApiPaymentsRoutes)
 // app.use("/api/monitoring", ApiMonitoringRoutes) // Comentado temporalmente
+app.use("/api/subscription", ApiSubscriptionRoutes)
 app.use("/api/public", publicRoutes)
 
 

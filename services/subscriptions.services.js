@@ -8,6 +8,35 @@ const tenantsCollection = db.collection("tenants")
 const subscriptionsCollection = db.collection("subscriptions")
 const paymentsCollection = db.collection("payments")
 
+/**
+ * Actualizar el plan del tenant
+ */
+async function updateTenantPlan(tenantId, planId) {
+  try {
+    console.log('🔄 Actualizando plan del tenant:', { tenantId, planId });
+    
+    const result = await tenantsCollection.updateOne(
+      { tenantId: tenantId },
+      { 
+        $set: { 
+          plan: planId,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (result.modifiedCount === 0) {
+      throw new Error('No se pudo actualizar el plan del tenant');
+    }
+
+    console.log('✅ Plan del tenant actualizado exitosamente');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error actualizando plan del tenant:', error);
+    throw error;
+  }
+}
+
 // Crear checkout de MercadoPago
 async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successUrl, failureUrl, pendingUrl }) {
   try {

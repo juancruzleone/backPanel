@@ -444,10 +444,234 @@ class PolarService {
       const response = await axios.get(`http://ip-api.com/json/${userIP}?fields=countryCode`);
       return response.data.countryCode || 'US';
     } catch (error) {
+      console.error('Error detectando país del usuario:', error);
+      return 'US'; // País por defecto
+    }
+  }
+  /**
+   * Procesar webhook de Polar.sh
+   */
+  async processWebhook(eventType, data) {
+    try {
+      console.log('🔔 Procesando webhook de Polar.sh:', eventType);
+      
+      switch (eventType) {
+        case 'checkout.created':
+          console.log('🛒 Checkout creado:', data.id);
+          break;
+        
+        case 'checkout.updated':
+          console.log('🔄 Checkout actualizado:', data.id, 'Estado:', data.status);
+          
+          if (data.status === 'confirmed') {
+            // Checkout completado exitosamente
+            return await this.handleSuccessfulPayment(data);
+          }
+          break;
+
+        case 'order.updated':
+          console.log('📦 Orden actualizada:', data.id, 'Estado:', data.status);
+          
+          // Verificar si la orden tiene una suscripción activa
+          if (data.subscription && data.subscription.status === 'active') {
+            console.log('💰 Orden con suscripción activa - procesando pago...');
+            return await this.handleSuccessfulOrderPayment(data);
+          }
+          break;
+        
+        case 'subscription.created':
+          console.log('📅 Suscripción creada:', data.id);
+          break;
+        
+        case 'subscription.updated':
+          console.log('🔄 Suscripción actualizada:', data.id, 'Estado:', data.status);
+          
+          // Procesar cambios de estado de suscripción
+          const subscriptionMonitoringService = await import('./subscriptionMonitoring.services.js');
+          return await subscriptionMonitoringService.default.processPolarSubscriptionWebhook(eventType, data);
+        
+        case 'subscription.canceled':
+        case 'subscription.past_due':
+          console.log('🚫 Suscripción con problema:', data.id, 'Evento:', eventType);
+          
+          // Procesar cancelación o pago vencido
+          const monitoringService = await import('./subscriptionMonitoring.services.js');
+          return await monitoringService.default.processPolarSubscriptionWebhook(eventType, data);
+        
+        default:
+          console.log('ℹ️ Evento no manejado:', eventType);
+      }
+      
+      return { success: true, eventType };
+      
+    } catch (error) {
+      console.error('❌ Error procesando webhook:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Manejar pago exitoso
+   */
+  async handleSuccessfulPayment(checkoutData) {
+    try {
+      console.log('💰 Procesando pago exitoso de Polar.sh:', checkoutData.id);
+      
+      const metadata = checkoutData.metadata || {};
+      const planId = metadata.planId;
+      const billingCycle = metadata.billingCycle || 'monthly';
+      
+      // Intentar obtener el email del cliente de diferentes campos
+      const userEmail = checkoutData.customer_email || 
+                       checkoutData.customer?.email ||
+                       checkoutData.email ||
+                       metadata.userEmail;
+      
+      console.log('📧 Email detectado:', userEmail);
+      console.log('🔍 Datos disponibles para email:', {
+        customer_email: checkoutData.customer_email,
+        customer: checkoutData.customer,
+        email: checkoutData.email,
+        metadata_userEmail: metadata.userEmail
+      });
+      
+      if (!planId) {
+        throw new Error('No se encontró planId en los metadatos del checkout');
+      }
+      
+      if (!userEmail) {
+        throw new Error('No se encontró email del cliente en el checkout. Campos disponibles: ' + Object.keys(checkoutData).join(', '));
+      }
+      
+      // Importar el servicio de procesamiento de pagos
+      const paymentProcessingService = await import('./paymentProcessing.services.js');
+      
+      // Procesar el pago exitoso (asignar plan al tenant)
+      const result = await paymentProcessingService.default.processSuccessfulPayment({
+        processor: 'polar',
+        checkoutId: checkoutData.id,
+        subscriptionId: checkoutData.subscription?.id,
+        planId: planId,
+        userEmail: userEmail,
+        billingCycle: billingCycle,
+        amount: checkoutData.amount,
+        currency: checkoutData.currency || 'USD',
+        metadata: metadata
+      });
+      
+      console.log('✅ Pago procesado exitosamente:', result);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Error procesando pago exitoso:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Manejar pago exitoso desde order.updated
+   */
+  async handleSuccessfulOrderPayment(orderData) {
+    try {
+      console.log('💰 Procesando pago exitoso desde orden de Polar.sh:', orderData.id);
+      
+      const metadata = orderData.metadata || {};
+      const subscription = orderData.subscription;
+      const planId = metadata.planId;
+      const billingCycle = metadata.billingCycle || 'monthly';
+      const userEmail = orderData.customer?.email;
+      
+      if (!planId || !userEmail || !subscription) {
+        throw new Error('Datos insuficientes en la orden para procesar el pago');
+      }
+      
+      // Importar el servicio de procesamiento de pagos
+      const paymentProcessingService = await import('./paymentProcessing.services.js');
+      
+      // Procesar el pago exitoso (asignar plan al tenant)
+      const result = await paymentProcessingService.default.processSuccessfulPayment({
+        processor: 'polar',
+        orderId: orderData.id,
+        subscriptionId: subscription.id,
+        planId: planId,
+        userEmail: userEmail,
+        billingCycle: billingCycle,
+        amount: orderData.amount,
+        currency: subscription.currency || 'USD',
+        metadata: metadata
+      });
+      
+      console.log('✅ Pago desde orden procesado exitosamente:', result);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Error procesando pago desde orden:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener información de facturación del cliente
+   */
+  async getCustomerBilling(customerId) {
+    try {
+      const response = await this.client.get(`/v1/customers/${customerId}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error obteniendo información del cliente:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Detectar país del usuario por IP (usando un servicio externo)
+   */
+  async detectUserCountryByIP(userIP) {
+    try {
+      // Usar un servicio gratuito para detectar país por IP
+      const response = await axios.get(`http://ip-api.com/json/${userIP}?fields=countryCode`);
+      return response.data.countryCode || 'US';
+    } catch (error) {
       console.warn('⚠️ No se pudo detectar país por IP, usando US por defecto');
       return 'US';
     }
   }
+
+  /**
+   * Cancelar suscripción en Polar.sh
+   */
+  async cancelSubscription(subscriptionId) {
+    try {
+      console.log('🚫 Cancelando suscripción en Polar.sh:', subscriptionId);
+
+      const response = await axios.delete(
+        `${this.baseURL}/subscriptions/${subscriptionId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log('✅ Suscripción cancelada exitosamente en Polar.sh:', response.data);
+
+      return {
+        success: true,
+        data: response.data,
+        message: 'Suscripción cancelada exitosamente en Polar.sh'
+      };
+
+    } catch (error) {
+      console.error('❌ Error cancelando suscripción en Polar.sh:', error.response?.data || error.message);
+      
+      return {
+        success: false,
+        error: error.response?.data || error.message,
+        message: 'Error al cancelar suscripción en Polar.sh'
+      };
+    }
+  }
 }
 
-export default new PolarService();
+module.exports = new PolarService();

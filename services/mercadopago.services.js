@@ -458,6 +458,45 @@ class MercadoPagoService {
             };
         }
     }
+
+    /**
+     * Cancelar preapproval (suscripción) en MercadoPago
+     */
+    async cancelPreapproval(preapprovalId) {
+        try {
+            console.log('🚫 Cancelando preapproval en MercadoPago:', preapprovalId);
+
+            const response = await axios.put(
+                `${MP_CONFIG.BASE_URL}/preapproval/${preapprovalId}`,
+                {
+                    status: 'cancelled'
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            console.log('✅ Preapproval cancelado exitosamente:', response.data);
+
+            return {
+                success: true,
+                data: response.data,
+                message: 'Suscripción cancelada exitosamente en MercadoPago'
+            };
+
+        } catch (error) {
+            console.error('❌ Error cancelando preapproval:', error.response?.data || error.message);
+            
+            return {
+                success: false,
+                error: error.response?.data || error.message,
+                message: 'Error al cancelar suscripción en MercadoPago'
+            };
+        }
+    }
 }
 
 export default new MercadoPagoService();
