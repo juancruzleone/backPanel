@@ -35,30 +35,59 @@ export async function isSuperAdmin(req, res, next) {
 }
 
 export async function isAdmin(req, res, next) {
+  console.log('🔐 [ADMIN] Verificando rol admin...');
+  
+  // Si validateToken ya estableció req.user, usarlo directamente
+  if (req.user) {
+    console.log('✅ [ADMIN] Usuario ya validado:', {
+      id: req.user._id,
+      userName: req.user.userName,
+      role: req.user.role,
+      tenantId: req.user.tenantId
+    });
+    
+    if (req.user.role === "admin" || req.user.role === "super_admin") {
+      console.log('✅ [ADMIN] Rol válido:', req.user.role);
+      return next();
+    } else {
+      console.log('❌ [ADMIN] Rol no autorizado:', req.user.role);
+      return res.status(403).json({ 
+        error: { message: `Acceso denegado. Rol actual: ${req.user.role}. Se requiere rol de administrador.` } 
+      });
+    }
+  }
+
+  // Fallback: validar token si req.user no está disponible
   const token = req.headers.authorization?.split(" ")[1]
 
   if (!token) {
+    console.log('❌ [ADMIN] Token faltante');
     return res.status(401).json({ error: { message: "No se proporcionó token" } })
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    console.log('🔐 [ADMIN] Token decodificado:', { userId: decoded._id });
     
     // Verificar que el _id sea válido antes de convertirlo a ObjectId
     if (!decoded._id || !ObjectId.isValid(decoded._id)) {
+      console.log('❌ [ADMIN] ID de usuario inválido');
       return res.status(403).json({ error: { message: "Token inválido: ID de usuario no válido" } })
     }
     
     const user = await cuentaCollection.findOne({ _id: new ObjectId(decoded._id) })
+    console.log('🔐 [ADMIN] Usuario encontrado:', user ? { id: user._id, role: user.role } : 'NO ENCONTRADO');
 
     if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+      console.log('❌ [ADMIN] Usuario no autorizado');
       return res.status(403).json({ error: { message: "Acceso denegado. Se requiere rol de administrador o super administrador." } })
     }
 
     req.user = user
+    console.log('✅ [ADMIN] Acceso permitido');
     next()
   } catch (err) {
-    console.error("Error en middleware isAdmin:", err)
+    console.error("❌ [ADMIN] Error:", err.message)
     return res.status(403).json({ error: { message: "Token inválido o usuario no autorizado" } })
   }
 }
