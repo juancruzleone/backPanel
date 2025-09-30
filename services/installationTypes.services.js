@@ -15,7 +15,34 @@ async function getInstallationTypes(filter = {}, tenantId = null) {
   }
 
   if (tenantId) {
+    // Búsqueda dual: buscar por tenantId o por _id del tenant
+    // Esto maneja el caso donde el usuario tiene el _id del tenant como tenantId
+    console.log('🔍 [INSTALLATION TYPES] Buscando tipos para tenantId:', tenantId);
+    
+    // Primero buscar por tenantId directo
     filterMongo.tenantId = tenantId
+    let tipos = await installationTypesCollection.find(filterMongo).sort({ nombre: 1 }).toArray()
+    console.log('🔍 [INSTALLATION TYPES] Tipos encontrados (tenantId directo):', tipos.length);
+    
+    // Si no encuentra nada, buscar el tenant real y usar su tenantId
+    if (tipos.length === 0) {
+      try {
+        console.log('🔍 [INSTALLATION TYPES] Buscando tenant por _id...');
+        const tenantCollection = db.collection("tenants")
+        const tenant = await tenantCollection.findOne({ _id: new ObjectId(tenantId) })
+        
+        if (tenant && tenant.tenantId) {
+          console.log('✅ [INSTALLATION TYPES] Tenant encontrado, usando tenantId real:', tenant.tenantId);
+          filterMongo.tenantId = tenant.tenantId
+          tipos = await installationTypesCollection.find(filterMongo).sort({ nombre: 1 }).toArray()
+          console.log('🔍 [INSTALLATION TYPES] Tipos encontrados (tenantId real):', tipos.length);
+        }
+      } catch (error) {
+        console.log('❌ [INSTALLATION TYPES] Error buscando tenant:', error.message);
+      }
+    }
+    
+    return tipos
   }
 
   return installationTypesCollection.find(filterMongo).sort({ nombre: 1 }).toArray()
