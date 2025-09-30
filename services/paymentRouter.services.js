@@ -249,13 +249,68 @@ class PaymentRouterService {
     try {
       console.log(`🚫 Cancelando suscripción ${processor}: ${subscriptionId}`);
       
+      // Cancelar en el procesador de pagos
+      let cancelResult;
       if (processor === 'mercadopago') {
-        return await mercadoPagoService.cancelSubscription(subscriptionId);
+        cancelResult = await mercadoPagoService.cancelSubscription(subscriptionId);
       } else if (processor === 'polar') {
-        return await polarService.cancelSubscription(subscriptionId);
+        cancelResult = await polarService.cancelSubscription(subscriptionId);
       } else {
         throw new Error(`Procesador no soportado: ${processor}`);
       }
+      
+      // Si la cancelación fue exitosa, actualizar el tenant en la base de datos
+      if (cancelResult.success) {
+        console.log('✅ Suscripción cancelada en procesador, actualizando tenant...');
+        
+        const { db } = await import('../db.js');
+        const subscriptionsCollection = db.collection('subscriptions');
+        const tenantsCollection = db.collection('tenants');
+        
+        // Buscar la suscripción en la BD
+        const subscription = await subscriptionsCollection.findOne({ 
+          subscriptionId: subscriptionId 
+        });
+        
+        if (subscription) {
+          console.log('📋 Suscripción encontrada:', subscription);
+          
+          // Actualizar estado de la suscripción
+          await subscriptionsCollection.updateOne(
+            { _id: subscription._id },
+            { 
+              $set: { 
+                status: 'cancelled',
+                cancelledAt: new Date(),
+                updatedAt: new Date()
+              } 
+            }
+          );
+          
+          // Actualizar el tenant
+          const tenantId = subscription.tenantId;
+          await tenantsCollection.updateOne(
+            { _id: new (await import('mongodb')).ObjectId(tenantId) },
+            { 
+              $set: { 
+                subscriptionStatus: 'cancelled',
+                plan: null,
+                updatedAt: new Date()
+              },
+              $unset: {
+                planDetails: "",
+                subscriptionExpiresAt: ""
+              }
+            }
+          );
+          
+          console.log('✅ Tenant actualizado a plan free');
+        } else {
+          console.warn('⚠️ No se encontró la suscripción en BD');
+        }
+      }
+      
+      return cancelResult;
       
     } catch (error) {
       console.error('❌ Error cancelando suscripción:', error);

@@ -239,11 +239,45 @@ class PaymentsController {
         });
       }
       
+      // Verificar que la suscripción existe y pertenece al usuario
+      const { db } = await import('../../db.js');
+      const subscriptionsCollection = db.collection('subscriptions');
+      const tenantsCollection = db.collection('tenants');
+      
+      const subscription = await subscriptionsCollection.findOne({ 
+        subscriptionId: subscriptionId 
+      });
+      
+      if (!subscription) {
+        return res.status(404).json({
+          success: false,
+          message: 'No se encontró la suscripción. Es posible que ya no tengas una suscripción activa.'
+        });
+      }
+      
+      // Verificar que la suscripción no esté ya cancelada
+      if (subscription.status === 'cancelled') {
+        return res.status(400).json({
+          success: false,
+          message: 'Esta suscripción ya ha sido cancelada previamente.'
+        });
+      }
+      
+      // Verificar que el tenant del usuario coincida con el de la suscripción
+      const userTenantId = tokenData.tenantId;
+      if (subscription.tenantId !== userTenantId) {
+        return res.status(403).json({
+          success: false,
+          message: 'No tienes permisos para cancelar esta suscripción.'
+        });
+      }
+      
       const result = await paymentRouterService.cancelSubscription(processor, subscriptionId);
       
       res.json({
         success: true,
-        data: result
+        data: result,
+        message: 'Suscripción cancelada exitosamente'
       });
       
     } catch (error) {
