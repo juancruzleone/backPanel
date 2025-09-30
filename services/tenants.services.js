@@ -309,7 +309,22 @@ async function getTenantStats(tenantId, superAdminUser) {
 async function updateTenantStats(tenantId) {
   console.log("🔍 Actualizando estadísticas para tenantId:", tenantId)
   
-  const tenant = await tenantCollection.findOne({ tenantId })
+  // Buscar por tenantId como string
+  let tenant = await tenantCollection.findOne({ tenantId })
+  console.log('🔍 [UPDATE STATS] Tenant encontrado (tenantId):', tenant ? 'SÍ' : 'NO');
+  
+  // Si no se encuentra, intentar buscar por _id (caso común: el tenantId del usuario es el _id del tenant)
+  if (!tenant) {
+    console.log('🔍 [UPDATE STATS] Intentando buscar por _id...');
+    try {
+      const { ObjectId } = await import('mongodb');
+      tenant = await tenantCollection.findOne({ _id: new ObjectId(tenantId) });
+      console.log('🔍 [UPDATE STATS] Tenant encontrado (_id):', tenant ? 'SÍ' : 'NO');
+    } catch (error) {
+      console.log('🔍 [UPDATE STATS] Error buscando por _id:', error.message);
+    }
+  }
+  
   if (!tenant) {
     console.log("❌ Tenant no encontrado para tenantId:", tenantId)
     return
@@ -372,7 +387,24 @@ async function updateTenantStats(tenantId) {
 
 // Verificar límites del plan
 async function checkTenantLimits(tenantId, resourceType, currentCount) {
-  const tenant = await tenantCollection.findOne({ tenantId })
+  console.log('🔍 [TENANT LIMITS] Buscando tenant con tenantId:', tenantId);
+  
+  // Buscar por tenantId como string
+  let tenant = await tenantCollection.findOne({ tenantId })
+  console.log('🔍 [TENANT LIMITS] Tenant encontrado (tenantId):', tenant ? 'SÍ' : 'NO');
+  
+  // Si no se encuentra, intentar buscar por _id (caso común: el tenantId del usuario es el _id del tenant)
+  if (!tenant) {
+    console.log('🔍 [TENANT LIMITS] Intentando buscar por _id...');
+    try {
+      const { ObjectId } = await import('mongodb');
+      tenant = await tenantCollection.findOne({ _id: new ObjectId(tenantId) });
+      console.log('🔍 [TENANT LIMITS] Tenant encontrado (_id):', tenant ? 'SÍ' : 'NO');
+    } catch (error) {
+      console.log('🔍 [TENANT LIMITS] Error buscando por _id:', error.message);
+    }
+  }
+  
   if (!tenant) {
     throw new Error("Tenant no encontrado")
   }
