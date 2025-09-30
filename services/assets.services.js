@@ -110,13 +110,15 @@ const putAsset = async (id, activo, tenantId, adminUser) => {
     query.tenantId = tenantId
   }
 
-  // Preservar la fecha de creación original
+  // Preservar la fecha de creación original y el tenantId
   const existingAsset = await getAssetById(id, tenantId)
   const assetToUpdate = {
     nombre: activo.nombre,
     marca: activo.marca,
     modelo: activo.modelo,
     numeroSerie: activo.numeroSerie,
+    tenantId: existingAsset.tenantId || tenantId, // Preservar tenantId
+    createdBy: existingAsset.createdBy, // Preservar createdBy
     createdAt: existingAsset.createdAt || new Date(),
     updatedAt: new Date(),
     updatedBy: adminUser._id,

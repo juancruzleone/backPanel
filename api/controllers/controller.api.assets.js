@@ -38,12 +38,20 @@ const addAsset = async (req, res) => {
   try {
     const activo = { ...req.body }
     const adminUser = req.user
-    const tenantId = req.user.tenantId
+    const tenantId = req.tenantId || req.user.tenantId
     
     // Verificar que el usuario sea admin del tenant
     if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
       return res.status(403).json({
         error: "No tienes permisos para crear activos"
+      })
+    }
+    
+    // Validar que tenemos tenantId
+    if (!tenantId) {
+      console.error("❌ [ADD ASSET] ERROR: tenantId es undefined/null")
+      return res.status(400).json({
+        error: "Error interno: no se pudo identificar el tenant"
       })
     }
     
