@@ -398,27 +398,36 @@ async function updateDeviceInInstallation(installationId, deviceId, deviceData) 
     const currentDevice = installation.devices[0]
 
     // Si se está cambiando el assetId, verificar que el nuevo activo existe
-    if (deviceData.assetId && deviceData.assetId !== currentDevice.assetId?.toString()) {
-      if (!ObjectId.isValid(deviceData.assetId)) {
-        throw new Error("El ID del activo no es válido")
-      }
+    if (deviceData.assetId) {
+      const newAssetIdString = deviceData.assetId.toString()
+      const currentAssetIdString = currentDevice.assetId?.toString()
+      
+      // Solo validar si realmente está cambiando el activo
+      if (newAssetIdString !== currentAssetIdString) {
+        if (!ObjectId.isValid(deviceData.assetId)) {
+          throw new Error("El ID del activo no es válido")
+        }
 
-      const newAsset = await assetsCollection.findOne({ _id: new ObjectId(deviceData.assetId) })
-      if (!newAsset) {
-        throw new Error("El nuevo activo no existe")
-      }
+        const newAsset = await assetsCollection.findOne({ _id: new ObjectId(deviceData.assetId) })
+        if (!newAsset) {
+          throw new Error("El nuevo activo no existe")
+        }
 
-      if (!newAsset.templateId) {
-        throw new Error("El nuevo activo debe tener una plantilla de formulario asignada")
-      }
+        if (!newAsset.templateId) {
+          throw new Error("El nuevo activo debe tener una plantilla de formulario asignada")
+        }
 
-      // Actualizar con información del nuevo activo
-      deviceData.nombre = newAsset.nombre
-      deviceData.marca = newAsset.marca
-      deviceData.modelo = newAsset.modelo
-      deviceData.numeroSerie = newAsset.numeroSerie
-      deviceData.templateId = newAsset.templateId
-      deviceData.assetId = new ObjectId(deviceData.assetId)
+        // Actualizar con información del nuevo activo (excepto nombre que viene del activo)
+        deviceData.marca = newAsset.marca
+        deviceData.modelo = newAsset.modelo
+        deviceData.numeroSerie = newAsset.numeroSerie
+        deviceData.templateId = newAsset.templateId
+        deviceData.assetId = new ObjectId(deviceData.assetId)
+        // El nombre se mantiene del activo, no se permite editar
+      } else {
+        // Si no cambió el activo, mantener el ObjectId correcto
+        deviceData.assetId = currentDevice.assetId
+      }
     }
 
     // Crear el dispositivo actualizado preservando datos importantes
