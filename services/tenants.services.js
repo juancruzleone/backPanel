@@ -661,18 +661,128 @@ async function getUserProfile(user) {
   }
 }
 
+// Obtener información completa del plan del tenant
+async function getTenantPlanInfo(tenantId) {
+  try {
+    // Buscar tenant con lógica dual
+    let tenant = await tenantCollection.findOne({ tenantId })
+    if (!tenant) {
+      try {
+        const { ObjectId } = await import('mongodb');
+        tenant = await tenantCollection.findOne({ _id: new ObjectId(tenantId) });
+      } catch (error) {
+        console.error("Error al convertir tenantId a ObjectId:", error);
+      }
+    }
+
+    if (!tenant) {
+      throw new Error("Tenant no encontrado")
+    }
+
+    if (tenant.status !== "active") {
+      throw new Error("Tenant inactivo")
+    }
+
+    // Obtener configuración del plan
+    const { getPlansConfig } = await import("../config/plans.config.js")
+    const plansConfig = getPlansConfig()
+    const planConfig = plansConfig[tenant.plan] || plansConfig.starter
+
+    // Obtener estadísticas actuales del tenant
+    const stats = await getTenantStatsInternal(tenantId)
+
+    return {
+      plan: {
+        id: tenant.plan,
+        name: planConfig.name,
+        limits: {
+          users: planConfig.limits.users,
+          installations: planConfig.limits.installations,
+          assets: planConfig.limits.assets,
+          formTemplates: planConfig.limits.formTemplates,
+          workOrders: planConfig.limits.workOrders
+        }
+      },
+      stats: {
+        usersCount: stats.usersCount || 0,
+        installationsCount: stats.installationsCount || 0,
+        assetsCount: stats.assetsCount || 0,
+        formTemplatesCount: stats.formTemplatesCount || 0,
+        workOrdersCount: stats.workOrdersCount || 0
+      },
+      subscriptionStatus: tenant.subscriptionStatus || 'active',
+      subscriptionExpiresAt: tenant.subscriptionExpiresAt
+    }
+  } catch (error) {
+    console.error("Error obteniendo información del plan:", error)
+    throw new Error("Error al obtener información del plan del tenant")
+  }
+}
+
+// Función interna para obtener estadísticas sin validaciones adicionales
+async function getTenantStatsInternal(tenantId) {
+  try {
+    const { db } = await import("../db.js")
+    
+    // Obtener colecciones
+    const cuentaCollection = db.collection("cuentas")
+    const assetCollection = db.collection("assets")
+    const installationCollection = db.collection("installations")
+    const formTemplateCollection = db.collection("formTemplates")
+    const workOrderCollection = db.collection("workOrders")
+
+    // Contar usuarios
+    const usersCount = await cuentaCollection.countDocuments({ tenantId })
+    
+    // Contar activos
+    const assetsCount = await assetCollection.countDocuments({ tenantId })
+    
+    // Contar instalaciones
+    const installationsCount = await installationCollection.countDocuments({ tenantId })
+    
+    // Contar plantillas de formularios
+    const formTemplatesCount = await formTemplateCollection.countDocuments({ tenantId })
+    
+    // Contar órdenes de trabajo del mes actual
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const workOrdersCount = await workOrderCollection.countDocuments({ 
+      tenantId,
+      createdAt: { $gte: startOfMonth }
+    })
+
+    return {
+      usersCount,
+      assetsCount,
+      installationsCount,
+      formTemplatesCount,
+      workOrdersCount
+    }
+  } catch (error) {
+    console.error("Error obteniendo estadísticas internas:", error)
+    return {
+      usersCount: 0,
+      assetsCount: 0,
+      installationsCount: 0,
+      formTemplatesCount: 0,
+      workOrdersCount: 0
+    }
+  }
+}
+
 export {
   createTenant,
   getAllTenants,
   getTenantById,
-  getTenantBySubdomain,
   getTenantByTenantId,
+  getTenantBySubdomain,
   updateTenant,
   deleteTenant,
   getTenantStats,
-  updateTenantStats,
   forceUpdateTenantStats,
-  checkTenantLimits,
   checkTenantActivePlan,
-  getUserProfile
-} 
+  getUserProfile,
+  checkTenantLimits,
+  updateTenantStats,
+  getTenantPlanInfo
+}

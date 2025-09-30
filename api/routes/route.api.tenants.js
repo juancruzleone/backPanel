@@ -27,4 +27,7 @@ route.get("/tenant/check-active-plan", controllers.checkActivePlan)
 // Ruta para obtener perfil del usuario actual
 route.get("/profile", [validateToken], controllers.getUserProfile)
 
+// Ruta para obtener información del plan del tenant actual
+route.get("/plan-info", [validateToken], controllers.getTenantPlanInfo)
+
 export default route 

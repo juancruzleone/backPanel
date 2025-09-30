@@ -188,6 +188,20 @@ async function getUserProfile(req, res) {
   }
 }
 
+// Obtener información del plan del tenant actual
+async function getTenantPlanInfo(req, res) {
+  try {
+    const planInfo = await services.getTenantPlanInfo(req.user.tenantId)
+    res.status(200).json({
+      message: "Información del plan obtenida exitosamente",
+      ...planInfo
+    })
+  } catch (err) {
+    console.error("Error al obtener información del plan:", err)
+    res.status(400).json({ error: { message: err.message } })
+  }
+}
+
 export {
   createTenant,
   getAllTenants,
@@ -199,5 +213,6 @@ export {
   getGlobalStats,
   forceUpdateTenantStats,
   checkActivePlan,
-  getUserProfile
+  getUserProfile,
+  getTenantPlanInfo
 } 
