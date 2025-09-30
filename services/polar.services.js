@@ -644,15 +644,7 @@ class PolarService {
     try {
       console.log('🚫 Cancelando suscripción en Polar.sh:', subscriptionId);
 
-      const response = await axios.delete(
-        `${this.baseURL}/subscriptions/${subscriptionId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await this.client.post(`/v1/subscriptions/${subscriptionId}/cancel`);
 
       console.log('✅ Suscripción cancelada exitosamente en Polar.sh:', response.data);
 

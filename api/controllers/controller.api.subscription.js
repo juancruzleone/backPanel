@@ -40,9 +40,8 @@ async function cancelSubscription(req, res) {
       cancelResult = await mercadopagoService.cancelPreapproval(preapprovalId);
       
       if (cancelResult.success) {
-        // Actualizar estado en la base de datos y establecer plan en null
+        // Actualizar estado en la base de datos (ya actualiza tenant internamente)
         await cancelSubscriptionService(tenantId, 'mercadopago');
-        await updateTenantPlan(tenantId, null);
       }
 
     } else if (paymentProvider === 'polar') {
@@ -57,9 +56,8 @@ async function cancelSubscription(req, res) {
       cancelResult = await polarService.cancelSubscription(subscriptionId);
       
       if (cancelResult.success) {
-        // Actualizar estado en la base de datos y establecer plan en null
+        // Actualizar estado en la base de datos (ya actualiza tenant internamente)
         await cancelSubscriptionService(tenantId, 'polar');
-        await updateTenantPlan(tenantId, null);
       }
 
     } else {

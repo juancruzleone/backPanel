@@ -369,16 +369,31 @@ async function getUserProfile(userId) {
       const tenantsCollection = db.collection("tenants");
       const subscriptionsCollection = db.collection("subscriptions");
 
-      // Obtener información del tenant
+      // Obtener información del tenant - buscar por _id o tenantId
       tenant = await tenantsCollection.findOne({ 
-        _id: new ObjectId(user.tenantId) 
+        $or: [
+          { _id: new ObjectId(user.tenantId) },
+          { tenantId: user.tenantId }
+        ]
       });
 
-      // Obtener información de la suscripción
+      // Obtener información de la suscripción activa
       if (tenant) {
+        // Buscar suscripción por tenantId (string) o _id del tenant
         subscription = await subscriptionsCollection.findOne({ 
-          tenantId: tenant._id.toString() 
+          $or: [
+            { tenantId: tenant._id.toString() },
+            { tenantId: tenant.tenantId }
+          ],
+          status: { $in: ['active', 'authorized'] }
         });
+
+        // Agregar información del proveedor de pago y IDs necesarios para cancelación
+        if (subscription) {
+          subscription.paymentProvider = subscription.processor || 'mercadopago';
+          subscription.preapprovalId = subscription.mpSubscriptionId || subscription.mercadopagoPreapprovalId;
+          subscription.subscriptionId = subscription._id.toString();
+        }
       }
     }
 

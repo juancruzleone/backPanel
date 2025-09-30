@@ -677,9 +677,9 @@ async function cancelSubscription(tenantId, processor) {
   try {
     console.log('🚫 Cancelando suscripción:', { tenantId, processor });
 
-    // Actualizar estado de suscripción en BD
+    // 1. Actualizar estado de suscripción en BD
     const result = await subscriptionsCollection.updateMany(
-      { tenantId: tenantId, processor: processor },
+      { tenantId: tenantId },
       { 
         $set: { 
           status: 'cancelled',
@@ -690,10 +690,30 @@ async function cancelSubscription(tenantId, processor) {
 
     console.log('✅ Suscripción cancelada en BD:', result.modifiedCount);
 
+    // 2. Actualizar tenant: establecer plan a null y subscriptionStatus a 'inactive'
+    const tenantResult = await tenantsCollection.updateOne(
+      { 
+        $or: [
+          { _id: new ObjectId(tenantId) },
+          { tenantId: tenantId }
+        ]
+      },
+      {
+        $set: {
+          plan: null,
+          subscriptionStatus: 'inactive',
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    console.log('✅ Tenant actualizado - plan establecido a null:', tenantResult.modifiedCount);
+
     return {
       success: true,
       message: 'Suscripción cancelada exitosamente',
-      modifiedCount: result.modifiedCount
+      modifiedCount: result.modifiedCount,
+      tenantUpdated: tenantResult.modifiedCount > 0
     };
 
   } catch (error) {
