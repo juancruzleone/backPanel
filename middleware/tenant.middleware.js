@@ -136,35 +136,51 @@ export async function identifyTenantByHeader(req, res, next) {
 // Middleware para identificar tenant por token JWT
 export async function identifyTenantByToken(req, res, next) {
   try {
+    console.log('🔍 [identifyTenantByToken] Iniciando...');
+    console.log('🔍 [identifyTenantByToken] req.user:', req.user ? { id: req.user._id, role: req.user.role, tenantId: req.user.tenantId } : 'NO PRESENTE');
+    
     // Para super_admin, no necesitamos identificar tenant específico
     if (req.user && req.user.role === "super_admin") {
+      console.log('✅ [identifyTenantByToken] Usuario es super_admin, permitiendo acceso');
       return next()
     }
 
     // Si ya tenemos el usuario del token, usar su tenantId
     if (req.user && req.user.tenantId) {
+      console.log('🔍 [identifyTenantByToken] Usuario tiene tenantId:', req.user.tenantId);
       const tenant = await getTenantFromCache(req.user.tenantId)
       
-      if (!tenant || tenant.status !== "active") {
-        return res.status(404).json({ error: { message: "Tenant no encontrado o inactivo" } })
+      if (!tenant) {
+        console.log('❌ [identifyTenantByToken] Tenant no encontrado en caché/BD');
+        return res.status(404).json({ error: { message: "Tenant no encontrado" } })
+      }
+      
+      if (tenant.status !== "active") {
+        console.log('❌ [identifyTenantByToken] Tenant inactivo');
+        return res.status(404).json({ error: { message: "Tenant inactivo" } })
       }
 
       req.tenant = tenant
       req.tenantId = tenant.tenantId
+      console.log('✅ [identifyTenantByToken] Tenant identificado:', tenant.name);
       return next()
     }
 
     // Si no tenemos usuario, intentar obtener del token directamente
+    console.log('🔍 [identifyTenantByToken] No hay req.user, intentando decodificar token...');
     const token = req.headers.authorization?.split(" ")[1]
     
     if (!token) {
+      console.log('❌ [identifyTenantByToken] No hay token de autorización');
       return res.status(401).json({ error: { message: "Token de autorización requerido" } })
     }
 
     // Verificar token y obtener usuario
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    console.log('🔍 [identifyTenantByToken] Token decodificado, tenantId:', decoded.tenantId);
     
     if (!decoded.tenantId) {
+      console.log('❌ [identifyTenantByToken] Token no contiene tenantId');
       return res.status(400).json({ error: { message: "Token no contiene información de tenant" } })
     }
 
@@ -172,14 +188,16 @@ export async function identifyTenantByToken(req, res, next) {
     const tenant = await getTenantFromCache(decoded.tenantId)
     
     if (!tenant || tenant.status !== "active") {
+      console.log('❌ [identifyTenantByToken] Tenant no encontrado o inactivo');
       return res.status(404).json({ error: { message: "Tenant no encontrado o inactivo" } })
     }
 
     req.tenant = tenant
     req.tenantId = tenant.tenantId
+    console.log('✅ [identifyTenantByToken] Tenant identificado desde token:', tenant.name);
     next()
   } catch (error) {
-    console.error("Error identificando tenant por token:", error)
+    console.error("❌ [identifyTenantByToken] Error:", error.message)
     res.status(401).json({ error: { message: "Token inválido o tenant no encontrado" } })
   }
 }

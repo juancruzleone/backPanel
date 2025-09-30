@@ -55,8 +55,10 @@ const addManual = async (req, res) => {
         bytes: fileData.bytes,
         format: fileData.format 
       } : null,
-      adminUser: { id: adminUser.id, role: adminUser.role },
-      tenantId
+      adminUser: { id: adminUser.id, role: adminUser.role, tenantId: adminUser.tenantId },
+      tenantId,
+      'req.user.tenantId': req.user.tenantId,
+      'req.tenantId': req.tenantId
     })
     
     // Verificar que el usuario sea admin del tenant
@@ -74,16 +76,27 @@ const addManual = async (req, res) => {
       })
     }
 
-    // Agregar tenantId a los datos del manual
-    manualData.tenantId = tenantId
+    // Agregar tenantId a los datos del manual - USAR req.tenantId o req.user.tenantId
+    const finalTenantId = req.tenantId || req.user.tenantId || tenantId
+    manualData.tenantId = finalTenantId
     manualData.createdBy = adminUser.id || adminUser._id
 
     console.log("🔄 [ADD MANUAL] Llamando al servicio con datos:", {
       tenantId: manualData.tenantId,
+      finalTenantId,
+      'req.tenantId': req.tenantId,
+      'req.user.tenantId': req.user.tenantId,
       createdBy: manualData.createdBy,
       assetId: manualData.assetId,
       categoria: manualData.categoria
     })
+    
+    if (!manualData.tenantId) {
+      console.error("❌ [ADD MANUAL] ERROR CRÍTICO: tenantId es undefined/null")
+      return res.status(400).json({
+        error: { message: "Error interno: no se pudo identificar el tenant" }
+      })
+    }
 
     const newManual = await service.addManual(manualData, fileData, adminUser)
     console.log("✅ [ADD MANUAL] Manual creado exitosamente:", newManual._id)
