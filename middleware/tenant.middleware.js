@@ -75,24 +75,53 @@ export async function identifyTenantBySubdomain(req, res, next) {
 // Middleware para identificar tenant por header X-Tenant-ID
 export async function identifyTenantByHeader(req, res, next) {
   try {
-    const tenantId = req.headers['x-tenant-id']
+    console.log('🏢 [TENANT] Identificando tenant...');
+    
+    // Intentar obtener tenantId del header
+    let tenantId = req.headers['x-tenant-id']
+    console.log('🏢 [TENANT] X-Tenant-ID header:', tenantId || 'NO PRESENTE');
+    
+    // Si no hay header pero hay usuario autenticado, usar su tenantId
+    if (!tenantId && req.user) {
+      console.log('🏢 [TENANT] Usuario autenticado sin header, usando tenantId del usuario');
+      
+      // Buscar el tenant del usuario en la base de datos
+      const cuentaCollection = db.collection("cuentas")
+      const user = await cuentaCollection.findOne({ _id: req.user._id })
+      
+      if (user && user.tenantId) {
+        tenantId = user.tenantId
+        console.log('🏢 [TENANT] TenantId del usuario:', tenantId);
+      } else {
+        console.log('❌ [TENANT] Usuario no tiene tenantId asignado');
+        return res.status(400).json({ 
+          error: { 
+            message: "Usuario no tiene tenant asignado. Contacte al administrador." 
+          } 
+        })
+      }
+    }
     
     if (!tenantId) {
+      console.log('❌ [TENANT] No se pudo obtener tenantId');
       return res.status(400).json({ error: { message: "X-Tenant-ID header requerido" } })
     }
 
     // Usar caché para obtener tenant
     const tenant = await getTenantFromCache(tenantId)
+    console.log('🏢 [TENANT] Tenant encontrado:', tenant ? 'SÍ' : 'NO');
     
     if (!tenant || tenant.status !== "active") {
+      console.log('❌ [TENANT] Tenant no encontrado o inactivo');
       return res.status(404).json({ error: { message: "Tenant no encontrado o inactivo" } })
     }
 
     req.tenant = tenant
     req.tenantId = tenant.tenantId
+    console.log('✅ [TENANT] Tenant identificado:', tenant.name);
     next()
   } catch (error) {
-    console.error("Error identificando tenant por header:", error)
+    console.error("❌ [TENANT] Error identificando tenant:", error)
     res.status(404).json({ error: { message: "Tenant no encontrado" } })
   }
 }
