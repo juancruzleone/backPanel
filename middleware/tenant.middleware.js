@@ -118,6 +118,13 @@ export async function identifyTenantByHeader(req, res, next) {
 
     req.tenant = tenant
     req.tenantId = tenant.tenantId
+    
+    // IMPORTANTE: Actualizar también req.user.tenantId si existe usuario autenticado
+    if (req.user) {
+      req.user.tenantId = tenant.tenantId
+      console.log('✅ [TENANT] TenantId asignado a req.user:', tenant.tenantId);
+    }
+    
     console.log('✅ [TENANT] Tenant identificado:', tenant.name);
     next()
   } catch (error) {
