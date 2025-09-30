@@ -933,13 +933,34 @@ class PaymentProcessingService {
                 const tenantId = refParts[0];
                 const planId = refParts[1];
                 
+                // Obtener email del usuario logueado desde la colección cuentas
+                let payerEmail = subscriptionInfo.payer_email || 'unknown@example.com';
+                try {
+                    const accountsCollection = db.collection('cuentas');
+                    // Buscar usuario por tenantId (puede ser _id o tenantId del tenant)
+                    const user = await accountsCollection.findOne({ 
+                        $or: [
+                            { tenantId: tenantId },
+                            { tenantId: new ObjectId(tenantId) }
+                        ]
+                    });
+                    if (user && user.email) {
+                        payerEmail = user.email;
+                        console.log('✅ Email del usuario obtenido desde BD:', payerEmail);
+                    } else {
+                        console.log('⚠️ No se encontró usuario con tenantId:', tenantId);
+                    }
+                } catch (error) {
+                    console.error('⚠️ Error obteniendo email del usuario:', error);
+                }
+                
                 // Crear suscripción en BD con status pending y preapprovalId
                 const newSubscription = {
                     externalReference: subscriptionInfo.external_reference,
                     tenantId: tenantId,
                     planId: planId,
                     subscriptionPlan: planId,
-                    payerEmail: subscriptionInfo.payer_email || 'unknown@example.com',
+                    payerEmail: payerEmail,
                     status: 'pending',
                     amount: subscriptionInfo.auto_recurring?.transaction_amount || 0,
                     currency: subscriptionInfo.auto_recurring?.currency_id || 'ARS',
@@ -957,6 +978,7 @@ class PaymentProcessingService {
                 console.log('✅ Suscripción pending guardada en BD con preapprovalId:', {
                     _id: newSubscription._id,
                     preapprovalId: subscriptionInfo.id,
+                    payerEmail: payerEmail,
                     status: 'pending'
                 });
                 

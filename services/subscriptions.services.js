@@ -702,7 +702,7 @@ async function cancelSubscription(tenantId, processor) {
 
     console.log('✅ Suscripción cancelada en BD:', result.modifiedCount);
 
-    // 2. Actualizar tenant: establecer plan a null y subscriptionStatus a 'inactive'
+    // 2. Actualizar tenant: establecer plan a null y subscriptionStatus a 'cancelled'
     const tenantResult = await tenantsCollection.updateOne(
       { 
         $or: [
@@ -713,7 +713,7 @@ async function cancelSubscription(tenantId, processor) {
       {
         $set: {
           plan: null,
-          subscriptionStatus: 'inactive',
+          subscriptionStatus: 'cancelled',
           updatedAt: new Date()
         }
       }
