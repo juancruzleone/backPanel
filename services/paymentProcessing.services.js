@@ -372,7 +372,7 @@ class PaymentProcessingService {
             });
             
             // Mapear características del nuevo plan
-            const tenantFeatures = this.mapPlanToTenantFeatures(newPlan);
+            const tenantFeatures = this.mapPlanToTenantFeatures(newPlan.name);
             
             // Actualizar datos del tenant con el nuevo plan
             const updateData = {
@@ -390,6 +390,7 @@ class PaymentProcessingService {
                 subscriptionPlan: newPlan._id || newPlan.name,
                 subscriptionFrequency: newPlan.frequency,
                 subscriptionAmount: newPlan.price,
+                subscriptionStatus: 'active', // ✅ Cambiar de "trial" a "active"
                 // Expiración de suscripción (30 días mensual, 365 días anual)
                 subscriptionExpiresAt: new Date(Date.now() + (newPlan.frequency === 'annual' ? 365 : 30) * 24 * 60 * 60 * 1000),
                 
@@ -1029,6 +1030,7 @@ class PaymentProcessingService {
                                     $set: { 
                                         plan: realPlan,
                                         status: 'active',
+                                        subscriptionStatus: 'active', // ✅ Cambiar de "trial" a "active"
                                         subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // +30 días
                                         updatedAt: new Date()
                                     }
