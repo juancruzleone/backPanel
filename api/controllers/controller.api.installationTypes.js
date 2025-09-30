@@ -2,8 +2,16 @@ import * as service from "../../services/installationTypes.services.js"
 
 const getInstallationTypes = (req, res) => {
   const filter = req.query
-  const tenantId = req.user.tenantId
+  
+  // Obtener tenantId del usuario o del request
+  const tenantId = req.user.tenantId || req.tenantId
+  
+  console.log('🔍 [CONTROLLER] getInstallationTypes - tenantId:', tenantId)
+  console.log('🔍 [CONTROLLER] req.user.tenantId:', req.user.tenantId)
+  console.log('🔍 [CONTROLLER] req.tenantId:', req.tenantId)
+  
   service.getInstallationTypes(filter, tenantId).then((tipos) => {
+    console.log('✅ [CONTROLLER] Tipos encontrados:', tipos.length)
     res.status(200).json(tipos)
   }).catch((error) => {
     console.error("Error al obtener tipos de instalación:", error)
