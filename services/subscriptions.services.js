@@ -207,7 +207,7 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       throw new Error(`Error de MercadoPago: ${mpResult.message}`);
     }
 
-    console.log('✅ Suscripción creada:', mpResult.data.id);
+    console.log('✅ Suscripción creada en MercadoPago:', mpResult.data.id);
 
     const checkoutUrl = mpResult.data.init_point || mpResult.data.sandbox_init_point;
     console.log('🔗 URL de checkout obtenida:', checkoutUrl);
@@ -218,11 +218,33 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       throw new Error('MercadoPago no devolvió URL de checkout');
     }
 
-    // 5. NO crear suscripción en BD hasta que el pago sea exitoso
-    // El webhook creará la suscripción solo cuando MercadoPago confirme el pago
-    console.log('⏳ Suscripción NO creada en BD - Se creará solo si el pago es exitoso');
-    console.log('🔗 External reference para webhook:', subscriptionData.external_reference);
-    console.log('🆔 MercadoPago ID:', mpResult.data.id);
+    // 5. CREAR suscripción en BD con el preapprovalId para poder cancelarla después
+    const preapprovalId = mpResult.data.id; // Este es el ID que necesitamos para cancelar
+    
+    const newSubscription = {
+      externalReference: subscriptionData.external_reference,
+      tenantId: tenantId,
+      planId: planId,
+      subscriptionPlan: planId,
+      payerEmail: payerEmail,
+      status: 'pending', // Pending hasta que el webhook confirme el pago
+      amount: plan.price,
+      currency: plan.currency || 'ARS',
+      frequency: isYearlyPlan ? 'yearly' : 'monthly',
+      billingCycle: isYearlyPlan ? 'yearly' : 'monthly',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      mercadoPagoId: preapprovalId, // Payment ID (puede cambiar con cada pago)
+      preapprovalId: preapprovalId, // ✅ PREAPPROVAL ID - necesario para cancelar
+      mpSubscriptionId: preapprovalId // Alias para compatibilidad
+    };
+    
+    const insertResult = await subscriptionsCollection.insertOne(newSubscription);
+    console.log('✅ Suscripción creada en BD con preapprovalId:', {
+      _id: insertResult.insertedId,
+      preapprovalId: preapprovalId,
+      externalReference: subscriptionData.external_reference
+    });
 
     return {
       success: true,
@@ -231,7 +253,8 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
         checkoutUrl: checkoutUrl,
         init_point: checkoutUrl, // Agregar también como init_point para compatibilidad
         subscriptionId: mpResult.data.id,
-        externalReference: subscriptionData.external_reference
+        externalReference: subscriptionData.external_reference,
+        dbSubscriptionId: insertResult.insertedId.toString()
       }
     };
 
@@ -649,8 +672,15 @@ async function getSubscriptionStatus(tenantId) {
 
     const subscription = await subscriptionsCollection.findOne({ 
       tenantId: tenantId,
-      status: 'active'
+      status: { $in: ['active', 'approved', 'authorized'] }
     });
+
+    console.log('📋 Suscripción encontrada:', subscription ? {
+      _id: subscription._id,
+      preapprovalId: subscription.preapprovalId,
+      mercadoPagoId: subscription.mercadoPagoId,
+      status: subscription.status
+    } : 'No encontrada');
 
     return {
       success: true,
@@ -662,7 +692,11 @@ async function getSubscriptionStatus(tenantId) {
         plan: tenant.plan,
         maxUsers: tenant.maxUsers,
         maxProjects: tenant.maxProjects,
-        subscription: subscription
+        subscription: subscription,
+        // Agregar preapprovalId explícitamente para el frontend
+        preapprovalId: subscription?.preapprovalId || subscription?.mercadoPagoId || null,
+        subscriptionId: subscription?.subscriptionId || null,
+        paymentProvider: subscription?.processor || (subscription?.preapprovalId ? 'mercadopago' : null)
       }
     };
 

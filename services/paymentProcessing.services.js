@@ -36,9 +36,9 @@ class PaymentProcessingService {
                 externalReference: subscriptionId
             });
             
-            // Si no existe la suscripción, crearla ahora (flujo optimizado)
+            // Si no existe la suscripción, crearla ahora (flujo legacy - no debería pasar)
             if (!subscription) {
-                console.log('📝 Suscripción no encontrada en BD - Creando desde webhook');
+                console.log('📝 Suscripción no encontrada en BD - Creando desde webhook (flujo legacy)');
                 
                 // Extraer información del external_reference
                 const refParts = subscriptionId.split('_');
@@ -60,12 +60,40 @@ class PaymentProcessingService {
                     billingCycle: 'monthly',
                     createdAt: new Date(),
                     updatedAt: new Date(),
-                    mercadoPagoId: paymentData.id
+                    mercadoPagoId: paymentData.id,
+                    preapprovalId: paymentData.preapproval_id || paymentData.subscription_id || null
                 };
                 
                 // Insertar en BD
                 await db.collection('subscriptions').insertOne(subscription);
                 console.log('✅ Suscripción creada desde webhook:', subscription._id);
+            } else if (subscription.status === 'pending') {
+                // Si existe pero está pending, actualizarla a approved
+                console.log('🔄 Actualizando suscripción de pending a approved');
+                
+                await db.collection('subscriptions').updateOne(
+                    { _id: subscription._id },
+                    { 
+                        $set: { 
+                            status: 'approved',
+                            updatedAt: new Date(),
+                            mercadoPagoId: paymentData.id,
+                            // Actualizar preapprovalId si viene en el webhook y no estaba guardado
+                            ...(paymentData.preapproval_id && !subscription.preapprovalId ? {
+                                preapprovalId: paymentData.preapproval_id
+                            } : {})
+                        }
+                    }
+                );
+                
+                // Recargar la suscripción actualizada
+                subscription = await db.collection('subscriptions').findOne({
+                    _id: subscription._id
+                });
+                
+                console.log('✅ Suscripción actualizada a approved:', subscription._id);
+            } else {
+                console.log('ℹ️ Suscripción ya existe con status:', subscription.status);
             }
             
             // Si es un test y no existe la suscripción, crear una simulada
@@ -889,7 +917,8 @@ class PaymentProcessingService {
                     external_reference: subscriptionInfo.external_reference,
                     payer_email: subscriptionInfo.payer_email,
                     status: 'approved',
-                    subscription_id: subscriptionInfo.id
+                    subscription_id: subscriptionInfo.id,
+                    preapproval_id: subscriptionInfo.id // GUARDAR PREAPPROVAL ID
                 });
                 
                 return { processed: true, result, action: 'subscription_activated' };

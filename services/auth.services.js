@@ -391,21 +391,23 @@ async function getUserProfile(userId) {
         // Agregar información del proveedor de pago y IDs necesarios para cancelación
         if (subscription) {
           subscription.paymentProvider = subscription.processor || 'mercadopago';
-          // Buscar preapprovalId en múltiples campos posibles
+          // Buscar preapprovalId en múltiples campos posibles (incluir mercadoPagoId)
           subscription.preapprovalId = subscription.mpSubscriptionId || 
                                        subscription.mercadopagoPreapprovalId || 
+                                       subscription.preapprovalId ||
                                        subscription.mercadoPagoId || 
                                        null;
           subscription.subscriptionId = subscription._id.toString();
           
-          console.log('🔍 Datos de suscripción encontrados:', {
+          console.log('🔍 Datos de suscripción encontrados para perfil:', {
             _id: subscription._id,
             status: subscription.status,
             processor: subscription.processor,
             mpSubscriptionId: subscription.mpSubscriptionId,
             mercadopagoPreapprovalId: subscription.mercadopagoPreapprovalId,
             mercadoPagoId: subscription.mercadoPagoId,
-            preapprovalId: subscription.preapprovalId
+            preapprovalId: subscription.preapprovalId,
+            finalPreapprovalId: subscription.preapprovalId
           });
         }
       }
