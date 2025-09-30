@@ -12,11 +12,16 @@ import {
 
 // Middleware para validar creación/edición de instalación
 async function validateInstallations(req, res, next) {
+  console.log('📋 [VALIDATION] Validando instalación...');
+  console.log('📋 [VALIDATION] Datos recibidos:', JSON.stringify(req.body, null, 2));
+  
   try {
     const installation = await installationSchema.validate(req.body, { abortEarly: false, stripUnknown: true })
+    console.log('✅ [VALIDATION] Validación exitosa');
     req.body = installation
     next()
   } catch (error) {
+    console.log('❌ [VALIDATION] Errores de validación:', error.errors);
     res.status(400).json({ error: error.errors })
   }
 }
