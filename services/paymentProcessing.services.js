@@ -908,7 +908,7 @@ class PaymentProcessingService {
         try {
             console.log('🎉 Procesando suscripción creada/activada');
             
-            // Solo procesar si la suscripción está autorizada
+            // Si la suscripción está autorizada, procesar pago exitoso
             if (subscriptionInfo.status === 'authorized') {
                 console.log('✅ Suscripción autorizada, procesando pago exitoso');
                 
@@ -922,6 +922,44 @@ class PaymentProcessingService {
                 });
                 
                 return { processed: true, result, action: 'subscription_activated' };
+            } 
+            // Si está pending, guardar el preapprovalId para poder cancelar después
+            else if (subscriptionInfo.status === 'pending') {
+                console.log('⏳ Suscripción pending - Guardando preapprovalId en BD');
+                
+                // Extraer información del external_reference
+                const refParts = subscriptionInfo.external_reference.split('_');
+                const tenantId = refParts[0];
+                const planId = refParts[1];
+                
+                // Crear suscripción en BD con status pending y preapprovalId
+                const newSubscription = {
+                    externalReference: subscriptionInfo.external_reference,
+                    tenantId: tenantId,
+                    planId: planId,
+                    subscriptionPlan: planId,
+                    payerEmail: subscriptionInfo.payer_email || 'unknown@example.com',
+                    status: 'pending',
+                    amount: subscriptionInfo.auto_recurring?.transaction_amount || 0,
+                    currency: subscriptionInfo.auto_recurring?.currency_id || 'ARS',
+                    frequency: subscriptionInfo.auto_recurring?.frequency === 12 ? 'yearly' : 'monthly',
+                    billingCycle: subscriptionInfo.auto_recurring?.frequency === 12 ? 'yearly' : 'monthly',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    mercadoPagoId: subscriptionInfo.id,
+                    preapprovalId: subscriptionInfo.id, // ✅ GUARDAR PREAPPROVAL ID
+                    mpSubscriptionId: subscriptionInfo.id
+                };
+                
+                // Insertar en BD
+                await db.collection('subscriptions').insertOne(newSubscription);
+                console.log('✅ Suscripción pending guardada en BD con preapprovalId:', {
+                    _id: newSubscription._id,
+                    preapprovalId: subscriptionInfo.id,
+                    status: 'pending'
+                });
+                
+                return { processed: true, action: 'subscription_pending_saved' };
             } else {
                 console.log(`⏳ Suscripción en estado: ${subscriptionInfo.status}`);
                 return { processed: false, reason: `Subscription status: ${subscriptionInfo.status}` };

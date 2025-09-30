@@ -218,33 +218,12 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
       throw new Error('MercadoPago no devolvió URL de checkout');
     }
 
-    // 5. CREAR suscripción en BD con el preapprovalId para poder cancelarla después
-    const preapprovalId = mpResult.data.id; // Este es el ID que necesitamos para cancelar
-    
-    const newSubscription = {
-      externalReference: subscriptionData.external_reference,
-      tenantId: tenantId,
-      planId: planId,
-      subscriptionPlan: planId,
-      payerEmail: payerEmail,
-      status: 'pending', // Pending hasta que el webhook confirme el pago
-      amount: plan.price,
-      currency: plan.currency || 'ARS',
-      frequency: isYearlyPlan ? 'yearly' : 'monthly',
-      billingCycle: isYearlyPlan ? 'yearly' : 'monthly',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      mercadoPagoId: preapprovalId, // Payment ID (puede cambiar con cada pago)
-      preapprovalId: preapprovalId, // ✅ PREAPPROVAL ID - necesario para cancelar
-      mpSubscriptionId: preapprovalId // Alias para compatibilidad
-    };
-    
-    const insertResult = await subscriptionsCollection.insertOne(newSubscription);
-    console.log('✅ Suscripción creada en BD con preapprovalId:', {
-      _id: insertResult.insertedId,
-      preapprovalId: preapprovalId,
-      externalReference: subscriptionData.external_reference
-    });
+    // 5. NO crear suscripción en BD hasta que el pago sea exitoso
+    // El webhook creará la suscripción con el preapprovalId cuando MercadoPago confirme el pago
+    const preapprovalId = mpResult.data.id;
+    console.log('⏳ Suscripción NO creada en BD - Se creará solo si el pago es exitoso');
+    console.log('🔗 External reference para webhook:', subscriptionData.external_reference);
+    console.log('🆔 MercadoPago Preapproval ID:', preapprovalId);
 
     return {
       success: true,
@@ -253,8 +232,7 @@ async function createMercadoPagoCheckout({ planId, tenantId, userEmail, successU
         checkoutUrl: checkoutUrl,
         init_point: checkoutUrl, // Agregar también como init_point para compatibilidad
         subscriptionId: mpResult.data.id,
-        externalReference: subscriptionData.external_reference,
-        dbSubscriptionId: insertResult.insertedId.toString()
+        externalReference: subscriptionData.external_reference
       }
     };
 
