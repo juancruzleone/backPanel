@@ -460,6 +460,49 @@ class MercadoPagoService {
     }
 
     /**
+     * Obtener preapproval ID desde un payment ID
+     */
+    async getPreapprovalFromPayment(paymentId) {
+        try {
+            console.log('🔍 Buscando preapproval desde payment ID:', paymentId);
+
+            const response = await axios.get(
+                `${MP_CONFIG.BASE_URL}/v1/payments/${paymentId}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${MP_CONFIG.ACCESS_TOKEN}`
+                    }
+                }
+            );
+
+            const preapprovalId = response.data.preapproval_id;
+            
+            if (preapprovalId) {
+                console.log('✅ Preapproval ID encontrado:', preapprovalId);
+                return {
+                    success: true,
+                    preapprovalId: preapprovalId
+                };
+            } else {
+                console.log('⚠️ No se encontró preapproval_id en el pago');
+                return {
+                    success: false,
+                    message: 'El pago no tiene preapproval_id asociado'
+                };
+            }
+
+        } catch (error) {
+            console.error('❌ Error obteniendo preapproval desde payment:', error.response?.data || error.message);
+            
+            return {
+                success: false,
+                error: error.response?.data || error.message,
+                message: 'Error al obtener preapproval desde payment'
+            };
+        }
+    }
+
+    /**
      * Cancelar preapproval (suscripción) en MercadoPago
      */
     async cancelPreapproval(preapprovalId) {

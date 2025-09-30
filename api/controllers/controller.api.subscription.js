@@ -26,7 +26,7 @@ async function cancelSubscription(req, res) {
       });
     }
 
-    let cancelResult;
+    let cancelResult = { success: false };
 
     if (paymentProvider === 'mercadopago') {
       if (!preapprovalId) {
@@ -36,11 +36,38 @@ async function cancelSubscription(req, res) {
         });
       }
 
-      // Cancelar en MercadoPago
+      // Intentar cancelar en MercadoPago
       cancelResult = await mercadopagoService.cancelPreapproval(preapprovalId);
       
-      if (cancelResult.success) {
-        // Actualizar estado en la base de datos (ya actualiza tenant internamente)
+      // Si falla porque el ID es un payment ID en lugar de preapproval ID
+      if (!cancelResult.success && cancelResult.error?.status === 404) {
+        console.log('⚠️ ID no es un preapproval, intentando obtener preapproval desde payment ID...');
+        
+        // Intentar obtener el preapproval ID desde el payment ID
+        const preapprovalResult = await mercadopagoService.getPreapprovalFromPayment(preapprovalId);
+        
+        if (preapprovalResult.success && preapprovalResult.preapprovalId) {
+          console.log('✅ Preapproval ID encontrado:', preapprovalResult.preapprovalId);
+          
+          // Intentar cancelar con el preapproval ID correcto
+          cancelResult = await mercadopagoService.cancelPreapproval(preapprovalResult.preapprovalId);
+          
+          if (cancelResult.success) {
+            await cancelSubscriptionService(tenantId, 'mercadopago');
+          }
+        } else {
+          // Si no se encuentra preapproval, cancelar solo localmente
+          console.log('⚠️ No se encontró preapproval ID, cancelando localmente...');
+          await cancelSubscriptionService(tenantId, 'mercadopago');
+          
+          cancelResult = {
+            success: true,
+            message: 'Suscripción cancelada localmente',
+            localCancellation: true
+          };
+        }
+      } else if (cancelResult.success) {
+        // Cancelación exitosa en MercadoPago
         await cancelSubscriptionService(tenantId, 'mercadopago');
       }
 
