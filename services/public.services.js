@@ -65,18 +65,18 @@ async function registerPublicUser(userData) {
   }
 
   const tenantResult = await tenantCollection.insertOne(newTenant)
-  const tenantIdString = tenantResult.insertedId.toString()
 
   // Hashear la contraseña
   const hashedPassword = await bcrypt.hash(password, 10)
 
   // Crear el usuario admin con datos fiscales
+  // IMPORTANTE: Usar tenantId (UUID) en lugar de _id (ObjectId)
   const newUser = {
     userName,
     password: hashedPassword,
     email,
     role: "admin",
-    tenantId: tenantIdString,
+    tenantId: tenantId, // ✅ Usar el UUID generado, no el _id de MongoDB
     country: country || 'AR',
     // Datos fiscales según país
     ...(country === 'AR' ? {
@@ -106,9 +106,9 @@ async function registerPublicUser(userData) {
 
   const userResult = await cuentaCollection.insertOne(newUser)
 
-  // Actualizar estadísticas del tenant
+  // Actualizar estadísticas del tenant usando el _id de MongoDB
   await tenantCollection.updateOne(
-    { _id: new ObjectId(tenantIdString) },
+    { _id: tenantResult.insertedId },
     {
       $set: {
         "stats.totalUsers": 1,
@@ -121,7 +121,8 @@ async function registerPublicUser(userData) {
   return {
     message: "Registro exitoso",
     tenant: {
-      _id: tenantIdString,
+      _id: tenantResult.insertedId.toString(),
+      tenantId: tenantId, // ✅ Devolver el UUID correcto
       name: razonSocial || `Empresa de ${userName}`,
       address: direccionFiscal || addressIntl || "",
       subdomain,
@@ -132,7 +133,7 @@ async function registerPublicUser(userData) {
       userName,
       email,
       role: "admin",
-      tenantId: tenantIdString
+      tenantId: tenantId // ✅ Devolver el UUID correcto
     }
   }
 }
