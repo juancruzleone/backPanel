@@ -87,6 +87,51 @@ const subscriptionUpdateSchema = Yup.object().shape({
             return true;
         }
       }
+    )
+    .test(
+      'valid-months-spacing',
+      function(value) {
+        const { frecuencia } = this.parent;
+        if (!value || !frecuencia) return true;
+        if (frecuencia === 'Mensual' || frecuencia === 'Anual') return true;
+        
+        // Mapeo de nombres de meses a números
+        const monthMap = {
+          'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4,
+          'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8,
+          'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12
+        };
+        
+        // Convertir nombres a números y ordenar
+        const monthNumbers = value.map(m => monthMap[m]).sort((a, b) => a - b);
+        
+        if (frecuencia === 'Trimestral') {
+          // Validar que los meses estén espaciados cada 3 meses
+          const expectedSpacing = 3;
+          for (let i = 1; i < monthNumbers.length; i++) {
+            const spacing = monthNumbers[i] - monthNumbers[i-1];
+            if (spacing !== expectedSpacing) {
+              return this.createError({
+                message: 'Para frecuencia trimestral, los meses deben estar espaciados cada 3 meses (ej: Enero, Abril, Julio, Octubre)'
+              });
+            }
+          }
+        }
+        
+        if (frecuencia === 'Semestral') {
+          // Validar que los meses estén espaciados cada 6 meses
+          if (monthNumbers.length === 2) {
+            const spacing = monthNumbers[1] - monthNumbers[0];
+            if (spacing !== 6) {
+              return this.createError({
+                message: 'Para frecuencia semestral, los meses deben estar espaciados cada 6 meses (ej: Enero y Julio, o Febrero y Agosto)'
+              });
+            }
+          }
+        }
+        
+        return true;
+      }
     ),
 })
 
