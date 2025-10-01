@@ -15,12 +15,6 @@ async function getAssets(filter = {}, tenantId = null) {
   if (filter.nombre) {
     filterMongo.nombre = { $regex: filter.nombre, $options: "i" }
   }
-  if (filter.marca) {
-    filterMongo.marca = { $regex: filter.marca, $options: "i" }
-  }
-  if (filter.modelo) {
-    filterMongo.modelo = { $regex: filter.modelo, $options: "i" }
-  }
 
   return assetsCollection.find(filterMongo).sort({ _id: -1 }).toArray()
 }
@@ -67,9 +61,6 @@ const addAsset = async (activo, adminUser) => {
   // Crear activo con campos básicos
   const assetToInsert = {
     nombre: activo.nombre,
-    marca: activo.marca,
-    modelo: activo.modelo,
-    numeroSerie: activo.numeroSerie,
     templateId: new ObjectId(activo.templateId),
     tenantId: activo.tenantId, // Agregar tenantId
     createdBy: adminUser._id, // Agregar quien creó el activo
@@ -114,9 +105,6 @@ const putAsset = async (id, activo, tenantId, adminUser) => {
   const existingAsset = await getAssetById(id, tenantId)
   const assetToUpdate = {
     nombre: activo.nombre,
-    marca: activo.marca,
-    modelo: activo.modelo,
-    numeroSerie: activo.numeroSerie,
     tenantId: existingAsset.tenantId || tenantId, // Preservar tenantId
     createdBy: existingAsset.createdBy, // Preservar createdBy
     createdAt: existingAsset.createdAt || new Date(),
