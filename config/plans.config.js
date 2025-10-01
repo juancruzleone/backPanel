@@ -5,11 +5,13 @@ export const PLANS_CONFIG = {
     name: "Starter",
     price: 35000,
     yearlyPrice: 29750, // 15% descuento
-    maxUsers: 3, // 3 usuarios (frontend)
-    maxFacilities: 2, // 2 instalaciones (frontend)
-    maxAssets: 6, // 6 activos (frontend)
-    maxFormTemplates: 6, // 6 plantillas de formulario (frontend)
-    maxWorkOrders: 100, // 100/mes órdenes de trabajo (frontend)
+    maxUsers: 5, // 5 usuarios
+    maxFacilities: 40, // 40 instalaciones
+    maxAssets: 25, // 25 activos
+    maxDevices: 1000, // 1000 dispositivos
+    maxFormTemplates: 25, // 25 plantillas de formulario
+    maxWorkOrders: 250, // 250/mes órdenes de trabajo
+    maxManuals: 80, // 80 manuales
     supportType: "email", // Email (frontend)
     languageSupport: true, // ✓ (frontend)
     features: {
@@ -35,11 +37,13 @@ export const PLANS_CONFIG = {
     name: "Professional",
     price: 75000,
     yearlyPrice: 63750, // 15% descuento
-    maxUsers: 15, // 15 usuarios (frontend)
-    maxFacilities: 20, // 20 instalaciones (frontend)
-    maxAssets: 30, // 30 activos (frontend)
-    maxFormTemplates: 30, // 30 plantillas de formulario (frontend)
-    maxWorkOrders: 500, // 500/mes órdenes de trabajo (frontend)
+    maxUsers: 10, // 10 usuarios
+    maxFacilities: 75, // 75 instalaciones
+    maxAssets: 40, // 40 activos
+    maxDevices: 2000, // 2000 dispositivos
+    maxFormTemplates: 40, // 40 plantillas de formulario
+    maxWorkOrders: 500, // 500/mes órdenes de trabajo
+    maxManuals: 160, // 160 manuales
     supportType: "priority", // Prioritario (frontend)
     languageSupport: true, // ✓ (frontend)
     features: {
@@ -65,11 +69,13 @@ export const PLANS_CONFIG = {
     name: "Enterprise",
     price: 120000,
     yearlyPrice: 102000, // 15% descuento
-    maxUsers: 30, // 30 usuarios (frontend)
-    maxFacilities: 40, // 40 instalaciones (frontend)
-    maxAssets: 60, // 60 activos (frontend)
-    maxFormTemplates: 60, // 60 plantillas de formulario (frontend)
-    maxWorkOrders: 1000, // 1.000/mes órdenes de trabajo (frontend)
+    maxUsers: 20, // 20 usuarios
+    maxFacilities: 150, // 150 instalaciones
+    maxAssets: 60, // 60 activos
+    maxDevices: 3000, // 3000 dispositivos
+    maxFormTemplates: 60, // 60 plantillas de formulario
+    maxWorkOrders: 1000, // 1.000/mes órdenes de trabajo
+    maxManuals: 500, // 500 manuales
     supportType: "24/7", // 24/7 (frontend)
     languageSupport: true, // ✓ (frontend)
     features: {
@@ -98,11 +104,13 @@ export const PLANS_CONFIG = {
     name: "Starter Anual",
     price: 29750, // 15% descuento anual
     frequency: 'yearly',
-    maxUsers: 3, // 3 usuarios (frontend)
-    maxFacilities: 2, // 2 instalaciones (frontend)
-    maxAssets: 6, // 6 activos (frontend)
-    maxFormTemplates: 6, // 6 plantillas de formulario (frontend)
-    maxWorkOrders: 100, // 100/mes órdenes de trabajo (frontend)
+    maxUsers: 5, // 5 usuarios
+    maxFacilities: 40, // 40 instalaciones
+    maxAssets: 25, // 25 activos
+    maxDevices: 1000, // 1000 dispositivos
+    maxFormTemplates: 25, // 25 plantillas de formulario
+    maxWorkOrders: 250, // 250/mes órdenes de trabajo
+    maxManuals: 80, // 80 manuales
     supportType: "email", // Email (frontend)
     languageSupport: true, // ✓ (frontend)
     features: {
@@ -128,11 +136,13 @@ export const PLANS_CONFIG = {
     name: "Professional Anual",
     price: 63750, // 15% descuento anual
     frequency: 'yearly',
-    maxUsers: 15, // 15 usuarios (frontend)
-    maxFacilities: 20, // 20 instalaciones (frontend)
-    maxAssets: 30, // 30 activos (frontend)
-    maxFormTemplates: 30, // 30 plantillas de formulario (frontend)
-    maxWorkOrders: 500, // 500/mes órdenes de trabajo (frontend)
+    maxUsers: 10, // 10 usuarios
+    maxFacilities: 75, // 75 instalaciones
+    maxAssets: 40, // 40 activos
+    maxDevices: 2000, // 2000 dispositivos
+    maxFormTemplates: 40, // 40 plantillas de formulario
+    maxWorkOrders: 500, // 500/mes órdenes de trabajo
+    maxManuals: 160, // 160 manuales
     supportType: "priority", // Prioritario (frontend)
     languageSupport: true, // ✓ (frontend)
     features: {
@@ -158,11 +168,13 @@ export const PLANS_CONFIG = {
     name: "Enterprise Anual",
     price: 102000, // 15% descuento anual
     frequency: 'yearly',
-    maxUsers: 30, // 30 usuarios (frontend)
-    maxFacilities: 40, // 40 instalaciones (frontend)
-    maxAssets: 60, // 60 activos (frontend)
-    maxFormTemplates: 60, // 60 plantillas de formulario (frontend)
-    maxWorkOrders: 1000, // 1.000/mes órdenes de trabajo (frontend)
+    maxUsers: 20, // 20 usuarios
+    maxFacilities: 150, // 150 instalaciones
+    maxAssets: 60, // 60 activos
+    maxDevices: 3000, // 3000 dispositivos
+    maxFormTemplates: 60, // 60 plantillas de formulario
+    maxWorkOrders: 1000, // 1.000/mes órdenes de trabajo
+    maxManuals: 500, // 500 manuales
     supportType: "24/7", // 24/7 (frontend)
     languageSupport: true, // ✓ (frontend)
     features: {
@@ -191,11 +203,13 @@ export const PLANS_CONFIG = {
     name: "Starter",
     price: 35000,
     yearlyPrice: 29750,
-    maxUsers: 3, // 3 usuarios (frontend)
-    maxFacilities: 2, // 2 instalaciones (frontend)
-    maxAssets: 6, // 6 activos (frontend)
-    maxFormTemplates: 6, // 6 plantillas de formulario (frontend)
-    maxWorkOrders: 100, // 100/mes órdenes de trabajo (frontend)
+    maxUsers: 5, // 5 usuarios
+    maxFacilities: 40, // 40 instalaciones
+    maxAssets: 25, // 25 activos
+    maxDevices: 1000, // 1000 dispositivos
+    maxFormTemplates: 25, // 25 plantillas de formulario
+    maxWorkOrders: 250, // 250/mes órdenes de trabajo
+    maxManuals: 80, // 80 manuales
     supportType: "email",
     languageSupport: true,
     features: {
@@ -220,11 +234,13 @@ export const PLANS_CONFIG = {
     name: "Starter Anual",
     price: 29750,
     frequency: 'yearly',
-    maxUsers: 3, // 3 usuarios (frontend)
-    maxFacilities: 2, // 2 instalaciones (frontend)
-    maxAssets: 6, // 6 activos (frontend)
-    maxFormTemplates: 6, // 6 plantillas de formulario (frontend)
-    maxWorkOrders: 100, // 100/mes órdenes de trabajo (frontend)
+    maxUsers: 5, // 5 usuarios
+    maxFacilities: 40, // 40 instalaciones
+    maxAssets: 25, // 25 activos
+    maxDevices: 1000, // 1000 dispositivos
+    maxFormTemplates: 25, // 25 plantillas de formulario
+    maxWorkOrders: 250, // 250/mes órdenes de trabajo
+    maxManuals: 80, // 80 manuales
     supportType: "email",
     languageSupport: true,
     features: {
