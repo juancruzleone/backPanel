@@ -312,9 +312,6 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       _id: deviceId,
       assetId: assetObjectId,
       nombre: asset.nombre,
-      marca: asset.marca,
-      modelo: asset.modelo,
-      numeroSerie: asset.numeroSerie,
       ubicacion: ubicacion,
       categoria: categoria,
       templateId: asset.templateId, // Heredar la plantilla del activo
@@ -352,9 +349,6 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       templateName: template.nombre,
       assetInfo: {
         nombre: asset.nombre,
-        marca: asset.marca,
-        modelo: asset.modelo,
-        numeroSerie: asset.numeroSerie,
       },
     }
   } catch (error) {
