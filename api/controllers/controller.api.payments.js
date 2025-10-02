@@ -274,10 +274,10 @@ class PaymentsController {
         });
       }
       
-      // Para Polar.sh, usar el polarSubscriptionId (UUID), para MercadoPago usar preapprovalId
+      // Para Polar.sh, usar el subscriptionId (UUID), para MercadoPago usar preapprovalId
       let providerSubscriptionId;
       if (processor === 'polar') {
-        providerSubscriptionId = subscription.polarSubscriptionId;
+        providerSubscriptionId = subscription.subscriptionId;
         if (!providerSubscriptionId) {
           return res.status(400).json({
             success: false,
