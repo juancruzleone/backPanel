@@ -454,6 +454,7 @@ class PolarService {
   async processWebhook(eventType, data) {
     try {
       console.log('🔔 Procesando webhook de Polar.sh:', eventType);
+      console.log('📋 Datos del webhook:', JSON.stringify(data, null, 2));
       
       switch (eventType) {
         case 'checkout.created':
@@ -465,9 +466,19 @@ class PolarService {
           
           if (data.status === 'confirmed') {
             // Checkout completado exitosamente
+            console.log('✅ Checkout confirmado - procesando pago...');
             return await this.handleSuccessfulPayment(data);
           }
           break;
+
+        case 'order.created':
+          console.log('📦 Orden creada:', data.id);
+          break;
+
+        case 'order.paid':
+          console.log('💰 Orden pagada:', data.id);
+          // Procesar pago exitoso desde orden
+          return await this.handleSuccessfulOrderPayment(data);
 
         case 'order.updated':
           console.log('📦 Orden actualizada:', data.id, 'Estado:', data.status);
@@ -482,9 +493,20 @@ class PolarService {
         case 'subscription.created':
           console.log('📅 Suscripción creada:', data.id);
           break;
+
+        case 'subscription.active':
+          console.log('✅ Suscripción activada:', data.id);
+          // Procesar activación de suscripción
+          return await this.handleSubscriptionActivation(data);
         
         case 'subscription.updated':
           console.log('🔄 Suscripción actualizada:', data.id, 'Estado:', data.status);
+          
+          // Si la suscripción se activó, procesarla
+          if (data.status === 'active') {
+            console.log('✅ Suscripción ahora activa - procesando...');
+            return await this.handleSubscriptionActivation(data);
+          }
           
           // Procesar cambios de estado de suscripción
           const subscriptionMonitoringService = await import('./subscriptionMonitoring.services.js');
@@ -497,6 +519,14 @@ class PolarService {
           // Procesar cancelación o pago vencido
           const monitoringService = await import('./subscriptionMonitoring.services.js');
           return await monitoringService.default.processPolarSubscriptionWebhook(eventType, data);
+
+        case 'customer.created':
+          console.log('👤 Cliente creado:', data.id);
+          break;
+
+        case 'customer.state_changed':
+          console.log('👤 Estado del cliente cambiado:', data.id);
+          break;
         
         default:
           console.log('ℹ️ Evento no manejado:', eventType);
@@ -662,6 +692,47 @@ class PolarService {
         error: error.response?.data || error.message,
         message: 'Error al cancelar suscripción en Polar.sh'
       };
+    }
+  }
+
+  /**
+   * Manejar activación de suscripción
+   */
+  async handleSubscriptionActivation(subscriptionData) {
+    try {
+      console.log('✅ Procesando activación de suscripción de Polar.sh:', subscriptionData.id);
+      
+      const metadata = subscriptionData.metadata || {};
+      const planId = metadata.planId;
+      const billingCycle = metadata.billingCycle || 'monthly';
+      const userEmail = subscriptionData.customer?.email || metadata.userEmail;
+      
+      if (!planId || !userEmail) {
+        console.error('❌ Datos insuficientes:', { planId, userEmail, metadata });
+        throw new Error('Datos insuficientes en la suscripción para procesar la activación');
+      }
+      
+      // Importar el servicio de procesamiento de pagos
+      const paymentProcessingService = await import('./paymentProcessing.services.js');
+      
+      // Procesar el pago exitoso (asignar plan al tenant)
+      const result = await paymentProcessingService.default.processSuccessfulPayment({
+        processor: 'polar',
+        subscriptionId: subscriptionData.id,
+        planId: planId,
+        userEmail: userEmail,
+        billingCycle: billingCycle,
+        amount: subscriptionData.amount,
+        currency: subscriptionData.currency || 'USD',
+        metadata: metadata
+      });
+      
+      console.log('✅ Activación de suscripción procesada exitosamente:', result);
+      return result;
+      
+    } catch (error) {
+      console.error('❌ Error procesando activación de suscripción:', error);
+      throw error;
     }
   }
 }
