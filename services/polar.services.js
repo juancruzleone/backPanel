@@ -137,13 +137,13 @@ class PolarService {
       console.log('🛒 Creando checkout en Polar.sh:', { planId, userEmail, billingCycle, userCountry });
       
       // Mapear planId de MongoDB a ID de producto de Polar.sh
-      // NOTA: El ID del Starter fue actualizado para testing
+      // NOTA: El ID del Starter fue actualizado
       const productIdMap = {
         '68c0e78c8569f3bd38159b24': 'da90ff1e-3a99-4406-a01a-05e37a406666', // Starter Anual
-        '68c0e78c8569f3bd38159b25': '88d7c90a-f3a3-4bb6-98b5-01e9ac082d02', // Starter (TESTING)
+        '68c0e78c8569f3bd38159b25': '08f0bc5f-eba0-4843-a165-f3b7162466de', // Starter Mensual
         '68c0e78c8569f3bd38159b26': 'ad058d5a-152c-4011-8704-e889d7c0bf20', // Professional  
         '68c0e78c8569f3bd38159b27': 'fab7e903-49d2-49de-8996-165f1b900102', // Enterprise
-        'starter-plan-fallback': '88d7c90a-f3a3-4bb6-98b5-01e9ac082d02', // Starter (TESTING)
+        'starter-plan-fallback': '08f0bc5f-eba0-4843-a165-f3b7162466de', // Starter Mensual
         'professional-plan-fallback': 'ad058d5a-152c-4011-8704-e889d7c0bf20',
         'enterprise-plan-fallback': 'fab7e903-49d2-49de-8996-165f1b900102',
         // Planes anuales fallback que faltan
