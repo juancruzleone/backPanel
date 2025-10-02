@@ -231,14 +231,56 @@ class PolarService {
     try {
       console.log(`🚫 Cancelando suscripción en Polar.sh: ${subscriptionId}`);
       
-      const response = await this.client.post(`/v1/subscriptions/${subscriptionId}/cancel`);
+      // Primero verificar si la suscripción existe
+      let subscription;
+      try {
+        const getResponse = await this.client.get(`/v1/subscriptions/${subscriptionId}`);
+        subscription = getResponse.data;
+        console.log('📋 Suscripción encontrada:', subscription.id, 'Estado:', subscription.status);
+      } catch (getError) {
+        console.error('❌ Suscripción no encontrada en Polar.sh:', subscriptionId);
+        console.error('Error details:', getError.response?.data || getError.message);
+        
+        // Si la suscripción no existe en Polar.sh, considerarla como ya cancelada
+        if (getError.response?.status === 404) {
+          console.log('ℹ️ Suscripción no encontrada en Polar.sh - considerando como ya cancelada');
+          return {
+            success: true,
+            message: 'Suscripción no encontrada en Polar.sh - ya cancelada o no existe',
+            status: 'not_found_assumed_cancelled'
+          };
+        }
+        
+        throw new Error(`Error verificando suscripción en Polar.sh: ${getError.response?.data?.detail || getError.message}`);
+      }
       
-      console.log('✅ Suscripción cancelada en Polar.sh');
-      return response.data;
+      // Verificar si ya está cancelada
+      if (subscription.status === 'cancelled' || subscription.status === 'canceled') {
+        console.log('ℹ️ Suscripción ya está cancelada en Polar.sh');
+        return {
+          success: true,
+          message: 'Suscripción ya estaba cancelada en Polar.sh',
+          status: 'already_cancelled'
+        };
+      }
+      
+      // Usar DELETE en lugar de POST según la documentación
+      const response = await this.client.delete(`/v1/subscriptions/${subscriptionId}`);
+      
+      console.log('✅ Suscripción cancelada exitosamente en Polar.sh:', response.data);
+      return {
+        success: true,
+        data: response.data,
+        message: 'Suscripción cancelada exitosamente en Polar.sh'
+      };
       
     } catch (error) {
-      console.error('❌ Error cancelando suscripción:', error.response?.data || error.message);
-      throw error;
+      console.error('❌ Error cancelando suscripción en Polar.sh:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data || error.message,
+        message: 'Error al cancelar suscripción en Polar.sh'
+      };
     }
   }
 
@@ -667,33 +709,6 @@ class PolarService {
     }
   }
 
-  /**
-   * Cancelar suscripción en Polar.sh
-   */
-  async cancelSubscription(subscriptionId) {
-    try {
-      console.log('🚫 Cancelando suscripción en Polar.sh:', subscriptionId);
-
-      const response = await this.client.post(`/v1/subscriptions/${subscriptionId}/cancel`);
-
-      console.log('✅ Suscripción cancelada exitosamente en Polar.sh:', response.data);
-
-      return {
-        success: true,
-        data: response.data,
-        message: 'Suscripción cancelada exitosamente en Polar.sh'
-      };
-
-    } catch (error) {
-      console.error('❌ Error cancelando suscripción en Polar.sh:', error.response?.data || error.message);
-      
-      return {
-        success: false,
-        error: error.response?.data || error.message,
-        message: 'Error al cancelar suscripción en Polar.sh'
-      };
-    }
-  }
 
   /**
    * Manejar activación de suscripción

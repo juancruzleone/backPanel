@@ -259,7 +259,7 @@ class PaymentRouterService {
         throw new Error(`Procesador no soportado: ${processor}`);
       }
       
-      // Si la cancelación fue exitosa, actualizar el tenant en la base de datos
+      // Si la cancelación fue exitosa o la suscripción no existe, actualizar el tenant en la base de datos
       if (cancelResult.success) {
         console.log('✅ Suscripción cancelada en procesador, actualizando tenant...');
         
@@ -273,7 +273,7 @@ class PaymentRouterService {
         });
         
         if (subscription) {
-          console.log('📋 Suscripción encontrada:', subscription);
+          console.log('📋 Suscripción encontrada en BD:', subscription._id);
           
           // Actualizar estado de la suscripción
           await subscriptionsCollection.updateOne(
@@ -282,32 +282,46 @@ class PaymentRouterService {
               $set: { 
                 status: 'cancelled',
                 cancelledAt: new Date(),
-                updatedAt: new Date()
+                updatedAt: new Date(),
+                cancelReason: cancelResult.status || 'user_requested'
               } 
             }
           );
           
-          // Actualizar el tenant
+          // Actualizar el tenant - buscar por tenantId string
           const tenantId = subscription.tenantId;
-          await tenantsCollection.updateOne(
-            { _id: new (await import('mongodb')).ObjectId(tenantId) },
-            { 
-              $set: { 
-                subscriptionStatus: 'cancelled',
-                plan: null,
-                updatedAt: new Date()
-              },
-              $unset: {
-                planDetails: "",
-                subscriptionExpiresAt: ""
-              }
-            }
-          );
+          const tenant = await tenantsCollection.findOne({ tenantId: tenantId });
           
-          console.log('✅ Tenant actualizado a plan free');
+          if (tenant) {
+            await tenantsCollection.updateOne(
+              { _id: tenant._id },
+              { 
+                $set: { 
+                  subscriptionStatus: 'cancelled',
+                  plan: 'free',
+                  maxUsers: 1,
+                  maxAssets: 5,
+                  maxWorkOrders: 10,
+                  updatedAt: new Date(),
+                  updatedBy: 'payment_cancellation_system'
+                },
+                $unset: {
+                  subscriptionExpiresAt: "",
+                  subscriptionAmount: "",
+                  subscriptionFrequency: ""
+                }
+              }
+            );
+            
+            console.log('✅ Tenant actualizado a plan free');
+          } else {
+            console.warn('⚠️ No se encontró el tenant en BD:', tenantId);
+          }
         } else {
-          console.warn('⚠️ No se encontró la suscripción en BD');
+          console.warn('⚠️ No se encontró la suscripción en BD con subscriptionId:', subscriptionId);
         }
+      } else {
+        console.error('❌ Error en cancelación del procesador:', cancelResult.error);
       }
       
       return cancelResult;
