@@ -79,12 +79,51 @@ async function cancelSubscription(req, res) {
         });
       }
 
-      // Cancelar en Polar.sh
-      cancelResult = await polarService.cancelSubscription(subscriptionId);
+      // Buscar la suscripción en MongoDB por su _id para obtener el subscriptionId de Polar.sh
+      const { db } = await import('../../db.js');
+      const { ObjectId } = await import('mongodb');
+      const subscriptionsCollection = db.collection('subscriptions');
+      
+      const subscription = await subscriptionsCollection.findOne({ 
+        _id: new ObjectId(subscriptionId),
+        tenantId: tenantId,
+        processor: 'polar'
+      });
+      
+      if (!subscription) {
+        return res.status(404).json({
+          success: false,
+          message: 'No se encontró la suscripción'
+        });
+      }
+      
+      if (!subscription.subscriptionId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Esta suscripción no tiene un ID válido de Polar.sh'
+        });
+      }
+
+      console.log('🔍 Usando subscriptionId de Polar.sh:', subscription.subscriptionId);
+
+      // Cancelar en Polar.sh usando el UUID correcto
+      cancelResult = await polarService.cancelSubscription(subscription.subscriptionId);
       
       if (cancelResult.success) {
         // Actualizar estado en la base de datos (ya actualiza tenant internamente)
         await cancelSubscriptionService(tenantId, 'polar');
+        
+        // También actualizar el estado de la suscripción específica
+        await subscriptionsCollection.updateOne(
+          { _id: new ObjectId(subscriptionId) },
+          { 
+            $set: { 
+              status: 'cancelled',
+              cancelledAt: new Date(),
+              updatedAt: new Date()
+            }
+          }
+        );
       }
 
     } else {
