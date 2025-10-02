@@ -241,11 +241,13 @@ class PaymentsController {
       
       // Verificar que la suscripción existe y pertenece al usuario
       const { db } = await import('../../db.js');
+      const { ObjectId } = await import('mongodb');
       const subscriptionsCollection = db.collection('subscriptions');
       const tenantsCollection = db.collection('tenants');
       
+      // Buscar por _id de MongoDB
       const subscription = await subscriptionsCollection.findOne({ 
-        subscriptionId: subscriptionId 
+        _id: new ObjectId(subscriptionId)
       });
       
       if (!subscription) {
@@ -272,7 +274,32 @@ class PaymentsController {
         });
       }
       
-      const result = await paymentRouterService.cancelSubscription(processor, subscriptionId);
+      // Para Polar.sh, usar el polarSubscriptionId (UUID), para MercadoPago usar preapprovalId
+      let providerSubscriptionId;
+      if (processor === 'polar') {
+        providerSubscriptionId = subscription.polarSubscriptionId;
+        if (!providerSubscriptionId) {
+          return res.status(400).json({
+            success: false,
+            message: 'Esta suscripción no tiene un ID válido de Polar.sh'
+          });
+        }
+      } else if (processor === 'mercadopago') {
+        providerSubscriptionId = subscription.preapprovalId;
+        if (!providerSubscriptionId) {
+          return res.status(400).json({
+            success: false,
+            message: 'Esta suscripción no tiene un ID válido de MercadoPago'
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Procesador de pagos no soportado'
+        });
+      }
+      
+      const result = await paymentRouterService.cancelSubscription(processor, providerSubscriptionId);
       
       res.json({
         success: true,
