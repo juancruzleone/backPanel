@@ -72,38 +72,25 @@ async function cancelSubscription(req, res) {
       }
 
     } else if (paymentProvider === 'polar') {
-      if (!subscriptionId) {
-        return res.status(400).json({
-          success: false,
-          message: 'ID de suscripción requerido para Polar.sh'
-        });
-      }
-
-      // Buscar la suscripción en MongoDB por su _id para obtener el subscriptionId de Polar.sh
+      // Buscar la suscripción activa de Polar.sh para este tenant
       const { db } = await import('../../db.js');
-      const { ObjectId } = await import('mongodb');
       const subscriptionsCollection = db.collection('subscriptions');
       
+      // Buscar la suscripción más reciente de Polar.sh con subscriptionId válido
       const subscription = await subscriptionsCollection.findOne({ 
-        _id: new ObjectId(subscriptionId),
         tenantId: tenantId,
-        processor: 'polar'
-      });
+        processor: 'polar',
+        status: 'active',
+        subscriptionId: { $ne: null, $exists: true }
+      }, { sort: { createdAt: -1 } });
       
       if (!subscription) {
         return res.status(404).json({
           success: false,
-          message: 'No se encontró la suscripción'
+          message: 'No se encontró una suscripción activa de Polar.sh'
         });
       }
       
-      if (!subscription.subscriptionId) {
-        return res.status(400).json({
-          success: false,
-          message: 'Esta suscripción no tiene un ID válido de Polar.sh'
-        });
-      }
-
       console.log('🔍 Usando subscriptionId de Polar.sh:', subscription.subscriptionId);
 
       // Cancelar en Polar.sh usando el UUID correcto
@@ -115,7 +102,7 @@ async function cancelSubscription(req, res) {
         
         // También actualizar el estado de la suscripción específica
         await subscriptionsCollection.updateOne(
-          { _id: new ObjectId(subscriptionId) },
+          { _id: subscription._id },
           { 
             $set: { 
               status: 'cancelled',
