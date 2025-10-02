@@ -232,12 +232,19 @@ class PaymentProcessingService {
             }
             
             // 2. Buscar el tenant del usuario
-            let tenant = await tenantCollection.findOne({ 
-                $or: [
-                    { tenantId: user.tenantId },
-                    { _id: new ObjectId(user.tenantId) }
-                ]
-            });
+            let tenant;
+            // Validar si tenantId es un ObjectId válido antes de convertir
+            if (user.tenantId && user.tenantId.length === 24 && /^[0-9a-fA-F]{24}$/.test(user.tenantId)) {
+                tenant = await tenantCollection.findOne({ 
+                    $or: [
+                        { tenantId: user.tenantId },
+                        { _id: new ObjectId(user.tenantId) }
+                    ]
+                });
+            } else {
+                // Si es UUID, buscar solo por tenantId
+                tenant = await tenantCollection.findOne({ tenantId: user.tenantId });
+            }
             
             if (!tenant) {
                 throw new Error(`Tenant no encontrado para el usuario: ${userEmail}`);
