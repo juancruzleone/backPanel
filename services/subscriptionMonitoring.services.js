@@ -15,6 +15,72 @@ const subscriptionCollection = db.collection("subscriptions");
 class SubscriptionMonitoringService {
 
     /**
+     * Procesar suscripción cancelada por el usuario
+     */
+    async processCancelledSubscription(webhookData) {
+        try {
+            console.log('🚫 Procesando cancelación de suscripción:', webhookData);
+
+            const { processor, subscriptionId, reason, payerEmail } = webhookData;
+
+            // Buscar suscripción en la base de datos
+            let subscription;
+            if (subscriptionId) {
+                subscription = await subscriptionCollection.findOne({
+                    $or: [
+                        { subscriptionId: subscriptionId },
+                        { polarSubscriptionId: subscriptionId },
+                        { externalReference: subscriptionId },
+                        { mercadoPagoId: subscriptionId }
+                    ]
+                });
+            }
+
+            // Si no se encuentra por ID, buscar por email del pagador
+            if (!subscription && payerEmail) {
+                subscription = await subscriptionCollection.findOne({
+                    payerEmail: payerEmail,
+                    status: { $in: ['active', 'authorized'] }
+                });
+            }
+
+            if (!subscription) {
+                console.log('⚠️ Suscripción no encontrada para cancelación');
+                return { processed: false, reason: 'Subscription not found' };
+            }
+
+            console.log('📋 Suscripción encontrada para cancelar:', {
+                _id: subscription._id,
+                tenantId: subscription.tenantId,
+                payerEmail: subscription.payerEmail
+            });
+
+            // Cancelar suscripción y cambiar tenant a plan free
+            const result = await this.cancelTenantSubscription(subscription.tenantId, reason, processor);
+
+            // Actualizar estado de la suscripción
+            await subscriptionCollection.updateOne(
+                { _id: subscription._id },
+                {
+                    $set: {
+                        status: 'cancelled',
+                        cancelledAt: new Date(),
+                        cancelReason: reason || 'User requested cancellation',
+                        updatedAt: new Date()
+                    }
+                }
+            );
+
+            console.log('✅ Suscripción cancelada exitosamente:', result);
+            return { processed: true, result };
+
+        } catch (error) {
+            console.error('❌ Error procesando cancelación de suscripción:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Procesar webhook de pago fallido/cancelado
      */
     async processFailedPayment(webhookData) {
@@ -75,6 +141,89 @@ class SubscriptionMonitoringService {
 
         } catch (error) {
             console.error('❌ Error procesando pago fallido:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Cancelar suscripción del tenant y cambiar a plan free
+     */
+    async cancelTenantSubscription(tenantId, reason = 'User requested cancellation', processor = 'unknown') {
+        try {
+            console.log('🚫 Cancelando suscripción del tenant:', tenantId);
+
+            // Obtener información del tenant
+            const tenant = await getTenantByTenantId(tenantId);
+            if (!tenant) {
+                throw new Error(`Tenant no encontrado: ${tenantId}`);
+            }
+
+            console.log('🏢 Tenant a cancelar suscripción:', {
+                _id: tenant._id,
+                tenantId: tenant.tenantId,
+                name: tenant.name,
+                currentPlan: tenant.plan,
+                status: tenant.status
+            });
+
+            // Actualizar tenant sin plan (NULL)
+            const updateData = {
+                plan: null,
+                status: 'active', // Mantener activo pero sin plan
+                subscriptionStatus: 'cancelled',
+                cancelledAt: new Date(),
+                cancelReason: reason,
+                previousPlan: tenant.plan, // Guardar el plan anterior
+                // Sin límites específicos - será manejado por la lógica de la aplicación
+                updatedAt: new Date(),
+                updatedBy: `cancellation_system_${processor}`
+            };
+
+            // Limpiar campos de suscripción y límites
+            const unsetFields = {
+                subscriptionExpiresAt: "",
+                subscriptionAmount: "",
+                subscriptionFrequency: "",
+                suspendedAt: "",
+                suspensionReason: "",
+                maxUsers: "",
+                maxAssets: "",
+                maxWorkOrders: "",
+                maxInstallations: "",
+                maxFormTemplates: ""
+            };
+
+            const result = await tenantCollection.updateOne(
+                { _id: tenant._id },
+                { 
+                    $set: updateData,
+                    $unset: unsetFields
+                }
+            );
+
+            if (result.matchedCount === 0) {
+                throw new Error('No se pudo cancelar la suscripción del tenant');
+            }
+
+            console.log('✅ Suscripción del tenant cancelada exitosamente:', {
+                tenantId: tenant.tenantId,
+                previousPlan: tenant.plan,
+                newPlan: null,
+                newStatus: 'active',
+                reason: reason
+            });
+
+            return {
+                success: true,
+                tenant: {
+                    ...tenant,
+                    ...updateData
+                },
+                message: `Suscripción cancelada. Plan eliminado: ${reason}`
+            };
+
+        } catch (error) {
+            console.error('❌ Error cancelando suscripción del tenant:', error);
             throw error;
         }
     }
@@ -274,11 +423,20 @@ class SubscriptionMonitoringService {
 
             switch (eventType) {
                 case 'subscription.canceled':
+                    // Cancelación de suscripción - cambiar a plan free
+                    return await this.processCancelledSubscription({
+                        processor: 'polar',
+                        subscriptionId: data.id,
+                        reason: 'Subscription canceled by user',
+                        payerEmail: data.customer_email
+                    });
+
                 case 'subscription.past_due':
+                    // Pago vencido - suspender temporalmente
                     return await this.processFailedPayment({
                         processor: 'polar',
                         subscriptionId: data.id,
-                        reason: `Subscription ${eventType.split('.')[1]}`,
+                        reason: 'Subscription past due',
                         payerEmail: data.customer_email
                     });
 
