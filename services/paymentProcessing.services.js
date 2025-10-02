@@ -368,7 +368,7 @@ class PaymentProcessingService {
             
             // 6. Crear carpetas del tenant si no existen
             try {
-                await tenantFoldersService.createTenantFolders(tenant.tenantId || tenant._id.toString());
+                await tenantFoldersService.onTenantCreated(tenant.tenantId || tenant._id.toString());
             } catch (folderError) {
                 console.warn('⚠️ Error creando carpetas del tenant:', folderError.message);
             }
