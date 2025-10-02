@@ -370,12 +370,21 @@ async function getUserProfile(userId) {
       const subscriptionsCollection = db.collection("subscriptions");
 
       // Obtener información del tenant - buscar por _id o tenantId
-      tenant = await tenantsCollection.findOne({ 
-        $or: [
-          { _id: new ObjectId(user.tenantId) },
-          { tenantId: user.tenantId }
-        ]
-      });
+      // Verificar si tenantId es un ObjectId válido o un UUID
+      const tenantQuery = { tenantId: user.tenantId };
+      
+      // Solo intentar buscar por _id si el tenantId parece ser un ObjectId válido (24 caracteres hex)
+      if (user.tenantId && user.tenantId.length === 24 && /^[0-9a-fA-F]{24}$/.test(user.tenantId)) {
+        tenant = await tenantsCollection.findOne({ 
+          $or: [
+            { _id: new ObjectId(user.tenantId) },
+            { tenantId: user.tenantId }
+          ]
+        });
+      } else {
+        // Si es UUID u otro formato, buscar solo por campo tenantId
+        tenant = await tenantsCollection.findOne(tenantQuery);
+      }
 
       // Obtener información de la suscripción activa
       if (tenant) {
