@@ -310,8 +310,19 @@ class PaymentProcessingService {
             
             console.log('✅ Tenant actualizado:', tenantUpdateResult.modifiedCount);
             
-            // 5. Crear o actualizar suscripción en MongoDB
+            // 5. Crear o actualizar suscripción en MongoDB (evitar duplicados)
             const subscriptionsCollection = db.collection('subscriptions');
+            
+            // Construir filtro: buscar por subscriptionId de Polar.sh o por checkoutId si no hay subscriptionId
+            const subscriptionFilter = {};
+            if (subscriptionId) {
+                subscriptionFilter.subscriptionId = subscriptionId;
+            } else if (checkoutId) {
+                subscriptionFilter.checkoutId = checkoutId;
+            } else {
+                subscriptionFilter.externalReference = orderId;
+            }
+            
             const subscriptionData = {
                 tenantId: tenant.tenantId || tenant._id.toString(),
                 userId: user._id,
@@ -327,12 +338,24 @@ class PaymentProcessingService {
                 startDate: new Date(),
                 expiresAt: subscriptionExpiresAt,
                 metadata: paymentData.metadata || {},
-                createdAt: new Date(),
                 updatedAt: new Date()
             };
             
-            const subscriptionResult = await subscriptionsCollection.insertOne(subscriptionData);
-            console.log('✅ Suscripción creada:', subscriptionResult.insertedId);
+            // Usar updateOne con upsert para evitar duplicados
+            const subscriptionResult = await subscriptionsCollection.updateOne(
+                subscriptionFilter,
+                { 
+                    $set: subscriptionData,
+                    $setOnInsert: { createdAt: new Date() }
+                },
+                { upsert: true }
+            );
+            
+            if (subscriptionResult.upsertedCount > 0) {
+                console.log('✅ Suscripción creada:', subscriptionResult.upsertedId);
+            } else {
+                console.log('✅ Suscripción actualizada (evitado duplicado)');
+            }
             
             // 6. Crear carpetas del tenant si no existen
             try {
