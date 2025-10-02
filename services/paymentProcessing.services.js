@@ -313,15 +313,24 @@ class PaymentProcessingService {
             // 5. Crear o actualizar suscripción en MongoDB (evitar duplicados)
             const subscriptionsCollection = db.collection('subscriptions');
             
-            // Construir filtro: buscar por subscriptionId de Polar.sh o por checkoutId si no hay subscriptionId
-            const subscriptionFilter = {};
-            if (subscriptionId) {
-                subscriptionFilter.subscriptionId = subscriptionId;
-            } else if (checkoutId) {
-                subscriptionFilter.checkoutId = checkoutId;
-            } else {
-                subscriptionFilter.externalReference = orderId;
-            }
+            // Construir filtro: buscar por múltiples campos para evitar duplicados
+            const subscriptionFilter = {
+                $or: [
+                    // Buscar por subscriptionId si existe
+                    ...(subscriptionId ? [{ subscriptionId: subscriptionId }] : []),
+                    // Buscar por checkoutId si existe
+                    ...(checkoutId ? [{ checkoutId: checkoutId }] : []),
+                    // Buscar por externalReference como fallback
+                    ...(orderId ? [{ externalReference: orderId }] : []),
+                    // Buscar por combinación de usuario y plan activo
+                    {
+                        userId: user._id,
+                        planId: plan._id || planId,
+                        status: 'active',
+                        processor: 'polar'
+                    }
+                ]
+            };
             
             const subscriptionData = {
                 tenantId: tenant.tenantId || tenant._id.toString(),
