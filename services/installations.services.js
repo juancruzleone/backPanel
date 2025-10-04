@@ -211,6 +211,9 @@ async function updateInstallationSubscription(id, subscriptionData) {
 
     const objectId = new ObjectId(id)
     
+    console.log('🔍 [UPDATE SUBSCRIPTION] Datos recibidos:', subscriptionData)
+    console.log('🔍 [UPDATE SUBSCRIPTION] Estado recibido:', subscriptionData.estado)
+    
     // Preparar datos de suscripción con conversión de fechas
     const dataToUpdate = {
       fechaInicio: new Date(subscriptionData.fechaInicio),
@@ -220,6 +223,8 @@ async function updateInstallationSubscription(id, subscriptionData) {
       estado: subscriptionData.estado || 'Activo', // Agregar estado
       fechaActualizacion: new Date(),
     }
+    
+    console.log('🔍 [UPDATE SUBSCRIPTION] Datos a actualizar en BD:', dataToUpdate)
 
     const result = await installationsCollection.findOneAndUpdate(
       { _id: objectId },
@@ -230,6 +235,8 @@ async function updateInstallationSubscription(id, subscriptionData) {
     if (!result) {
       throw new Error("No se encontró la instalación para actualizar la suscripción")
     }
+    
+    console.log('✅ [UPDATE SUBSCRIPTION] Instalación actualizada. Estado guardado:', result.estado)
 
     return result
   } catch (error) {

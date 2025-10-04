@@ -103,6 +103,10 @@ async function updateInstallation(req, res) {
 // Actualizar solo información de suscripción
 async function updateInstallationSubscription(req, res) {
   try {
+    console.log('🎯 [CONTROLLER] updateInstallationSubscription EJECUTÁNDOSE')
+    console.log('🎯 [CONTROLLER] ID:', req.params.id)
+    console.log('🎯 [CONTROLLER] Body recibido:', req.body)
+    
     const { id } = req.params
     const subscriptionData = req.body
 

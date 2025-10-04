@@ -61,6 +61,9 @@ const subscriptionUpdateSchema = Yup.object().shape({
   frecuencia: Yup.string()
     .oneOf(["Trimestral", "Mensual", "Anual", "Semestral"], "La frecuencia debe ser válida")
     .required("La frecuencia es obligatoria para activar la suscripción"),
+  estado: Yup.string()
+    .oneOf(["Activo", "Inactivo", "Pendiente"], "El estado debe ser 'Activo', 'Inactivo' o 'Pendiente'")
+    .default("Activo"),
   mesesFrecuencia: Yup.array()
     .of(Yup.string().oneOf([
       "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
