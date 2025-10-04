@@ -217,6 +217,7 @@ async function updateInstallationSubscription(id, subscriptionData) {
       fechaFin: subscriptionData.fechaFin ? new Date(subscriptionData.fechaFin) : null,
       frecuencia: subscriptionData.frecuencia,
       mesesFrecuencia: subscriptionData.mesesFrecuencia,
+      estado: subscriptionData.estado || 'Activo', // Agregar estado
       fechaActualizacion: new Date(),
     }
 
