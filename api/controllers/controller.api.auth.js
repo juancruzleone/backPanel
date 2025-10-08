@@ -66,11 +66,23 @@ async function getAllAccounts(req, res) {
 
 async function getAccountById(req, res) {
   const { id } = req.params
+  const adminUser = req.user
+  const tenantId = req.tenantId
+  
   try {
     const cuenta = await services.getAccountById(id)
     if (!cuenta) {
       return res.status(404).json({ error: { message: "Usuario no encontrado" } })
     }
+    
+    // Verificar que el admin solo pueda ver cuentas de su mismo tenant
+    // (excepto super_admin que puede ver cualquier cuenta)
+    if (adminUser.role !== "super_admin" && cuenta.tenantId !== tenantId) {
+      return res.status(403).json({ 
+        error: { message: "No tienes permisos para ver esta cuenta" } 
+      })
+    }
+    
     res.status(200).json(cuenta)
   } catch (err) {
     res.status(400).json({ error: { message: err.message } })

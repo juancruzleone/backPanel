@@ -85,20 +85,27 @@ export async function identifyTenantByHeader(req, res, next) {
     if (!tenantId && req.user) {
       console.log('🏢 [TENANT] Usuario autenticado sin header, usando tenantId del usuario');
       
-      // Buscar el tenant del usuario en la base de datos
-      const cuentaCollection = db.collection("cuentas")
-      const user = await cuentaCollection.findOne({ _id: req.user._id })
-      
-      if (user && user.tenantId) {
-        tenantId = user.tenantId
-        console.log('🏢 [TENANT] TenantId del usuario:', tenantId);
+      // Si el usuario ya tiene tenantId en el objeto req.user, usarlo directamente
+      if (req.user.tenantId) {
+        tenantId = req.user.tenantId
+        console.log('🏢 [TENANT] TenantId del JWT:', tenantId);
       } else {
-        console.log('❌ [TENANT] Usuario no tiene tenantId asignado');
-        return res.status(400).json({ 
-          error: { 
-            message: "Usuario no tiene tenant asignado. Contacte al administrador." 
-          } 
-        })
+        // Como fallback, buscar en la base de datos
+        const { ObjectId } = await import('mongodb')
+        const cuentaCollection = db.collection("cuentas")
+        const user = await cuentaCollection.findOne({ _id: new ObjectId(req.user.id || req.user._id) })
+        
+        if (user && user.tenantId) {
+          tenantId = user.tenantId
+          console.log('🏢 [TENANT] TenantId de la BD:', tenantId);
+        } else {
+          console.log('❌ [TENANT] Usuario no tiene tenantId asignado');
+          return res.status(400).json({ 
+            error: { 
+              message: "Usuario no tiene tenant asignado. Contacte al administrador." 
+            } 
+          })
+        }
       }
     }
     

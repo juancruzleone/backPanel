@@ -70,7 +70,8 @@ route.post("/cuenta/demo", [
 // Esta ruta debe ir DESPUÉS de las rutas específicas
 route.get("/cuentas/:id", [
   validateToken,
-  isAdmin
+  isAdmin,
+  identifyTenantByHeader
 ], controllers.getAccountById)
 
 export default route
