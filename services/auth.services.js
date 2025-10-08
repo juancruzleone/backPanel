@@ -434,6 +434,200 @@ async function getUserProfile(userId) {
   }
 }
 
+// NUEVA FUNCIÓN: Crear cuenta demo completa (tenant + suscripción fake)
+async function createDemoAccount(demoData, superAdminUser) {
+  // SOLO super_admin puede crear cuentas demo
+  if (!superAdminUser || superAdminUser.role !== "super_admin") {
+    throw new Error("No tienes permisos para crear cuentas demo")
+  }
+
+  const { db } = await import("../db.js")
+  const { v4: uuidv4 } = await import("uuid")
+  const tenantCollection = db.collection("tenants")
+  const subscriptionsCollection = db.collection("subscriptions")
+  const { PLANS_CONFIG } = await import("../config/plans.config.js")
+
+  // Validar datos requeridos
+  if (!demoData.email || !demoData.password || !demoData.companyName) {
+    throw new Error("Email, contraseña y nombre de empresa son obligatorios")
+  }
+
+  // Verificar que el email no exista
+  const existingUser = await cuentaCollection.findOne({ email: demoData.email })
+  if (existingUser) {
+    throw new Error("El email ya está registrado")
+  }
+
+  // Generar subdominio automático desde el nombre de la empresa
+  const baseSubdomain = demoData.companyName
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Eliminar acentos
+    .replace(/[^a-z0-9]/g, "-") // Reemplazar caracteres especiales con guiones
+    .replace(/-+/g, "-") // Eliminar guiones duplicados
+    .replace(/^-|-$/g, "") // Eliminar guiones al inicio y final
+    .substring(0, 30) // Limitar longitud
+
+  // Verificar si el subdominio ya existe y agregar número si es necesario
+  let subdomain = baseSubdomain
+  let counter = 1
+  while (await tenantCollection.findOne({ subdomain })) {
+    subdomain = `${baseSubdomain}-${counter}`
+    counter++
+  }
+
+  // Determinar plan (por defecto professional para demos)
+  const plan = demoData.plan || "professional"
+  const planConfig = PLANS_CONFIG[plan] || PLANS_CONFIG.professional
+
+  // Determinar duración de la demo (por defecto 30 días)
+  const demoDurationDays = demoData.demoDurationDays || 30
+  const expirationDate = new Date()
+  expirationDate.setDate(expirationDate.getDate() + demoDurationDays)
+
+  // 1. CREAR TENANT
+  const tenantId = uuidv4()
+  const newTenant = {
+    _id: new ObjectId(),
+    tenantId,
+    name: demoData.companyName,
+    subdomain,
+    email: demoData.email,
+    phone: demoData.phone || "",
+    address: demoData.address || "",
+    plan: plan,
+    status: "active",
+    subscriptionExpiresAt: expirationDate,
+    isDemo: true, // Marcar como cuenta demo
+    demoCreatedAt: new Date(),
+    demoExpiresAt: expirationDate,
+    // Límites según el plan
+    maxUsers: planConfig.maxUsers,
+    maxFacilities: planConfig.maxFacilities,
+    maxAssets: planConfig.maxAssets,
+    maxDevices: planConfig.maxDevices,
+    maxFormTemplates: planConfig.maxFormTemplates,
+    maxWorkOrders: planConfig.maxWorkOrders,
+    maxManuals: planConfig.maxManuals,
+    features: planConfig.features,
+    limits: planConfig.limits,
+    createdAt: new Date(),
+    createdBy: superAdminUser._id,
+    updatedAt: new Date(),
+    stats: {
+      totalUsers: 0,
+      totalAssets: 0,
+      totalWorkOrders: 0,
+      lastActivity: new Date()
+    }
+  }
+
+  await tenantCollection.insertOne(newTenant)
+  console.log(`✅ [DEMO] Tenant creado: ${tenantId}`, {
+    name: newTenant.name,
+    subdomain: newTenant.subdomain,
+    plan: newTenant.plan,
+    expiresAt: expirationDate
+  })
+
+  // 2. CREAR USUARIO ADMIN
+  const hashedPassword = await bcrypt.hash(demoData.password, 10)
+  const userName = demoData.userName || `admin_${subdomain}`
+
+  const adminUser = {
+    _id: new ObjectId(),
+    tenantId: tenantId,
+    userName: userName,
+    email: demoData.email,
+    password: hashedPassword,
+    role: "admin",
+    isVerified: true,
+    status: "active",
+    isDemo: true, // Marcar como usuario demo
+    firstName: demoData.firstName || "Demo",
+    lastName: demoData.lastName || "User",
+    phone: demoData.phone || "",
+    createdAt: new Date(),
+    createdBy: superAdminUser._id,
+    updatedAt: new Date(),
+    permissions: {
+      canManageUsers: true,
+      canManageAssets: true,
+      canManageWorkOrders: true,
+      canViewReports: true,
+      canManageSettings: true
+    }
+  }
+
+  await cuentaCollection.insertOne(adminUser)
+  console.log(`✅ [DEMO] Usuario admin creado: ${userName}`)
+
+  // 3. CREAR SUSCRIPCIÓN FAKE
+  const fakeSubscription = {
+    _id: new ObjectId(),
+    tenantId: tenantId,
+    planId: plan,
+    planName: planConfig.name,
+    status: "active",
+    processor: "demo", // Procesador fake para identificar demos
+    frequency: "monthly",
+    amount: 0, // Sin costo para demos
+    currency: "ARS",
+    startDate: new Date(),
+    expiresAt: expirationDate,
+    autoRenew: false,
+    isDemo: true, // Marcar como suscripción demo
+    demoSubscriptionId: `demo_${tenantId}_${Date.now()}`,
+    createdAt: new Date(),
+    createdBy: superAdminUser._id,
+    metadata: {
+      createdBy: "super_admin",
+      demoType: "manual",
+      demoDurationDays: demoDurationDays,
+      notes: demoData.notes || "Cuenta demo creada manualmente"
+    }
+  }
+
+  await subscriptionsCollection.insertOne(fakeSubscription)
+  console.log(`✅ [DEMO] Suscripción fake creada`, {
+    plan: plan,
+    expiresAt: expirationDate
+  })
+
+  // Actualizar estadísticas del tenant
+  await tenantCollection.updateOne(
+    { _id: newTenant._id },
+    { $inc: { "stats.totalUsers": 1 } }
+  )
+
+  return {
+    success: true,
+    message: `Cuenta demo creada exitosamente. Expira en ${demoDurationDays} días.`,
+    tenant: {
+      tenantId: newTenant.tenantId,
+      name: newTenant.name,
+      subdomain: newTenant.subdomain,
+      plan: newTenant.plan,
+      expiresAt: expirationDate
+    },
+    user: {
+      userName: adminUser.userName,
+      email: adminUser.email,
+      role: adminUser.role
+    },
+    credentials: {
+      userName: adminUser.userName,
+      password: demoData.password, // Devolver la contraseña para que el super admin la pueda compartir
+      loginUrl: `https://tudominio.com/login` // Ajustar según tu dominio
+    },
+    subscription: {
+      planName: planConfig.name,
+      expiresAt: expirationDate,
+      daysRemaining: demoDurationDays
+    }
+  }
+}
+
 export {
   createAccount,
   login,
@@ -444,4 +638,5 @@ export {
   deleteAccount,
   getAccountsByRole, // ✅ EXPORTAR la nueva función
   getUserProfile, // ✅ NUEVA FUNCIÓN EXPORTADA
+  createDemoAccount, // ✅ NUEVA FUNCIÓN PARA CREAR DEMOS
 }

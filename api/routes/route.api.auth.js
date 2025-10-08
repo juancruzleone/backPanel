@@ -8,7 +8,7 @@ import {
   validateToken,
 } from "../../middleware/auth.validate.middleware.js"
 
-import { isAdmin } from "../../middleware/auth.role.middleware.js"
+import { isAdmin, isSuperAdmin } from "../../middleware/auth.role.middleware.js"
 import { 
   identifyTenantByToken, 
   identifyTenantByHeader,
@@ -58,6 +58,13 @@ route.get("/verify", [
 route.get("/profile", [
   validateToken
 ], controllers.getProfile)
+
+// NUEVA RUTA: Crear cuenta DEMO completa (SOLO SUPER ADMIN)
+// Crea cuenta + tenant + suscripción fake en una sola operación
+route.post("/cuenta/demo", [
+  validateToken,
+  isSuperAdmin
+], controllers.createDemoAccount)
 
 // Esta ruta debe ir DESPUÉS de las rutas específicas
 route.get("/cuentas/:id", [

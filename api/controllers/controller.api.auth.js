@@ -175,4 +175,34 @@ async function getProfile(req, res) {
   }
 }
 
-export { createAccount, login, publicLogin, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount, verifyAuth, getProfile }
+// NUEVO CONTROLADOR: Crear cuenta demo completa (SOLO SUPER ADMIN)
+async function createDemoAccount(req, res) {
+  try {
+    console.log('🎭 [DEMO] Iniciando creación de cuenta demo', {
+      superAdmin: req.user.userName,
+      data: {
+        email: req.body.email,
+        companyName: req.body.companyName,
+        plan: req.body.plan || 'professional',
+        demoDurationDays: req.body.demoDurationDays || 30
+      }
+    });
+
+    const result = await services.createDemoAccount(req.body, req.user);
+    
+    console.log('✅ [DEMO] Cuenta demo creada exitosamente', {
+      tenantId: result.tenant.tenantId,
+      userName: result.user.userName
+    });
+    
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('❌ [DEMO] Error al crear cuenta demo:', error.message);
+    res.status(400).json({
+      success: false,
+      error: { message: error.message }
+    });
+  }
+}
+
+export { createAccount, login, publicLogin, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount, verifyAuth, getProfile, createDemoAccount }
