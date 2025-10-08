@@ -82,9 +82,10 @@ async function getTechnicians(req, res) {
   try {
     console.log("🔍 [TECNICOS] Obteniendo técnicos...")
     console.log("🔍 [TECNICOS] Usuario:", { id: req.user._id, role: req.user.role, tenantId: req.user.tenantId })
+    console.log("🔍 [TECNICOS] TenantId del middleware:", req.tenantId)
     
-    // Para super_admin, obtener técnicos de todos los tenants
-    const tenantId = req.user.role === "super_admin" ? null : req.user.tenantId
+    // Usar el tenantId del middleware identifyTenantByHeader
+    const tenantId = req.user.role === "super_admin" ? null : req.tenantId
     console.log("🔍 [TECNICOS] Buscando en tenantId:", tenantId)
     
     const tecnicos = await services.getAccountsByRole("técnico", tenantId)

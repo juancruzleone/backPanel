@@ -40,7 +40,8 @@ route.get("/cuentas", [
 
 // ✅ RUTA ESPECÍFICA ANTES que la ruta con parámetros
 route.get("/cuentas/tecnicos", [
-  validateToken
+  validateToken,
+  identifyTenantByHeader
 ], controllers.getTechnicians)
 
 // Eliminar usuario (solo admin)
