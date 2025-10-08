@@ -213,10 +213,22 @@ async function getAccountById(id) {
 // ✅ NUEVA FUNCIÓN: obtener cuentas por rol
 async function getAccountsByRole(role, tenantId) {
   try {
-    const query = { role: role }
+    console.log("🔍 [AUTH SERVICE] Buscando cuentas por rol:", role)
+    console.log("🔍 [AUTH SERVICE] TenantId:", tenantId)
+    
+    // Buscar tanto "técnico" como "tecnico" para manejar inconsistencias
+    const query = { 
+      $or: [
+        { role: "técnico" },
+        { role: "tecnico" }
+      ]
+    }
+    
     if (tenantId) {
       query.tenantId = tenantId
     }
+    
+    console.log("🔍 [AUTH SERVICE] Query MongoDB:", JSON.stringify(query))
     
     const cuentas = await cuentaCollection
       .find(
@@ -226,9 +238,17 @@ async function getAccountsByRole(role, tenantId) {
       .sort({ createdAt: -1 })
       .toArray()
 
+    console.log("✅ [AUTH SERVICE] Cuentas encontradas:", cuentas.length)
+    console.log("📋 [AUTH SERVICE] Detalle cuentas:", cuentas.map(c => ({ 
+      _id: c._id, 
+      userName: c.userName, 
+      role: c.role, 
+      tenantId: c.tenantId 
+    })))
+
     return cuentas
   } catch (error) {
-    console.error("Error al obtener cuentas por rol:", error)
+    console.error("❌ [AUTH SERVICE] Error al obtener cuentas por rol:", error)
     throw new Error("Error al obtener cuentas por rol")
   }
 }

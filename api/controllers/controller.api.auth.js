@@ -80,16 +80,23 @@ async function getAccountById(req, res) {
 // ✅ FUNCIÓN CORREGIDA: obtener cuentas con rol técnico
 async function getTechnicians(req, res) {
   try {
+    console.log("🔍 [TECNICOS] Obteniendo técnicos...")
+    console.log("🔍 [TECNICOS] Usuario:", { id: req.user._id, role: req.user.role, tenantId: req.user.tenantId })
+    
     // Para super_admin, obtener técnicos de todos los tenants
     const tenantId = req.user.role === "super_admin" ? null : req.user.tenantId
+    console.log("🔍 [TECNICOS] Buscando en tenantId:", tenantId)
+    
     const tecnicos = await services.getAccountsByRole("técnico", tenantId)
+    console.log("✅ [TECNICOS] Técnicos encontrados:", tecnicos.length)
+    
     res.status(200).json({
       message: "Técnicos obtenidos exitosamente",
       count: tecnicos.length,
       tecnicos,
     })
   } catch (err) {
-    console.error("Error al obtener técnicos:", err)
+    console.error("❌ [TECNICOS] Error al obtener técnicos:", err)
     res.status(400).json({ error: { message: err.message } })
   }
 }
