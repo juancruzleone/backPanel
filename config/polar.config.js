@@ -25,20 +25,20 @@ const POLAR_CONFIG = {
     starter: {
       name: 'Starter Plan',
       description: 'Perfecto para comenzar - Hasta 5 usuarios, 3 paneles personalizados',
-      monthlyPrice: 29, // USD
-      yearlyPrice: 24,  // USD (20% descuento)
+      monthlyPrice: 25, // USD
+      yearlyPrice: 240,  // USD
     },
     professional: {
       name: 'Professional Plan', 
       description: 'Para equipos en crecimiento - Hasta 25 usuarios, paneles ilimitados',
-      monthlyPrice: 79, // USD
-      yearlyPrice: 63,  // USD (20% descuento)
+      monthlyPrice: 50, // USD
+      yearlyPrice: 540,  // USD
     },
     enterprise: {
       name: 'Enterprise Plan',
       description: 'Solución completa para empresas - Usuarios ilimitados, soporte 24/7',
-      monthlyPrice: 199, // USD
-      yearlyPrice: 159,  // USD (20% descuento)
+      monthlyPrice: 80, // USD
+      yearlyPrice: 900,  // USD
     }
   },
   
