@@ -2,6 +2,14 @@ import * as yup from "yup"
 
 // Esquema para actualizar perfil de usuario
 const updateProfile = yup.object({
+  userName: yup
+    .string()
+    .trim()
+    .min(4, "El nombre de usuario debe tener al menos 4 caracteres")
+    .max(50, "El nombre de usuario no puede tener más de 50 caracteres")
+    .matches(/^[a-zA-Z0-9_]+$/, "El nombre de usuario solo puede contener letras, números y guiones bajos")
+    .optional(),
+
   name: yup
     .string()
     .trim()

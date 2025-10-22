@@ -655,13 +655,24 @@ async function updateUserProfile(userId, updates) {
   }
 
   // Campos permitidos para actualización
-  const allowedFields = ["name", "firstName", "lastName", "email"]
+  const allowedFields = ["userName", "name", "firstName", "lastName", "email"]
   const updateData = {}
 
   // Filtrar solo campos permitidos
   for (const field of allowedFields) {
     if (updates[field] !== undefined) {
       updateData[field] = updates[field]
+    }
+  }
+
+  // Si se actualiza el userName, verificar que no exista en otro usuario
+  if (updateData.userName) {
+    const existingUser = await cuentaCollection.findOne({
+      userName: updateData.userName,
+      _id: { $ne: new ObjectId(userId) }
+    })
+    if (existingUser) {
+      throw new Error("El nombre de usuario ya está en uso")
     }
   }
 
