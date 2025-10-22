@@ -74,4 +74,26 @@ route.get("/cuentas/:id", [
   identifyTenantByHeader
 ], controllers.getAccountById)
 
+// Actualizar perfil del usuario autenticado
+route.put("/profile", [
+  validateToken
+], controllers.updateProfile)
+
+// Actualizar contraseña del usuario autenticado
+route.put("/profile/password", [
+  validateToken
+], controllers.updatePassword)
+
+// Actualizar datos de un técnico (solo admin)
+route.put("/cuentas/:id/technician", [
+  validateToken,
+  isAdmin
+], controllers.updateTechnician)
+
+// Actualizar datos de facturación del tenant (solo admin)
+route.put("/tenant/billing", [
+  validateToken,
+  isAdmin
+], controllers.updateBillingInfo)
+
 export default route

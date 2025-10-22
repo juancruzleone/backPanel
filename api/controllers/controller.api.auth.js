@@ -1,6 +1,6 @@
 import * as services from "../../services/auth.services.js"
-
 import * as tokenService from "../../services/token.service.js"
+import * as profileSchemas from "../../schemas/profile.schema.js"
 
 async function createAccount(req, res) {
   try {
@@ -225,4 +225,109 @@ async function createDemoAccount(req, res) {
   }
 }
 
-export { createAccount, login, publicLogin, logout, getAllAccounts, getAccountById, getTechnicians, deleteAccount, verifyAuth, getProfile, createDemoAccount }
+// Actualizar perfil del usuario autenticado
+async function updateProfile(req, res) {
+  try {
+    // Validar datos con schema
+    await profileSchemas.updateProfile.validate(req.body, { abortEarly: false });
+    
+    const userId = req.user._id;
+    const result = await services.updateUserProfile(userId, req.body);
+    
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error en updateProfile:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+// Actualizar contraseña del usuario autenticado
+async function updatePassword(req, res) {
+  try {
+    // Validar datos con schema
+    await profileSchemas.updatePassword.validate(req.body, { abortEarly: false });
+    
+    const userId = req.user._id;
+    const { currentPassword, newPassword } = req.body;
+    
+    const result = await services.updateUserPassword(userId, currentPassword, newPassword);
+    
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error en updatePassword:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+// Actualizar datos de un técnico (solo admin)
+async function updateTechnician(req, res) {
+  try {
+    // Validar datos con schema
+    await profileSchemas.updateTechnician.validate(req.body, { abortEarly: false });
+    
+    const { id } = req.params;
+    const adminUser = req.user;
+    
+    const result = await services.updateTechnicianByAdmin(id, req.body, adminUser);
+    
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error en updateTechnician:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+// Actualizar datos de facturación del tenant (solo admin)
+async function updateBillingInfo(req, res) {
+  try {
+    // Validar datos con schema
+    await profileSchemas.updateBillingInfo.validate(req.body, { abortEarly: false });
+    
+    const adminUser = req.user;
+    const tenantId = adminUser.tenantId;
+    
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se encontró el tenant del usuario'
+      });
+    }
+    
+    const result = await services.updateTenantBillingInfo(tenantId, req.body, adminUser);
+    
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error en updateBillingInfo:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+export { 
+  createAccount, 
+  login, 
+  publicLogin, 
+  logout, 
+  getAllAccounts, 
+  getAccountById, 
+  getTechnicians, 
+  deleteAccount, 
+  verifyAuth, 
+  getProfile, 
+  createDemoAccount,
+  updateProfile,
+  updatePassword,
+  updateTechnician,
+  updateBillingInfo
+}

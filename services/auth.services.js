@@ -648,15 +648,242 @@ async function createDemoAccount(demoData, superAdminUser) {
   }
 }
 
+// Función para actualizar perfil del usuario (solo puede actualizar sus propios datos básicos)
+async function updateUserProfile(userId, updates) {
+  if (!ObjectId.isValid(userId)) {
+    throw new Error("ID de usuario inválido")
+  }
+
+  // Campos permitidos para actualización
+  const allowedFields = ["name", "firstName", "lastName", "email"]
+  const updateData = {}
+
+  // Filtrar solo campos permitidos
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) {
+      updateData[field] = updates[field]
+    }
+  }
+
+  // Si se actualiza el email, verificar que no exista en otro usuario
+  if (updateData.email) {
+    const existingUser = await cuentaCollection.findOne({
+      email: updateData.email,
+      _id: { $ne: new ObjectId(userId) }
+    })
+    if (existingUser) {
+      throw new Error("El email ya está en uso por otro usuario")
+    }
+  }
+
+  updateData.updatedAt = new Date()
+
+  const result = await cuentaCollection.updateOne(
+    { _id: new ObjectId(userId) },
+    { $set: updateData }
+  )
+
+  if (result.matchedCount === 0) {
+    throw new Error("Usuario no encontrado")
+  }
+
+  return { 
+    success: true,
+    message: "Perfil actualizado exitosamente" 
+  }
+}
+
+// Función para actualizar contraseña del usuario
+async function updateUserPassword(userId, currentPassword, newPassword) {
+  if (!ObjectId.isValid(userId)) {
+    throw new Error("ID de usuario inválido")
+  }
+
+  // Obtener usuario
+  const user = await cuentaCollection.findOne({ _id: new ObjectId(userId) })
+  if (!user) {
+    throw new Error("Usuario no encontrado")
+  }
+
+  // Verificar contraseña actual
+  const isValid = await bcrypt.compare(currentPassword, user.password)
+  if (!isValid) {
+    throw new Error("La contraseña actual es incorrecta")
+  }
+
+  // Hash de la nueva contraseña
+  const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+  // Actualizar contraseña
+  const result = await cuentaCollection.updateOne(
+    { _id: new ObjectId(userId) },
+    { 
+      $set: { 
+        password: hashedPassword,
+        updatedAt: new Date()
+      } 
+    }
+  )
+
+  if (result.matchedCount === 0) {
+    throw new Error("Usuario no encontrado")
+  }
+
+  return { 
+    success: true,
+    message: "Contraseña actualizada exitosamente" 
+  }
+}
+
+// Función para que admin actualice datos de técnicos de su tenant
+async function updateTechnicianByAdmin(technicianId, updates, adminUser) {
+  if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+    throw new Error("No tienes permisos para actualizar técnicos")
+  }
+
+  if (!ObjectId.isValid(technicianId)) {
+    throw new Error("ID de técnico inválido")
+  }
+
+  // Obtener el técnico
+  const technician = await cuentaCollection.findOne({ _id: new ObjectId(technicianId) })
+  if (!technician) {
+    throw new Error("Técnico no encontrado")
+  }
+
+  // Verificar que sea un técnico
+  if (technician.role !== "técnico" && technician.role !== "tecnico") {
+    throw new Error("Solo se pueden editar usuarios con rol técnico")
+  }
+
+  // Verificar que el admin solo pueda editar técnicos de su tenant (excepto super_admin)
+  if (adminUser.role !== "super_admin" && technician.tenantId !== adminUser.tenantId) {
+    throw new Error("No tienes permisos para editar este técnico")
+  }
+
+  // Campos permitidos para actualización por admin
+  const allowedFields = ["userName", "password", "name", "email"]
+  const updateData = {}
+
+  // Filtrar solo campos permitidos
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) {
+      if (field === "password") {
+        // Hash de la contraseña
+        updateData.password = await bcrypt.hash(updates.password, 10)
+      } else if (field === "userName") {
+        // Verificar que el userName no exista en otro usuario del mismo tenant
+        const existingUser = await cuentaCollection.findOne({
+          userName: updates.userName,
+          tenantId: technician.tenantId,
+          _id: { $ne: new ObjectId(technicianId) }
+        })
+        if (existingUser) {
+          throw new Error("El nombre de usuario ya está en uso en este tenant")
+        }
+        updateData.userName = updates.userName
+      } else if (field === "email") {
+        // Verificar que el email no exista en otro usuario
+        const existingUser = await cuentaCollection.findOne({
+          email: updates.email,
+          _id: { $ne: new ObjectId(technicianId) }
+        })
+        if (existingUser) {
+          throw new Error("El email ya está en uso por otro usuario")
+        }
+        updateData.email = updates.email
+      } else {
+        updateData[field] = updates[field]
+      }
+    }
+  }
+
+  updateData.updatedAt = new Date()
+  updateData.updatedBy = adminUser._id
+
+  const result = await cuentaCollection.updateOne(
+    { _id: new ObjectId(technicianId) },
+    { $set: updateData }
+  )
+
+  if (result.matchedCount === 0) {
+    throw new Error("Técnico no encontrado")
+  }
+
+  return { 
+    success: true,
+    message: "Técnico actualizado exitosamente" 
+  }
+}
+
+// Función para actualizar datos de facturación del tenant (solo admin)
+async function updateTenantBillingInfo(tenantId, updates, adminUser) {
+  if (!adminUser || adminUser.role !== "admin") {
+    throw new Error("No tienes permisos para actualizar datos de facturación")
+  }
+
+  // Verificar que el admin solo pueda editar su propio tenant
+  if (adminUser.tenantId !== tenantId) {
+    throw new Error("No tienes permisos para editar este tenant")
+  }
+
+  const tenantsCollection = db.collection("tenants")
+  
+  // Campos permitidos para actualización
+  const allowedFields = [
+    "email", "address", "name",
+    "razonSocial", "tipoDocumento", "numeroDocumento", 
+    "condicionIVA", "direccionFiscal", "ciudad", 
+    "provincia", "codigoPostal",
+    "taxIdType", "taxIdNumber", "addressIntl", 
+    "cityIntl", "postalCodeIntl"
+  ]
+  
+  const updateData = {}
+
+  // Filtrar solo campos permitidos
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) {
+      updateData[field] = updates[field]
+    }
+  }
+
+  updateData.updatedAt = new Date()
+
+  // Buscar por tenantId string o por _id
+  const result = await tenantsCollection.updateOne(
+    { 
+      $or: [
+        { tenantId: tenantId },
+        { _id: tenantId }
+      ]
+    },
+    { $set: updateData }
+  )
+
+  if (result.matchedCount === 0) {
+    throw new Error("Tenant no encontrado")
+  }
+
+  return { 
+    success: true,
+    message: "Datos de facturación actualizados exitosamente" 
+  }
+}
+
 export {
   createAccount,
   login,
-  publicLogin, // ✅ NUEVA FUNCIÓN EXPORTADA
+  publicLogin,
   getAllAccounts,
   getAccountById,
+  getAccountsByRole,
   updateAccountStatus,
   deleteAccount,
-  getAccountsByRole, // ✅ EXPORTAR la nueva función
-  getUserProfile, // ✅ NUEVA FUNCIÓN EXPORTADA
-  createDemoAccount, // ✅ NUEVA FUNCIÓN PARA CREAR DEMOS
+  getUserProfile,
+  createDemoAccount,
+  updateUserProfile,
+  updateUserPassword,
+  updateTechnicianByAdmin,
+  updateTenantBillingInfo
 }
