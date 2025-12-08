@@ -129,10 +129,22 @@ async function getPublicLastMaintenance(req, res) {
     const maintenance = await installationsServices.getLastMaintenanceForDevice(installationId, deviceId)
     
     if (!maintenance) {
+      console.log('⚠️ No se encontraron mantenimientos para este dispositivo')
       return res.status(404).json({
         success: false,
         message: 'No se encontraron registros de mantenimiento'
       })
+    }
+    
+    console.log('✅ Mantenimiento encontrado:')
+    console.log('   - _id:', maintenance._id)
+    console.log('   - date:', maintenance.date)
+    console.log('   - pdfUrl:', maintenance.pdfUrl)
+    console.log('   - Objeto completo:', JSON.stringify(maintenance, null, 2))
+    
+    // Verificar que pdfUrl existe
+    if (!maintenance.pdfUrl) {
+      console.error('❌ ADVERTENCIA: El mantenimiento no tiene pdfUrl')
     }
     
     res.status(200).json({
@@ -140,7 +152,7 @@ async function getPublicLastMaintenance(req, res) {
       data: maintenance
     })
   } catch (error) {
-    console.error('Error al obtener último mantenimiento público:', error)
+    console.error('❌ Error al obtener último mantenimiento público:', error)
     res.status(400).json({
       success: false,
       error: error.message || 'Error al obtener el último mantenimiento'
