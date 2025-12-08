@@ -321,14 +321,33 @@ async function getLastMaintenanceForDevice(req, res) {
 async function getAllMaintenanceForDevice(req, res) {
   try {
     const { installationId, deviceId } = req.params
+    console.log('📋 [AUTENTICADO] Solicitud de historial completo:', { installationId, deviceId })
+    
     const maintenanceList = await service.getAllMaintenanceForDevice(installationId, deviceId)
+    
+    console.log('✅ Mantenimientos encontrados:', maintenanceList.length)
+    
+    // Log detallado de cada mantenimiento
+    maintenanceList.forEach((m, index) => {
+      console.log(`   [${index + 1}] _id:`, m._id)
+      console.log(`   [${index + 1}] date:`, m.date)
+      console.log(`   [${index + 1}] pdfUrl:`, m.pdfUrl || '❌ NO TIENE pdfUrl')
+      console.log(`   [${index + 1}] formattedDate:`, m.formattedDate)
+    })
+    
+    // Advertencia si algún mantenimiento no tiene pdfUrl
+    const sinPdf = maintenanceList.filter(m => !m.pdfUrl)
+    if (sinPdf.length > 0) {
+      console.error(`⚠️ ADVERTENCIA: ${sinPdf.length} mantenimientos SIN pdfUrl`)
+    }
 
     res.status(200).json({
       success: true,
       data: maintenanceList,
+      count: maintenanceList.length
     })
   } catch (error) {
-    console.error("Error al obtener historial de mantenimientos:", error)
+    console.error("❌ Error al obtener historial de mantenimientos:", error)
     res.status(400).json({
       success: false,
       error: error.message || "Error al obtener el historial de mantenimientos",
