@@ -72,7 +72,7 @@ async function getInstallations(tenantId = null) {
     if (tenantId) {
       query.tenantId = tenantId
     }
-    
+
     const installations = await installationsCollection.find(query).sort({ _id: -1 }).toArray()
     return installations
   } catch (error) {
@@ -210,10 +210,10 @@ async function updateInstallationSubscription(id, subscriptionData) {
     }
 
     const objectId = new ObjectId(id)
-    
+
     console.log('🔍 [UPDATE SUBSCRIPTION] Datos recibidos:', subscriptionData)
     console.log('🔍 [UPDATE SUBSCRIPTION] Estado recibido:', subscriptionData.estado)
-    
+
     // Preparar datos de suscripción con conversión de fechas
     const dataToUpdate = {
       fechaInicio: new Date(subscriptionData.fechaInicio),
@@ -223,7 +223,7 @@ async function updateInstallationSubscription(id, subscriptionData) {
       estado: subscriptionData.estado || 'Activo', // Agregar estado
       fechaActualizacion: new Date(),
     }
-    
+
     console.log('🔍 [UPDATE SUBSCRIPTION] Datos a actualizar en BD:', dataToUpdate)
 
     const result = await installationsCollection.findOneAndUpdate(
@@ -235,7 +235,7 @@ async function updateInstallationSubscription(id, subscriptionData) {
     if (!result) {
       throw new Error("No se encontró la instalación para actualizar la suscripción")
     }
-    
+
     console.log('✅ [UPDATE SUBSCRIPTION] Instalación actualizada. Estado guardado:', result.estado)
 
     return result
@@ -314,7 +314,8 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
     const frontendUrl = process.env.FRONTEND_URL || "https://panelmantenimiento.netlify.app"
     // Elimina barra final si existe
     const cleanFrontendUrl = frontendUrl.replace(/\/$/, "")
-    const formUrl = `${cleanFrontendUrl}/formulario/${installationId}/${deviceId}`
+    // Usar ruta pública para que personas sin login puedan ver el dispositivo
+    const formUrl = `${cleanFrontendUrl}/dispositivo/${installationId}/${deviceId}`
 
     const newDevice = {
       _id: deviceId,
@@ -341,9 +342,9 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
     // Crear carpeta para el nuevo dispositivo en Hetzner Object Storage
     try {
       await tenantFoldersService.onDispositivoCreated(
-        installation.tenantId, 
-        installationId, 
-        assetId, 
+        installation.tenantId,
+        installationId,
+        assetId,
         asset.nombre
       );
       console.log('✅ Carpeta de dispositivo creada en Hetzner:', assetId);
@@ -403,7 +404,7 @@ async function updateDeviceInInstallation(installationId, deviceId, deviceData) 
     if (deviceData.assetId) {
       const newAssetIdString = deviceData.assetId.toString()
       const currentAssetIdString = currentDevice.assetId?.toString()
-      
+
       // Solo validar si realmente está cambiando el activo
       if (newAssetIdString !== currentAssetIdString) {
         if (!ObjectId.isValid(deviceData.assetId)) {
@@ -496,8 +497,8 @@ async function getDeviceForm(installationId, deviceId) {
     // Obtener la instalación completa con el dispositivo específico
     const installation = await installationsCollection.findOne(
       { _id: installationObjectId, "devices._id": deviceObjectId },
-      { 
-        projection: { 
+      {
+        projection: {
           "devices.$": 1,
           "company": 1,
           "address": 1,
@@ -505,7 +506,7 @@ async function getDeviceForm(installationId, deviceId) {
           "city": 1,
           "province": 1,
           "installationType": 1
-        } 
+        }
       }
     )
 
@@ -604,20 +605,20 @@ async function handleMaintenanceSubmission(installationId, deviceId, formRespons
         if (field.name === "fechaRevision" || field.name === "horaRevision") {
           return false
         }
-        
+
         // Si el campo es requerido
         if (field.required) {
           const fieldValue = formResponses[field.name]
-          
+
           // Para checkboxes, verificar que exista la propiedad (puede ser true o false)
           if (field.type === "checkbox") {
             return fieldValue === undefined || fieldValue === null
           }
-          
+
           // Para otros campos, verificar que tengan un valor truthy
           return !fieldValue && fieldValue !== 0 && fieldValue !== false
         }
-        
+
         return false
       })
       .map((field) => field.label)
@@ -704,6 +705,39 @@ async function getLastMaintenanceForDevice(installationId, deviceId) {
     return device.maintenanceHistory[device.maintenanceHistory.length - 1]
   } catch (error) {
     console.error("Error en getLastMaintenanceForDevice:", error)
+    throw error
+  }
+}
+
+// Obtener todos los mantenimientos de dispositivo
+async function getAllMaintenanceForDevice(installationId, deviceId) {
+  try {
+    if (!ObjectId.isValid(installationId) || !ObjectId.isValid(deviceId)) {
+      throw new Error("El ID de la instalación o el dispositivo no es válido")
+    }
+
+    const installationObjectId = new ObjectId(installationId)
+    const deviceObjectId = new ObjectId(deviceId)
+
+    const result = await installationsCollection.findOne(
+      { _id: installationObjectId, "devices._id": deviceObjectId },
+      { projection: { "devices.$": 1 } },
+    )
+
+    if (!result || !result.devices || result.devices.length === 0) {
+      throw new Error("No se encontró la instalación o el dispositivo")
+    }
+
+    const device = result.devices[0]
+
+    if (!device.maintenanceHistory || device.maintenanceHistory.length === 0) {
+      return []
+    }
+
+    // Ordenar por fecha descendente (más reciente primero)
+    return device.maintenanceHistory.sort((a, b) => new Date(b.date) - new Date(a.date))
+  } catch (error) {
+    console.error("Error en getAllMaintenanceForDevice:", error)
     throw error
   }
 }
@@ -802,6 +836,7 @@ export {
   getDeviceForm,
   handleMaintenanceSubmission,
   getLastMaintenanceForDevice,
+  getAllMaintenanceForDevice, // Nuevo export
   getDevicesFromInstallation,
   assignAssetToInstallation,
   assignTemplateToDevice,

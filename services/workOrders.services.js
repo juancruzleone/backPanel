@@ -143,9 +143,9 @@ async function getAllWorkOrders(filters = {}, tenantId = null) {
             fechaCompletada: 1,
             observaciones: 1,
             trabajoRealizado: 1,
-            instalacionId: 1, // ✅ AGREGADO - ID de la instalación
+            instalacionId: 1, // AGREGADO - ID de la instalación
             instalacion: {
-              _id: 1, // ✅ AGREGADO - ID dentro del objeto instalacion
+              _id: 1, // AGREGADO - ID dentro del objeto instalacion
               company: 1,
               address: 1,
               city: 1,
@@ -945,6 +945,178 @@ async function getWorkOrderHistory(id, user) {
   }
 }
 
+// Obtener todos los mantenimientos completados de un dispositivo
+async function getDeviceMaintenanceHistory(dispositivoId, tenantId = null) {
+  try {
+    if (!ObjectId.isValid(dispositivoId)) {
+      throw new Error("ID de dispositivo inválido")
+    }
+
+    const query = {
+      dispositivoId: new ObjectId(dispositivoId),
+      estado: "completada"
+    }
+
+    if (tenantId) {
+      query.tenantId = tenantId
+    }
+
+    const maintenanceHistory = await workOrdersCollection
+      .aggregate([
+        { $match: query },
+        {
+          $lookup: {
+            from: "cuentas",
+            localField: "tecnicoAsignado",
+            foreignField: "_id",
+            as: "tecnico",
+          },
+        },
+        {
+          $unwind: {
+            path: "$tecnico",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "instalaciones",
+            localField: "instalacionId",
+            foreignField: "_id",
+            as: "instalacion",
+          },
+        },
+        {
+          $unwind: {
+            path: "$instalacion",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            titulo: 1,
+            descripcion: 1,
+            fechaCreacion: 1,
+            fechaCompletada: 1,
+            completadoPor: 1,
+            observaciones: 1,
+            trabajoRealizado: 1,
+            materialesUtilizados: 1,
+            tiempoTrabajo: 1,
+            estadoDispositivo: 1,
+            pdfUrl: 1,
+            dispositivo: 1,
+            tecnico: {
+              _id: 1,
+              userName: 1,
+              nombre: 1,
+              email: 1,
+            },
+            instalacion: {
+              _id: 1,
+              company: 1,
+              address: 1,
+              city: 1,
+            },
+          },
+        },
+        { $sort: { fechaCompletada: -1 } }
+      ])
+      .toArray()
+
+    return maintenanceHistory
+  } catch (error) {
+    console.error("Error al obtener historial de mantenimientos del dispositivo:", error)
+    throw error
+  }
+}
+
+// Obtener último mantenimiento de un dispositivo (para acceso público vía QR)
+async function getDeviceLastMaintenance(dispositivoId) {
+  try {
+    if (!ObjectId.isValid(dispositivoId)) {
+      throw new Error("ID de dispositivo inválido")
+    }
+
+    const lastMaintenance = await workOrdersCollection
+      .aggregate([
+        { 
+          $match: { 
+            dispositivoId: new ObjectId(dispositivoId),
+            estado: "completada"
+          } 
+        },
+        {
+          $lookup: {
+            from: "cuentas",
+            localField: "tecnicoAsignado",
+            foreignField: "_id",
+            as: "tecnico",
+          },
+        },
+        {
+          $unwind: {
+            path: "$tecnico",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "instalaciones",
+            localField: "instalacionId",
+            foreignField: "_id",
+            as: "instalacion",
+          },
+        },
+        {
+          $unwind: {
+            path: "$instalacion",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            titulo: 1,
+            descripcion: 1,
+            fechaCreacion: 1,
+            fechaCompletada: 1,
+            completadoPor: 1,
+            observaciones: 1,
+            trabajoRealizado: 1,
+            materialesUtilizados: 1,
+            tiempoTrabajo: 1,
+            estadoDispositivo: 1,
+            pdfUrl: 1,
+            dispositivo: 1,
+            tecnico: {
+              userName: 1,
+              nombre: 1,
+            },
+            instalacion: {
+              company: 1,
+              address: 1,
+              city: 1,
+            },
+          },
+        },
+        { $sort: { fechaCompletada: -1 } },
+        { $limit: 1 }
+      ])
+      .toArray()
+
+    if (lastMaintenance.length === 0) {
+      return null
+    }
+
+    return lastMaintenance[0]
+  } catch (error) {
+    console.error("Error al obtener último mantenimiento del dispositivo:", error)
+    throw error
+  }
+}
+
 export {
   getAllWorkOrders,
   createWorkOrder,
@@ -958,4 +1130,6 @@ export {
   completeWorkOrder,
   startWorkOrder,
   getWorkOrderHistory,
+  getDeviceMaintenanceHistory,
+  getDeviceLastMaintenance,
 }

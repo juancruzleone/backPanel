@@ -41,7 +41,7 @@ async function createInstallation(req, res) {
     const installationData = req.body
     const adminUser = req.user
     const tenantId = req.user.tenantId
-    
+
     // Verificar que el usuario sea admin del tenant
     if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
       return res.status(403).json({
@@ -49,11 +49,11 @@ async function createInstallation(req, res) {
         error: "No tienes permisos para crear instalaciones"
       })
     }
-    
+
     // Agregar tenantId a los datos de la instalación
     installationData.tenantId = tenantId
     installationData.createdBy = adminUser._id
-    
+
     const newInstallation = await service.createInstallation(installationData, adminUser)
     res.status(201).json({
       success: true,
@@ -76,7 +76,7 @@ async function updateInstallation(req, res) {
     const installationData = req.body
     const adminUser = req.user
     const tenantId = req.user.tenantId
-    
+
     // Verificar que el usuario sea admin del tenant
     if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
       return res.status(403).json({
@@ -84,7 +84,7 @@ async function updateInstallation(req, res) {
         error: "No tienes permisos para actualizar instalaciones"
       })
     }
-    
+
     const updatedInstallation = await service.updateInstallation(id, installationData, tenantId, adminUser)
     res.status(200).json({
       success: true,
@@ -106,12 +106,12 @@ async function updateInstallationSubscription(req, res) {
     console.log('🎯 [CONTROLLER] updateInstallationSubscription EJECUTÁNDOSE')
     console.log('🎯 [CONTROLLER] ID:', req.params.id)
     console.log('🎯 [CONTROLLER] Body recibido:', req.body)
-    
+
     const { id } = req.params
     const subscriptionData = req.body
 
     const updatedInstallation = await service.updateInstallationSubscription(id, subscriptionData)
-    
+
     res.status(200).json({
       success: true,
       message: "Información de suscripción actualizada exitosamente",
@@ -132,7 +132,7 @@ async function deleteInstallation(req, res) {
     const { id } = req.params
     const adminUser = req.user
     const tenantId = req.user.tenantId
-    
+
     // Verificar que el usuario sea admin del tenant
     if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
       return res.status(403).json({
@@ -140,7 +140,7 @@ async function deleteInstallation(req, res) {
         error: "No tienes permisos para eliminar instalaciones"
       })
     }
-    
+
     await service.deleteInstallation(id, tenantId, adminUser)
     res.status(200).json({
       success: true,
@@ -317,6 +317,25 @@ async function getLastMaintenanceForDevice(req, res) {
   }
 }
 
+// Obtener todos los mantenimientos de dispositivo
+async function getAllMaintenanceForDevice(req, res) {
+  try {
+    const { installationId, deviceId } = req.params
+    const maintenanceList = await service.getAllMaintenanceForDevice(installationId, deviceId)
+
+    res.status(200).json({
+      success: true,
+      data: maintenanceList,
+    })
+  } catch (error) {
+    console.error("Error al obtener historial de mantenimientos:", error)
+    res.status(400).json({
+      success: false,
+      error: error.message || "Error al obtener el historial de mantenimientos",
+    })
+  }
+}
+
 // Obtener dispositivos de instalación
 async function getDevicesFromInstallation(req, res) {
   try {
@@ -372,6 +391,7 @@ export {
   getDeviceForm,
   handleMaintenanceSubmission,
   getLastMaintenanceForDevice,
+  getAllMaintenanceForDevice, // Nuevo export
   getDevicesFromInstallation,
   assignAssetToInstallation, // FUNCIÓN PRINCIPA
   assignTemplateToDevice,

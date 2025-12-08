@@ -1,4 +1,5 @@
 import * as publicServices from "../../services/public.services.js"
+import * as installationsServices from "../../services/installations.services.js"
 
 async function registerPublic(req, res) {
   try {
@@ -97,4 +98,82 @@ async function createPublicCheckout(req, res) {
   }
 }
 
-export { registerPublic, getPublicPlans, createPublicCheckout }
+// Obtener historial completo de mantenimientos de un dispositivo (público - para QR)
+async function getPublicMaintenanceHistory(req, res) {
+  try {
+    const { installationId, deviceId } = req.params
+    console.log('📋 Solicitud pública de historial de mantenimientos:', { installationId, deviceId })
+    
+    const maintenanceList = await installationsServices.getAllMaintenanceForDevice(installationId, deviceId)
+    
+    res.status(200).json({
+      success: true,
+      data: maintenanceList,
+      count: maintenanceList.length
+    })
+  } catch (error) {
+    console.error('Error al obtener historial público de mantenimientos:', error)
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Error al obtener el historial de mantenimientos'
+    })
+  }
+}
+
+// Obtener último mantenimiento de un dispositivo (público - para QR)
+async function getPublicLastMaintenance(req, res) {
+  try {
+    const { installationId, deviceId } = req.params
+    console.log('📋 Solicitud pública de último mantenimiento:', { installationId, deviceId })
+    
+    const maintenance = await installationsServices.getLastMaintenanceForDevice(installationId, deviceId)
+    
+    if (!maintenance) {
+      return res.status(404).json({
+        success: false,
+        message: 'No se encontraron registros de mantenimiento'
+      })
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: maintenance
+    })
+  } catch (error) {
+    console.error('Error al obtener último mantenimiento público:', error)
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Error al obtener el último mantenimiento'
+    })
+  }
+}
+
+// Obtener formulario de dispositivo (público - para QR)
+async function getPublicDeviceForm(req, res) {
+  try {
+    const { installationId, deviceId } = req.params
+    console.log('📋 Solicitud pública de formulario de dispositivo:', { installationId, deviceId })
+    
+    const formData = await installationsServices.getDeviceForm(installationId, deviceId)
+    
+    res.status(200).json({
+      success: true,
+      data: formData
+    })
+  } catch (error) {
+    console.error('Error al obtener formulario público:', error)
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Error al obtener el formulario'
+    })
+  }
+}
+
+export { 
+  registerPublic, 
+  getPublicPlans, 
+  createPublicCheckout,
+  getPublicMaintenanceHistory,
+  getPublicLastMaintenance,
+  getPublicDeviceForm
+}

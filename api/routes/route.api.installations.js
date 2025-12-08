@@ -22,8 +22,8 @@ route.put("/installations/:id", [validateToken, identifyTenantByHeader, isAdmin,
 route.delete("/installations/:id", [validateToken, identifyTenantByHeader, isAdmin], controllers.deleteInstallation)
 
 // NUEVA RUTA: Actualizar solo información de suscripción
-route.patch("/installations/:id/subscription", 
-  [validateToken, identifyTenantByHeader, isAdmin, validateSubscriptionUpdate], 
+route.patch("/installations/:id/subscription",
+  [validateToken, identifyTenantByHeader, isAdmin, validateSubscriptionUpdate],
   controllers.updateInstallationSubscription
 )
 
@@ -69,6 +69,11 @@ route.get(
   "/installations/:installationId/dispositivos/:deviceId/ultimo-mantenimiento",
   [validateToken, identifyTenantByHeader, isAdmin],
   controllers.getLastMaintenanceForDevice,
+)
+route.get(
+  "/installations/:installationId/dispositivos/:deviceId/mantenimientos",
+  [validateToken, identifyTenantByHeader, isAdmin],
+  controllers.getAllMaintenanceForDevice,
 )
 route.get(
   "/installations/:installationId/dispositivos/:deviceId/formulario",

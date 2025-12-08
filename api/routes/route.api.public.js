@@ -13,4 +13,9 @@ route.get("/subscription-plans", controllers.getPublicPlans)
 route.post("/subscription-plans/:planId/checkout", controllers.createPublicCheckout)
 route.get("/subscription-plans/:planId/checkout", controllers.createPublicCheckout)
 
+// ✅ Endpoints públicos para mantenimientos de dispositivos (QR)
+route.get("/dispositivos/:installationId/:deviceId/mantenimientos", controllers.getPublicMaintenanceHistory)
+route.get("/dispositivos/:installationId/:deviceId/ultimo-mantenimiento", controllers.getPublicLastMaintenance)
+route.get("/dispositivos/:installationId/:deviceId/formulario", controllers.getPublicDeviceForm)
+
 export default route

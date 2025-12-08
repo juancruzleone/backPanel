@@ -290,6 +290,71 @@ async function getWorkOrderHistory(req, res) {
   }
 }
 
+// Obtener todos los mantenimientos de un dispositivo (autenticado)
+async function getDeviceMaintenanceHistory(req, res) {
+  try {
+    const { dispositivoId } = req.params
+    const tenantId = req.user.tenantId
+    const maintenanceHistory = await service.getDeviceMaintenanceHistory(dispositivoId, tenantId)
+
+    res.status(200).json({
+      success: true,
+      data: maintenanceHistory,
+    })
+  } catch (error) {
+    console.error("Error al obtener historial de mantenimientos del dispositivo:", error)
+    res.status(400).json({
+      success: false,
+      error: error.message || "Error al obtener el historial de mantenimientos",
+    })
+  }
+}
+
+// Obtener último mantenimiento de un dispositivo (público, sin autenticación)
+async function getDeviceLastMaintenancePublic(req, res) {
+  try {
+    const { dispositivoId } = req.params
+    const lastMaintenance = await service.getDeviceLastMaintenance(dispositivoId)
+
+    if (!lastMaintenance) {
+      return res.status(404).json({
+        success: false,
+        error: "No se encontraron mantenimientos para este dispositivo",
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      data: lastMaintenance,
+    })
+  } catch (error) {
+    console.error("Error al obtener último mantenimiento del dispositivo:", error)
+    res.status(400).json({
+      success: false,
+      error: error.message || "Error al obtener el último mantenimiento",
+    })
+  }
+}
+
+// Obtener todos los mantenimientos de un dispositivo (público, sin autenticación)
+async function getDeviceMaintenanceHistoryPublic(req, res) {
+  try {
+    const { dispositivoId } = req.params
+    const maintenanceHistory = await service.getDeviceMaintenanceHistory(dispositivoId)
+
+    res.status(200).json({
+      success: true,
+      data: maintenanceHistory,
+    })
+  } catch (error) {
+    console.error("Error al obtener historial de mantenimientos del dispositivo:", error)
+    res.status(400).json({
+      success: false,
+      error: error.message || "Error al obtener el historial de mantenimientos",
+    })
+  }
+}
+
 export {
   getAllWorkOrders,
   createWorkOrder,
@@ -299,8 +364,11 @@ export {
   updateWorkOrderStatus,
   getTechnicianWorkOrders,
   getWorkOrderById,
-  getWorkOrderForm, // NUEVA FUNCIÓN EXPORTADA
+  getWorkOrderForm,
   completeWorkOrder,
   startWorkOrder,
   getWorkOrderHistory,
+  getDeviceMaintenanceHistory,
+  getDeviceLastMaintenancePublic,
+  getDeviceMaintenanceHistoryPublic,
 }
