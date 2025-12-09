@@ -60,10 +60,31 @@ const corsOptions = {
   ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-tenant-id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Tenant-ID'],
+  exposedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID']
 }
 
 app.use(cors(corsOptions))
+
+// Manejar preflight requests (OPTIONS) para todas las rutas
+app.options('*', cors(corsOptions))
+
+// Middleware de debugging para ver headers
+app.use((req, res, next) => {
+  if (req.path.includes('/dispositivos')) {
+    console.log('🔍 [DEBUG] Request a dispositivos:', {
+      method: req.method,
+      path: req.path,
+      headers: {
+        authorization: req.headers.authorization ? 'Presente ✅' : 'Ausente ❌',
+        'x-tenant-id': req.headers['x-tenant-id'] || 'Ausente',
+        'content-type': req.headers['content-type'],
+        origin: req.headers.origin
+      }
+    });
+  }
+  next();
+})
 
 // Health check endpoint para Render
 app.get("/health", (req, res) => {
