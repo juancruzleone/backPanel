@@ -302,8 +302,8 @@ async function assignAssetToInstallation(installationId, assetId, ubicacion, cat
       throw new Error("El activo debe tener una plantilla de formulario asignada")
     }
 
-    // Verificar que la plantilla existe
-    const template = await getFormTemplateById(asset.templateId.toString())
+    // Verificar que la plantilla existe (multi-tenant)
+    const template = await getFormTemplateById(asset.templateId.toString(), installation.tenantId)
     if (!template) {
       throw new Error("La plantilla de formulario del activo no existe")
     }
