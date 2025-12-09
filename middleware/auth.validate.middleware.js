@@ -24,15 +24,24 @@ async function validateAccountLogin(req, res, next) {
 }
 
 async function validateToken(req, res, next) {
-    console.log('🔐 [AUTH] Validando token...');
+    console.log('\n🔐 [AUTH] ==================== VALIDANDO TOKEN ====================');
     console.log('🔐 [AUTH] URL:', req.method, req.originalUrl);
+    console.log('🔐 [AUTH] Path:', req.path);
     
-    const authHeader = req.headers.authorization;
-    console.log('🔐 [AUTH] Authorization header:', authHeader ? 'Presente' : 'Ausente');
+    console.log('\n🔐 [AUTH] TODOS LOS HEADERS EN MIDDLEWARE:');
+    console.log(JSON.stringify(req.headers, null, 2));
+    
+    console.log('\n🔐 [AUTH] Buscando header Authorization...');
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    console.log('🔐 [AUTH] Authorization (lowercase):', req.headers.authorization || '❌ NO PRESENTE');
+    console.log('🔐 [AUTH] Authorization (uppercase):', req.headers.Authorization || '❌ NO PRESENTE');
+    console.log('🔐 [AUTH] authHeader final:', authHeader || '❌ NO PRESENTE');
     
     // Verificar si el encabezado de autorización existe
     if (!authHeader) {
-        console.log('❌ [AUTH] Token faltante');
+        console.log('\n❌ [AUTH] Token faltante - NO SE ENCONTRÓ HEADER AUTHORIZATION');
+        console.log('❌ [AUTH] Headers disponibles:', Object.keys(req.headers));
+        console.log('❌ [AUTH] ============================================================\n');
         return res.status(401).json({ 
             success: false,
             code: 'MISSING_AUTH_HEADER',

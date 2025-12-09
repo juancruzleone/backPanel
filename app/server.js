@@ -72,16 +72,19 @@ app.options('*', cors(corsOptions))
 // Middleware de debugging para ver headers
 app.use((req, res, next) => {
   if (req.path.includes('/dispositivos')) {
-    console.log('🔍 [DEBUG] Request a dispositivos:', {
-      method: req.method,
-      path: req.path,
-      headers: {
-        authorization: req.headers.authorization ? 'Presente ✅' : 'Ausente ❌',
-        'x-tenant-id': req.headers['x-tenant-id'] || 'Ausente',
-        'content-type': req.headers['content-type'],
-        origin: req.headers.origin
-      }
-    });
+    console.log('\n🔍 [DEBUG] ==================== REQUEST RECIBIDO ====================');
+    console.log('🔍 [DEBUG] Method:', req.method);
+    console.log('🔍 [DEBUG] Path:', req.path);
+    console.log('🔍 [DEBUG] URL completa:', req.url);
+    console.log('🔍 [DEBUG] Origin:', req.headers.origin);
+    console.log('\n🔍 [DEBUG] TODOS LOS HEADERS RECIBIDOS:');
+    console.log(JSON.stringify(req.headers, null, 2));
+    console.log('\n🔍 [DEBUG] Headers específicos:');
+    console.log('  - authorization:', req.headers.authorization || '❌ NO PRESENTE');
+    console.log('  - Authorization:', req.headers.Authorization || '❌ NO PRESENTE');
+    console.log('  - x-tenant-id:', req.headers['x-tenant-id'] || '❌ NO PRESENTE');
+    console.log('  - content-type:', req.headers['content-type'] || '❌ NO PRESENTE');
+    console.log('🔍 [DEBUG] ============================================================\n');
   }
   next();
 })
