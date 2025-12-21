@@ -1,6 +1,6 @@
 import { Router } from "express"
 import * as controllers from "../controllers/controller.api.clientUsers.js"
-import { validateToken } from "../../middleware/auth.middleware.js"
+import { validateToken } from "../../middleware/auth.validate.middleware.js"
 import { isAdmin } from "../../middleware/auth.role.middleware.js"
 import { createClientUser, updateClientUser, assignInstallations } from "../../schemas/clientUser.schema.js"
 
@@ -13,11 +13,11 @@ const validateCreateClient = async (req, res, next) => {
     req.body = validatedData
     next()
   } catch (error) {
-    res.status(400).json({ 
-      error: { 
-        message: "Datos de validación inválidos", 
-        details: error.errors 
-      } 
+    res.status(400).json({
+      error: {
+        message: "Datos de validación inválidos",
+        details: error.errors
+      }
     })
   }
 }
@@ -29,11 +29,11 @@ const validateUpdateClient = async (req, res, next) => {
     req.body = validatedData
     next()
   } catch (error) {
-    res.status(400).json({ 
-      error: { 
-        message: "Datos de validación inválidos", 
-        details: error.errors 
-      } 
+    res.status(400).json({
+      error: {
+        message: "Datos de validación inválidos",
+        details: error.errors
+      }
     })
   }
 }
@@ -45,11 +45,11 @@ const validateAssignInstallations = async (req, res, next) => {
     req.body = validatedData
     next()
   } catch (error) {
-    res.status(400).json({ 
-      error: { 
-        message: "Datos de validación inválidos", 
-        details: error.errors 
-      } 
+    res.status(400).json({
+      error: {
+        message: "Datos de validación inválidos",
+        details: error.errors
+      }
     })
   }
 }

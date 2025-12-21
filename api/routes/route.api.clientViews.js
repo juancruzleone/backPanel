@@ -1,6 +1,6 @@
 import { Router } from "express"
 import * as controllers from "../controllers/controller.api.clientViews.js"
-import { validateToken } from "../../middleware/auth.middleware.js"
+import { validateToken } from "../../middleware/auth.validate.middleware.js"
 import { isClient } from "../../middleware/auth.role.middleware.js"
 
 const route = Router()
