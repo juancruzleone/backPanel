@@ -4,6 +4,8 @@ import cron from 'node-cron'
 import { db } from '../db.js'
 import ApiAssetsRoutes from "../api/routes/route.api.assets.js"
 import ApiClientsRoutes from "../api/routes/route.api.clients.js"
+import ApiClientUsersRoutes from "../api/routes/route.api.clientUsers.js"
+import ApiClientViewsRoutes from "../api/routes/route.api.clientViews.js"
 import ApiInstallationsRoutes from "../api/routes/route.api.installations.js"
 import ApiAuthRoutes from "../api/routes/route.api.auth.js"
 import ApiFormTemplatesRoutes from "../api/routes/route.api.formTemplates.js"
@@ -101,6 +103,8 @@ app.get("/health", (req, res) => {
 // Rutas API
 app.use("/api", ApiAssetsRoutes)
 app.use("/api", ApiClientsRoutes)
+app.use("/api", ApiClientUsersRoutes)
+app.use("/api", ApiClientViewsRoutes)
 app.use("/api", ApiInstallationsRoutes)
 app.use("/api", ApiAuthRoutes)
 app.use("/api", ApiFormTemplatesRoutes)

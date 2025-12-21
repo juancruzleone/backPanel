@@ -192,3 +192,56 @@ export async function isTechnicianReadOnly(req, res, next) {
     return res.status(403).json({ error: { message: "Token inválido o usuario no autorizado" } })
   }
 }
+
+// Middleware para verificar si el usuario es cliente
+export async function isClient(req, res, next) {
+  console.log('🔐 [CLIENT] Verificando rol cliente...');
+  
+  // Si validateToken ya estableció req.user, usarlo directamente
+  if (req.user) {
+    console.log('✅ [CLIENT] Usuario ya validado:', {
+      id: req.user._id,
+      userName: req.user.userName,
+      role: req.user.role,
+      tenantId: req.user.tenantId
+    });
+    
+    if (req.user.role === "cliente") {
+      console.log('✅ [CLIENT] Rol válido:', req.user.role);
+      return next();
+    } else {
+      console.log('❌ [CLIENT] Rol no autorizado:', req.user.role);
+      return res.status(403).json({ 
+        error: { message: `Acceso denegado. Rol actual: ${req.user.role}. Se requiere rol de cliente.` } 
+      });
+    }
+  }
+
+  // Fallback: validar token si req.user no está disponible
+  const token = req.headers.authorization?.split(" ")[1]
+
+  if (!token) {
+    console.log('❌ [CLIENT] Token faltante');
+    return res.status(401).json({ error: { message: "No se proporcionó token" } })
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    console.log('🔐 [CLIENT] Token decodificado:', { userId: decoded._id });
+    
+    const user = await cuentaCollection.findOne({ _id: new ObjectId(decoded._id) })
+    console.log('🔐 [CLIENT] Usuario encontrado:', user ? { id: user._id, role: user.role } : 'NO ENCONTRADO');
+
+    if (!user || user.role !== "cliente") {
+      console.log('❌ [CLIENT] Usuario no autorizado');
+      return res.status(403).json({ error: { message: "Acceso denegado. Se requiere rol de cliente." } })
+    }
+
+    req.user = user
+    console.log('✅ [CLIENT] Acceso permitido');
+    next()
+  } catch (err) {
+    console.error('❌ [CLIENT] Error:', err.message);
+    return res.status(403).json({ error: { message: "Token inválido o usuario no autorizado" } })
+  }
+}

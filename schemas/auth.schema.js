@@ -17,7 +17,7 @@ const cuentaRegistro = yup.object({
 
   role: yup
     .string()
-    .oneOf(["admin", "técnico", "super_admin"], "Rol inválido")
+    .oneOf(["admin", "técnico", "super_admin", "cliente"], "Rol inválido")
     .default("técnico"),
 })
 
