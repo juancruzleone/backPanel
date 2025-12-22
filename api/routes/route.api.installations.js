@@ -9,14 +9,14 @@ import {
   validateMaintenanceSubmission,
   validateAssetAssignment,
 } from "../../middleware/installations.validate.middleware.js"
-import { isAdmin, isAdminOrTechnician } from "../../middleware/auth.role.middleware.js"
+import { isAdmin, isAdminOrTechnician, isAdminOrTechnicianOrClient } from "../../middleware/auth.role.middleware.js"
 import { identifyTenantByHeader } from "../../middleware/tenant.middleware.js"
 
 const route = Router()
 
 // Rutas principales de instalaciones
-route.get("/installations", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.getInstallations)
-route.get("/installations/:id", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.getInstallationById)
+route.get("/installations", [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient], controllers.getInstallations)
+route.get("/installations/:id", [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient], controllers.getInstallationById)
 route.post("/installations", [validateToken, identifyTenantByHeader, isAdmin, validateInstallations], controllers.createInstallation)
 route.put("/installations/:id", [validateToken, identifyTenantByHeader, isAdmin, validateInstallations], controllers.updateInstallation)
 route.delete("/installations/:id", [validateToken, identifyTenantByHeader, isAdmin], controllers.deleteInstallation)
@@ -28,7 +28,7 @@ route.patch("/installations/:id/subscription",
 )
 
 // Rutas de dispositivos en instalaciones
-route.get("/installations/:id/dispositivos", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.getDevicesFromInstallation)
+route.get("/installations/:id/dispositivos", [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient], controllers.getDevicesFromInstallation)
 route.post(
   "/installations/:id/dispositivos",
   [validateToken, identifyTenantByHeader, isAdmin, validateDevice],

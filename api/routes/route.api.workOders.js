@@ -1,7 +1,7 @@
 import { Router } from "express"
 import * as controllers from "../controllers/controller.api.workOrders.js"
 import { validateToken } from "../../middleware/auth.validate.middleware.js"
-import { isAdmin, isTechnician, isAdminOrTechnician } from "../../middleware/auth.role.middleware.js"
+import { isAdmin, isTechnician, isAdminOrTechnician, isAdminOrTechnicianOrClient } from "../../middleware/auth.role.middleware.js"
 import {
   validateWorkOrder,
   validateWorkOrderAssignment,
@@ -13,7 +13,7 @@ import { identifyTenantByHeader } from "../../middleware/tenant.middleware.js"
 const route = Router()
 
 // Rutas para administradores
-route.get("/ordenes-trabajo", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.getAllWorkOrders)
+route.get("/ordenes-trabajo", [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient], controllers.getAllWorkOrders)
 route.post("/ordenes-trabajo", [validateToken, identifyTenantByHeader, isAdmin, validateWorkOrder], controllers.createWorkOrder)
 route.put("/ordenes-trabajo/:id", [validateToken, identifyTenantByHeader, isAdmin, validateWorkOrder], controllers.updateWorkOrder)
 route.delete("/ordenes-trabajo/:id", [validateToken, identifyTenantByHeader, isAdmin], controllers.deleteWorkOrder)
@@ -34,10 +34,10 @@ route.patch(
 
 // Rutas para técnicos
 route.get("/mis-ordenes-trabajo", [validateToken, identifyTenantByHeader, isTechnician], controllers.getTechnicianWorkOrders)
-route.get("/ordenes-trabajo/:id", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.getWorkOrderById)
+route.get("/ordenes-trabajo/:id", [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient], controllers.getWorkOrderById)
 
 // NUEVA RUTA: Obtener formulario para completar orden de trabajo
-route.get("/ordenes-trabajo/:id/formulario", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.getWorkOrderForm)
+route.get("/ordenes-trabajo/:id/formulario", [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient], controllers.getWorkOrderForm)
 
 // Completar orden de trabajo (técnicos y admin)
 route.post(
