@@ -77,11 +77,16 @@ async function createAccount(cuenta, adminUser, tenantId) {
   // Hashear la contraseña
   const hashedPassword = await bcrypt.hash(cuenta.password, 10)
 
-  // Crear la nueva cuenta con rol de técnico
+  // Validar que el rol sea válido
+  const rolesPermitidos = ["técnico", "tecnico", "cliente"]
+  const rol = cuenta.role && rolesPermitidos.includes(cuenta.role) ? cuenta.role : "técnico"
+
+  // Crear la nueva cuenta con el rol especificado
   const nuevaCuenta = {
     userName: cuenta.userName,
     password: hashedPassword,
-    role: "técnico", // Todas las cuentas creadas por admin son técnicos
+    name: cuenta.name || cuenta.userName, // Agregar nombre completo si está disponible
+    role: rol, // Usar el rol enviado por el frontend (cliente o técnico)
     tenantId: tenantId, // Asignar al tenant correspondiente
     isVerified: true,
     status: "active",
@@ -93,13 +98,13 @@ async function createAccount(cuenta, adminUser, tenantId) {
   const result = await cuentaCollection.insertOne(nuevaCuenta)
 
   // Actualizar estadísticas del tenant
-  console.log("🔄 Actualizando estadísticas después de crear cuenta para tenantId:", tenantId)
+  console.log(`🔄 Actualizando estadísticas después de crear cuenta (${rol}) para tenantId:`, tenantId)
   const { updateTenantStats } = await import("./tenants.services.js")
   await updateTenantStats(tenantId)
   console.log("✅ Estadísticas actualizadas después de crear cuenta")
 
   return {
-    message: "Cuenta de técnico creada exitosamente",
+    message: `Cuenta de ${rol} creada exitosamente`,
     cuenta: {
       ...nuevaCuenta,
       _id: result.insertedId,
