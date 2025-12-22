@@ -4,6 +4,8 @@ import { ObjectId } from "mongodb"
 const installationsCollection = db.collection("instalaciones")
 const assetsCollection = db.collection("activos")
 const cuentaCollection = db.collection("cuentas")
+const workOrdersCollection = db.collection("ordenesTrabajo")
+const manualsCollection = db.collection("manuales")
 
 // Obtener todas las instalaciones asignadas a un cliente
 async function getClientAssignedInstallations(clientUser) {
@@ -240,6 +242,191 @@ async function getAllClientMaintenances(clientUser) {
   }
 }
 
+// Obtener todas las órdenes de trabajo de las instalaciones del cliente
+async function getClientWorkOrders(clientUser) {
+  try {
+    if (!clientUser || clientUser.role !== "cliente") {
+      throw new Error("Usuario no es un cliente válido")
+    }
+
+    if (!clientUser.instalacionesAsignadas || clientUser.instalacionesAsignadas.length === 0) {
+      return []
+    }
+
+    // Obtener todas las órdenes de trabajo de las instalaciones asignadas
+    const ordenesTrabajo = await workOrdersCollection
+      .find({ 
+        instalacionId: { $in: clientUser.instalacionesAsignadas },
+        tenantId: clientUser.tenantId
+      })
+      .sort({ createdAt: -1 })
+      .toArray()
+
+    return ordenesTrabajo
+  } catch (error) {
+    console.error("Error en getClientWorkOrders:", error)
+    throw error
+  }
+}
+
+// Obtener detalle de una orden de trabajo específica
+async function getClientWorkOrderDetail(workOrderId, clientUser) {
+  try {
+    if (!clientUser || clientUser.role !== "cliente") {
+      throw new Error("Usuario no es un cliente válido")
+    }
+
+    if (!ObjectId.isValid(workOrderId)) {
+      throw new Error("El ID de la orden de trabajo no es válido")
+    }
+
+    // Obtener la orden de trabajo
+    const ordenTrabajo = await workOrdersCollection.findOne({ 
+      _id: new ObjectId(workOrderId),
+      tenantId: clientUser.tenantId
+    })
+
+    if (!ordenTrabajo) {
+      throw new Error("Orden de trabajo no encontrada")
+    }
+
+    // Verificar que la orden pertenece a una instalación asignada al cliente
+    if (!clientUser.instalacionesAsignadas || !clientUser.instalacionesAsignadas.includes(ordenTrabajo.instalacionId)) {
+      throw new Error("No tienes acceso a esta orden de trabajo")
+    }
+
+    return ordenTrabajo
+  } catch (error) {
+    console.error("Error en getClientWorkOrderDetail:", error)
+    throw error
+  }
+}
+
+// Obtener todos los manuales de los activos de las instalaciones del cliente
+async function getClientManuals(clientUser) {
+  try {
+    if (!clientUser || clientUser.role !== "cliente") {
+      throw new Error("Usuario no es un cliente válido")
+    }
+
+    if (!clientUser.instalacionesAsignadas || clientUser.instalacionesAsignadas.length === 0) {
+      return []
+    }
+
+    // Obtener todos los dispositivos de las instalaciones asignadas
+    const dispositivos = await assetsCollection
+      .find({ 
+        instalacionId: { $in: clientUser.instalacionesAsignadas },
+        tenantId: clientUser.tenantId
+      })
+      .toArray()
+
+    // Obtener los IDs de activos únicos
+    const assetIds = [...new Set(dispositivos.map(d => d._id.toString()))]
+
+    if (assetIds.length === 0) {
+      return []
+    }
+
+    // Obtener todos los manuales de esos activos
+    const manuales = await manualsCollection
+      .find({ 
+        assetId: { $in: assetIds },
+        tenantId: clientUser.tenantId
+      })
+      .sort({ _id: -1 })
+      .toArray()
+
+    return manuales
+  } catch (error) {
+    console.error("Error en getClientManuals:", error)
+    throw error
+  }
+}
+
+// Obtener detalle de un manual específico
+async function getClientManualDetail(manualId, clientUser) {
+  try {
+    if (!clientUser || clientUser.role !== "cliente") {
+      throw new Error("Usuario no es un cliente válido")
+    }
+
+    if (!ObjectId.isValid(manualId)) {
+      throw new Error("El ID del manual no es válido")
+    }
+
+    // Obtener el manual
+    const manual = await manualsCollection.findOne({ 
+      _id: new ObjectId(manualId),
+      tenantId: clientUser.tenantId
+    })
+
+    if (!manual) {
+      throw new Error("Manual no encontrado")
+    }
+
+    // Verificar que el manual pertenece a un activo de una instalación asignada
+    const dispositivo = await assetsCollection.findOne({ 
+      _id: new ObjectId(manual.assetId),
+      tenantId: clientUser.tenantId
+    })
+
+    if (!dispositivo) {
+      throw new Error("Activo asociado no encontrado")
+    }
+
+    if (!clientUser.instalacionesAsignadas || !clientUser.instalacionesAsignadas.includes(dispositivo.instalacionId)) {
+      throw new Error("No tienes acceso a este manual")
+    }
+
+    return manual
+  } catch (error) {
+    console.error("Error en getClientManualDetail:", error)
+    throw error
+  }
+}
+
+// Obtener manuales de un activo específico
+async function getClientManualsByAsset(assetId, clientUser) {
+  try {
+    if (!clientUser || clientUser.role !== "cliente") {
+      throw new Error("Usuario no es un cliente válido")
+    }
+
+    if (!ObjectId.isValid(assetId)) {
+      throw new Error("El ID del activo no es válido")
+    }
+
+    // Verificar que el activo pertenece a una instalación asignada
+    const dispositivo = await assetsCollection.findOne({ 
+      _id: new ObjectId(assetId),
+      tenantId: clientUser.tenantId
+    })
+
+    if (!dispositivo) {
+      throw new Error("Activo no encontrado")
+    }
+
+    if (!clientUser.instalacionesAsignadas || !clientUser.instalacionesAsignadas.includes(dispositivo.instalacionId)) {
+      throw new Error("No tienes acceso a este activo")
+    }
+
+    // Obtener los manuales del activo
+    const manuales = await manualsCollection
+      .find({ 
+        assetId: assetId,
+        tenantId: clientUser.tenantId
+      })
+      .sort({ _id: -1 })
+      .toArray()
+
+    return manuales
+  } catch (error) {
+    console.error("Error en getClientManualsByAsset:", error)
+    throw error
+  }
+}
+
 export {
   getClientAssignedInstallations,
   getClientInstallationDetail,
@@ -247,4 +434,9 @@ export {
   getClientDeviceDetail,
   getDeviceMaintenanceHistory,
   getAllClientMaintenances,
+  getClientWorkOrders,
+  getClientWorkOrderDetail,
+  getClientManuals,
+  getClientManualDetail,
+  getClientManualsByAsset,
 }

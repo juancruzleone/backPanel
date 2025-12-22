@@ -13,4 +13,13 @@ route.get("/mis-dispositivos/:id", [validateToken, isClient], controllers.getDev
 route.get("/mis-dispositivos/:id/mantenimientos", [validateToken, isClient], controllers.getDeviceMaintenanceHistory)
 route.get("/mis-mantenimientos", [validateToken, isClient], controllers.getAllMyMaintenances)
 
+// Rutas para órdenes de trabajo
+route.get("/mis-ordenes-trabajo", [validateToken, isClient], controllers.getMyWorkOrders)
+route.get("/mis-ordenes-trabajo/:id", [validateToken, isClient], controllers.getWorkOrderDetail)
+
+// Rutas para manuales
+route.get("/mis-manuales", [validateToken, isClient], controllers.getMyManuals)
+route.get("/mis-manuales/:id", [validateToken, isClient], controllers.getManualDetail)
+route.get("/mis-activos/:assetId/manuales", [validateToken, isClient], controllers.getManualsByAsset)
+
 export default route
