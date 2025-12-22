@@ -117,11 +117,11 @@ async function getAllTenants(superAdminUser, filters = {}) {
   }
 
   const query = {}
-  
+
   if (filters.status) {
     query.status = filters.status
   }
-  
+
   if (filters.plan) {
     query.plan = filters.plan
   }
@@ -165,11 +165,11 @@ async function getTenantBySubdomain(subdomain) {
 // Obtener tenant por tenantId
 async function getTenantByTenantId(tenantId) {
   console.log('🔍 [TENANT SERVICE] Buscando tenant con tenantId:', tenantId);
-  
+
   // Buscar por tenantId como string
   let tenant = await tenantCollection.findOne({ tenantId })
   console.log('🔍 [TENANT SERVICE] Tenant encontrado (tenantId):', tenant ? 'SÍ' : 'NO');
-  
+
   // Si no se encuentra, intentar buscar por _id (caso común: el tenantId del usuario es el _id del tenant)
   if (!tenant) {
     console.log('🔍 [TENANT SERVICE] Intentando buscar por _id...');
@@ -177,7 +177,7 @@ async function getTenantByTenantId(tenantId) {
       const { ObjectId } = await import('mongodb');
       tenant = await tenantCollection.findOne({ _id: new ObjectId(tenantId) });
       console.log('🔍 [TENANT SERVICE] Tenant encontrado (_id):', tenant ? 'SÍ' : 'NO');
-      
+
       if (tenant) {
         console.log('✅ [TENANT SERVICE] Tenant encontrado por _id:', {
           _id: tenant._id,
@@ -190,7 +190,7 @@ async function getTenantByTenantId(tenantId) {
       console.log('🔍 [TENANT SERVICE] Error buscando por _id:', error.message);
     }
   }
-  
+
   if (!tenant) {
     throw new Error("Tenant no encontrado");
   }
@@ -283,8 +283,8 @@ async function getTenantStats(tenantId, superAdminUser) {
 
   // Obtener estadísticas reales de las colecciones
   const [usersCount, assetsCount, workOrdersCount] = await Promise.all([
-    cuentaCollection.countDocuments({ tenantId: tenant.tenantId }),
-    db.collection("assets").countDocuments({ tenantId: tenant.tenantId }),
+    cuentaCollection.countDocuments({ tenantId: tenant.tenantId, status: { $ne: "deleted" } }),
+    db.collection("activos").countDocuments({ tenantId: tenant.tenantId, eliminado: { $ne: true } }),
     db.collection("workOrders").countDocuments({ tenantId: tenant.tenantId })
   ])
 
@@ -308,11 +308,11 @@ async function getTenantStats(tenantId, superAdminUser) {
 // Actualizar estadísticas de un tenant usando agregación
 async function updateTenantStats(tenantId) {
   console.log("🔍 Actualizando estadísticas para tenantId:", tenantId)
-  
+
   // Buscar por tenantId como string
   let tenant = await tenantCollection.findOne({ tenantId })
   console.log('🔍 [UPDATE STATS] Tenant encontrado (tenantId):', tenant ? 'SÍ' : 'NO');
-  
+
   // Si no se encuentra, intentar buscar por _id (caso común: el tenantId del usuario es el _id del tenant)
   if (!tenant) {
     console.log('🔍 [UPDATE STATS] Intentando buscar por _id...');
@@ -324,7 +324,7 @@ async function updateTenantStats(tenantId) {
       console.log('🔍 [UPDATE STATS] Error buscando por _id:', error.message);
     }
   }
-  
+
   if (!tenant) {
     console.log("❌ Tenant no encontrado para tenantId:", tenantId)
     return
@@ -332,35 +332,12 @@ async function updateTenantStats(tenantId) {
 
   console.log("✅ Tenant encontrado:", tenant.name)
 
-  // Usar agregación para calcular estadísticas de manera más eficiente
-  const statsPipeline = [
-    {
-      $facet: {
-        users: [
-          { $match: { tenantId: tenant.tenantId } },
-          { $count: "total" }
-        ],
-        assets: [
-          { $match: { tenantId: tenant.tenantId, eliminado: { $ne: true } } },
-          { $count: "total" }
-        ],
-        workOrders: [
-          { $match: { tenantId: tenant.tenantId } },
-          { $count: "total" }
-        ]
-      }
-    }
-  ]
-
-  const [userStats, assetStats, workOrderStats] = await Promise.all([
-    cuentaCollection.aggregate(statsPipeline).toArray(),
-    db.collection("activos").aggregate(statsPipeline).toArray(),
-    db.collection("workOrders").aggregate(statsPipeline).toArray()
+  // Calcular estadísticas de manera más eficiente
+  const [usersCount, assetsCount, workOrdersCount] = await Promise.all([
+    cuentaCollection.countDocuments({ tenantId: tenant.tenantId, status: { $ne: "deleted" } }),
+    db.collection("activos").countDocuments({ tenantId: tenant.tenantId, eliminado: { $ne: true } }),
+    db.collection("workOrders").countDocuments({ tenantId: tenant.tenantId })
   ])
-
-  const usersCount = userStats[0]?.users[0]?.total || 0
-  const assetsCount = assetStats[0]?.assets[0]?.total || 0
-  const workOrdersCount = workOrderStats[0]?.workOrders[0]?.total || 0
 
   console.log("📊 Estadísticas calculadas:", {
     usersCount,
@@ -370,7 +347,7 @@ async function updateTenantStats(tenantId) {
   })
 
   await tenantCollection.updateOne(
-    { tenantId },
+    { _id: tenant._id },
     {
       $set: {
         "stats.totalUsers": usersCount,
@@ -388,11 +365,11 @@ async function updateTenantStats(tenantId) {
 // Verificar límites del plan
 async function checkTenantLimits(tenantId, resourceType, currentCount) {
   console.log('🔍 [TENANT LIMITS] Buscando tenant con tenantId:', tenantId);
-  
+
   // Buscar por tenantId como string
   let tenant = await tenantCollection.findOne({ tenantId })
   console.log('🔍 [TENANT LIMITS] Tenant encontrado (tenantId):', tenant ? 'SÍ' : 'NO');
-  
+
   // Si no se encuentra, intentar buscar por _id (caso común: el tenantId del usuario es el _id del tenant)
   if (!tenant) {
     console.log('🔍 [TENANT LIMITS] Intentando buscar por _id...');
@@ -404,7 +381,7 @@ async function checkTenantLimits(tenantId, resourceType, currentCount) {
       console.log('🔍 [TENANT LIMITS] Error buscando por _id:', error.message);
     }
   }
-  
+
   if (!tenant) {
     throw new Error("Tenant no encontrado")
   }
@@ -435,7 +412,7 @@ async function checkTenantLimits(tenantId, resourceType, currentCount) {
 // Función para forzar actualización de estadísticas de un tenant específico
 async function forceUpdateTenantStats(tenantId) {
   console.log("🔄 Forzando actualización de estadísticas para tenantId:", tenantId)
-  
+
   const tenant = await tenantCollection.findOne({ tenantId })
   if (!tenant) {
     console.log("❌ Tenant no encontrado para tenantId:", tenantId)
@@ -449,8 +426,8 @@ async function forceUpdateTenantStats(tenantId) {
   console.log("👥 Todos los usuarios encontrados:", allUsers.map(u => ({ userName: u.userName, role: u.role, tenantId: u.tenantId })))
 
   const [usersCount, assetsCount, workOrdersCount] = await Promise.all([
-    cuentaCollection.countDocuments({ tenantId: tenant.tenantId }),
-    db.collection("assets").countDocuments({ tenantId: tenant.tenantId }),
+    cuentaCollection.countDocuments({ tenantId: tenant.tenantId, status: { $ne: "deleted" } }),
+    db.collection("activos").countDocuments({ tenantId: tenant.tenantId, eliminado: { $ne: true } }),
     db.collection("workOrders").countDocuments({ tenantId: tenant.tenantId })
   ])
 
@@ -462,7 +439,7 @@ async function forceUpdateTenantStats(tenantId) {
   })
 
   const result = await tenantCollection.updateOne(
-    { tenantId },
+    { _id: tenant._id },
     {
       $set: {
         "stats.totalUsers": usersCount,
@@ -501,45 +478,45 @@ function generateRandomPassword() {
 async function checkTenantActivePlan(userEmail) {
   try {
     console.log('🔍 [TENANT SERVICE] Verificando plan activo para email:', userEmail);
-    
+
     // Buscar usuario por email
     const user = await cuentaCollection.findOne({ email: userEmail });
     if (!user) {
       console.log('❌ [TENANT SERVICE] Usuario no encontrado');
       return { hasActivePlan: false, message: 'Usuario no encontrado' };
     }
-    
+
     console.log('👤 [TENANT SERVICE] Usuario encontrado:', {
       userName: user.userName,
       tenantId: user.tenantId,
       role: user.role
     });
-    
+
     // Si no tiene tenantId o es "default", no tiene plan activo
     if (!user.tenantId || user.tenantId === "default") {
       console.log('✅ [TENANT SERVICE] Usuario sin tenant válido - puede proceder');
       return { hasActivePlan: false, message: 'Sin plan activo' };
     }
-    
+
     // Buscar el tenant
     const tenant = await getTenantByTenantId(user.tenantId);
     if (!tenant) {
       console.log('❌ [TENANT SERVICE] Tenant no encontrado');
       return { hasActivePlan: false, message: 'Tenant no encontrado' };
     }
-    
+
     console.log('🏢 [TENANT SERVICE] Tenant encontrado:', {
       name: tenant.name,
       plan: tenant.plan,
       status: tenant.status
     });
-    
+
     // Verificar si tiene un plan activo (no null, no free, no trial)
-    const hasActivePlan = tenant.plan && 
-                         tenant.plan !== 'free' && 
-                         tenant.plan !== 'trial' && 
-                         tenant.status === 'active';
-    
+    const hasActivePlan = tenant.plan &&
+      tenant.plan !== 'free' &&
+      tenant.plan !== 'trial' &&
+      tenant.status === 'active';
+
     if (hasActivePlan) {
       return {
         hasActivePlan: true,
@@ -564,11 +541,11 @@ async function checkTenantActivePlan(userEmail) {
         message: 'Sin plan activo válido'
       };
     }
-    
+
   } catch (error) {
     console.error('❌ [TENANT SERVICE] Error verificando plan activo:', error);
-    return { 
-      hasActivePlan: false, 
+    return {
+      hasActivePlan: false,
       error: error.message,
       message: 'Error verificando plan activo'
     };
@@ -579,10 +556,10 @@ async function checkTenantActivePlan(userEmail) {
 async function getUserProfile(user) {
   try {
     // Obtener información completa del usuario
-    const userInfo = await cuentaCollection.findOne({ 
-      _id: new ObjectId(user._id) 
+    const userInfo = await cuentaCollection.findOne({
+      _id: new ObjectId(user._id)
     })
-    
+
     if (!userInfo) {
       throw new Error("Usuario no encontrado")
     }
@@ -591,13 +568,13 @@ async function getUserProfile(user) {
     let tenant = null
     if (userInfo.tenantId) {
       // Buscar por tenantId primero, luego por _id como fallback
-      tenant = await tenantCollection.findOne({ 
-        tenantId: userInfo.tenantId 
+      tenant = await tenantCollection.findOne({
+        tenantId: userInfo.tenantId
       })
-      
+
       if (!tenant) {
-        tenant = await tenantCollection.findOne({ 
-          _id: new ObjectId(userInfo.tenantId) 
+        tenant = await tenantCollection.findOne({
+          _id: new ObjectId(userInfo.tenantId)
         })
       }
     }
@@ -723,7 +700,7 @@ async function getTenantPlanInfo(tenantId) {
 async function getTenantStatsInternal(tenantId) {
   try {
     const { db } = await import("../db.js")
-    
+
     // Obtener colecciones
     const cuentaCollection = db.collection("cuentas")
     const assetCollection = db.collection("assets")
@@ -731,22 +708,22 @@ async function getTenantStatsInternal(tenantId) {
     const formTemplateCollection = db.collection("formTemplates")
     const workOrderCollection = db.collection("workOrders")
 
-    // Contar usuarios
-    const usersCount = await cuentaCollection.countDocuments({ tenantId })
-    
-    // Contar activos
-    const assetsCount = await assetCollection.countDocuments({ tenantId })
-    
+    // Contar usuarios (excluyendo eliminados)
+    const usersCount = await cuentaCollection.countDocuments({ tenantId, status: { $ne: "deleted" } })
+
+    // Contar activos (excluyendo eliminados)
+    const assetsCount = await assetCollection.countDocuments({ tenantId, eliminado: { $ne: true } })
+
     // Contar instalaciones
     const installationsCount = await installationCollection.countDocuments({ tenantId })
-    
+
     // Contar plantillas de formularios
     const formTemplatesCount = await formTemplateCollection.countDocuments({ tenantId })
-    
+
     // Contar órdenes de trabajo del mes actual
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const workOrdersCount = await workOrderCollection.countDocuments({ 
+    const workOrdersCount = await workOrderCollection.countDocuments({
       tenantId,
       createdAt: { $gte: startOfMonth }
     })

@@ -17,7 +17,7 @@ async function createAccount(cuenta, adminUser, tenantId) {
     if (tenantId) {
       query.tenantId = tenantId
     }
-    
+
     const existe = await cuentaCollection.findOne(query)
     if (existe) throw new Error("El nombre de usuario ya existe")
 
@@ -63,14 +63,14 @@ async function createAccount(cuenta, adminUser, tenantId) {
   }
 
   // Verificar si ya existe el nombre de usuario en el mismo tenant
-  const existe = await cuentaCollection.findOne({ 
+  const existe = await cuentaCollection.findOne({
     userName: cuenta.userName,
     tenantId: tenantId
   })
   if (existe) throw new Error("El nombre de usuario ya existe en este tenant")
 
   // Verificar límites del tenant
-  const usersCount = await cuentaCollection.countDocuments({ tenantId })
+  const usersCount = await cuentaCollection.countDocuments({ tenantId, status: { $ne: "deleted" } })
   const { checkTenantLimits } = await import("./tenants.services.js")
   await checkTenantLimits(adminUser.tenantId, "users", usersCount)
 
@@ -145,7 +145,7 @@ async function login(cuenta, tenantId = null) {
     try {
       const { getTenantByTenantId } = await import("./tenants.services.js")
       const tenant = await getTenantByTenantId(existe.tenantId)
-      
+
       console.log('🏢 [LOGIN] Validando tenant:', {
         tenantId: tenant.tenantId,
         plan: tenant.plan,
@@ -166,7 +166,7 @@ async function login(cuenta, tenantId = null) {
       if (tenant.subscriptionExpiresAt) {
         const now = new Date()
         const expirationDate = new Date(tenant.subscriptionExpiresAt)
-        
+
         if (now > expirationDate) {
           throw new Error("Su suscripción ha expirado. Renueve su plan para continuar.")
         }
@@ -220,21 +220,21 @@ async function getAccountsByRole(role, tenantId) {
   try {
     console.log("🔍 [AUTH SERVICE] Buscando cuentas por rol:", role)
     console.log("🔍 [AUTH SERVICE] TenantId:", tenantId)
-    
+
     // Buscar tanto "técnico" como "tecnico" para manejar inconsistencias
-    const query = { 
+    const query = {
       $or: [
         { role: "técnico" },
         { role: "tecnico" }
       ]
     }
-    
+
     if (tenantId) {
       query.tenantId = tenantId
     }
-    
+
     console.log("🔍 [AUTH SERVICE] Query MongoDB:", JSON.stringify(query))
-    
+
     const cuentas = await cuentaCollection
       .find(
         query,
@@ -244,11 +244,11 @@ async function getAccountsByRole(role, tenantId) {
       .toArray()
 
     console.log("✅ [AUTH SERVICE] Cuentas encontradas:", cuentas.length)
-    console.log("📋 [AUTH SERVICE] Detalle cuentas:", cuentas.map(c => ({ 
-      _id: c._id, 
-      userName: c.userName, 
-      role: c.role, 
-      tenantId: c.tenantId 
+    console.log("📋 [AUTH SERVICE] Detalle cuentas:", cuentas.map(c => ({
+      _id: c._id,
+      userName: c.userName,
+      role: c.role,
+      tenantId: c.tenantId
     })))
 
     return cuentas
@@ -397,10 +397,10 @@ async function getUserProfile(userId) {
       // Obtener información del tenant - buscar por _id o tenantId
       // Verificar si tenantId es un ObjectId válido o un UUID
       const tenantQuery = { tenantId: user.tenantId };
-      
+
       // Solo intentar buscar por _id si el tenantId parece ser un ObjectId válido (24 caracteres hex)
       if (user.tenantId && user.tenantId.length === 24 && /^[0-9a-fA-F]{24}$/.test(user.tenantId)) {
-        tenant = await tenantsCollection.findOne({ 
+        tenant = await tenantsCollection.findOne({
           $or: [
             { _id: new ObjectId(user.tenantId) },
             { tenantId: user.tenantId }
@@ -414,7 +414,7 @@ async function getUserProfile(userId) {
       // Obtener información de la suscripción activa
       if (tenant) {
         // Buscar suscripción por tenantId (string) o _id del tenant
-        subscription = await subscriptionsCollection.findOne({ 
+        subscription = await subscriptionsCollection.findOne({
           $or: [
             { tenantId: tenant._id.toString() },
             { tenantId: tenant.tenantId }
@@ -426,13 +426,13 @@ async function getUserProfile(userId) {
         if (subscription) {
           subscription.paymentProvider = subscription.processor || 'mercadopago';
           // Buscar preapprovalId en múltiples campos posibles (incluir mercadoPagoId)
-          subscription.preapprovalId = subscription.mpSubscriptionId || 
-                                       subscription.mercadopagoPreapprovalId || 
-                                       subscription.preapprovalId ||
-                                       subscription.mercadoPagoId || 
-                                       null;
+          subscription.preapprovalId = subscription.mpSubscriptionId ||
+            subscription.mercadopagoPreapprovalId ||
+            subscription.preapprovalId ||
+            subscription.mercadoPagoId ||
+            null;
           subscription.subscriptionId = subscription._id.toString();
-          
+
           console.log('🔍 Datos de suscripción encontrados para perfil:', {
             _id: subscription._id,
             status: subscription.status,
@@ -703,9 +703,9 @@ async function updateUserProfile(userId, updates) {
     throw new Error("Usuario no encontrado")
   }
 
-  return { 
+  return {
     success: true,
-    message: "Perfil actualizado exitosamente" 
+    message: "Perfil actualizado exitosamente"
   }
 }
 
@@ -733,11 +733,11 @@ async function updateUserPassword(userId, currentPassword, newPassword) {
   // Actualizar contraseña
   const result = await cuentaCollection.updateOne(
     { _id: new ObjectId(userId) },
-    { 
-      $set: { 
+    {
+      $set: {
         password: hashedPassword,
         updatedAt: new Date()
-      } 
+      }
     }
   )
 
@@ -745,9 +745,9 @@ async function updateUserPassword(userId, currentPassword, newPassword) {
     throw new Error("Usuario no encontrado")
   }
 
-  return { 
+  return {
     success: true,
-    message: "Contraseña actualizada exitosamente" 
+    message: "Contraseña actualizada exitosamente"
   }
 }
 
@@ -826,9 +826,9 @@ async function updateTechnicianByAdmin(technicianId, updates, adminUser) {
     throw new Error("Técnico no encontrado")
   }
 
-  return { 
+  return {
     success: true,
-    message: "Técnico actualizado exitosamente" 
+    message: "Técnico actualizado exitosamente"
   }
 }
 
@@ -844,17 +844,17 @@ async function updateTenantBillingInfo(tenantId, updates, adminUser) {
   }
 
   const tenantsCollection = db.collection("tenants")
-  
+
   // Campos permitidos para actualización
   const allowedFields = [
     "email", "address", "name",
-    "razonSocial", "tipoDocumento", "numeroDocumento", 
-    "condicionIVA", "direccionFiscal", "ciudad", 
+    "razonSocial", "tipoDocumento", "numeroDocumento",
+    "condicionIVA", "direccionFiscal", "ciudad",
     "provincia", "codigoPostal",
-    "taxIdType", "taxIdNumber", "addressIntl", 
+    "taxIdType", "taxIdNumber", "addressIntl",
     "cityIntl", "postalCodeIntl"
   ]
-  
+
   const updateData = {}
 
   // Filtrar solo campos permitidos
@@ -868,7 +868,7 @@ async function updateTenantBillingInfo(tenantId, updates, adminUser) {
 
   // Buscar por tenantId string o por _id
   const result = await tenantsCollection.updateOne(
-    { 
+    {
       $or: [
         { tenantId: tenantId },
         { _id: tenantId }
@@ -881,9 +881,9 @@ async function updateTenantBillingInfo(tenantId, updates, adminUser) {
     throw new Error("Tenant no encontrado")
   }
 
-  return { 
+  return {
     success: true,
-    message: "Datos de facturación actualizados exitosamente" 
+    message: "Datos de facturación actualizados exitosamente"
   }
 }
 

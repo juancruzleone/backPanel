@@ -18,7 +18,7 @@ async function createClientUser(clientData, adminUser, tenantId) {
   }
 
   // Verificar si ya existe el nombre de usuario en el mismo tenant
-  const existeUserName = await cuentaCollection.findOne({ 
+  const existeUserName = await cuentaCollection.findOne({
     userName: clientData.userName,
     tenantId: tenantId
   })
@@ -26,7 +26,7 @@ async function createClientUser(clientData, adminUser, tenantId) {
 
   // Verificar si el email ya existe en el mismo tenant (si se proporciona)
   if (clientData.email) {
-    const existeEmail = await cuentaCollection.findOne({ 
+    const existeEmail = await cuentaCollection.findOne({
       email: clientData.email,
       tenantId: tenantId
     })
@@ -34,7 +34,7 @@ async function createClientUser(clientData, adminUser, tenantId) {
   }
 
   // Verificar límites del tenant
-  const usersCount = await cuentaCollection.countDocuments({ tenantId })
+  const usersCount = await cuentaCollection.countDocuments({ tenantId, status: { $ne: "deleted" } })
   const { checkTenantLimits } = await import("./tenants.services.js")
   await checkTenantLimits(tenantId, "users", usersCount)
 
@@ -81,7 +81,7 @@ async function createClientUser(clientData, adminUser, tenantId) {
 async function getClientUsers(tenantId) {
   try {
     const clientes = await cuentaCollection
-      .find({ 
+      .find({
         tenantId: tenantId,
         role: "cliente",
         status: { $ne: "deleted" }
@@ -107,7 +107,7 @@ async function getClientUserById(clientId, tenantId) {
       throw new Error("El ID del cliente no es válido")
     }
 
-    const cliente = await cuentaCollection.findOne({ 
+    const cliente = await cuentaCollection.findOne({
       _id: new ObjectId(clientId),
       tenantId: tenantId,
       role: "cliente"
@@ -145,7 +145,7 @@ async function updateClientUser(clientId, updateData, adminUser, tenantId) {
     }
 
     // Verificar que el cliente existe y pertenece al tenant
-    const clienteExistente = await cuentaCollection.findOne({ 
+    const clienteExistente = await cuentaCollection.findOne({
       _id: new ObjectId(clientId),
       tenantId: tenantId,
       role: "cliente"
@@ -157,7 +157,7 @@ async function updateClientUser(clientId, updateData, adminUser, tenantId) {
 
     // Verificar si el nuevo userName ya existe (si se está actualizando)
     if (updateData.userName && updateData.userName !== clienteExistente.userName) {
-      const existeUserName = await cuentaCollection.findOne({ 
+      const existeUserName = await cuentaCollection.findOne({
         userName: updateData.userName,
         tenantId: tenantId,
         _id: { $ne: new ObjectId(clientId) }
@@ -167,7 +167,7 @@ async function updateClientUser(clientId, updateData, adminUser, tenantId) {
 
     // Verificar si el nuevo email ya existe (si se está actualizando)
     if (updateData.email && updateData.email !== clienteExistente.email) {
-      const existeEmail = await cuentaCollection.findOne({ 
+      const existeEmail = await cuentaCollection.findOne({
         email: updateData.email,
         tenantId: tenantId,
         _id: { $ne: new ObjectId(clientId) }
@@ -229,17 +229,17 @@ async function deleteClientUser(clientId, adminUser, tenantId) {
     }
 
     const result = await cuentaCollection.updateOne(
-      { 
+      {
         _id: new ObjectId(clientId),
         tenantId: tenantId,
         role: "cliente"
       },
-      { 
-        $set: { 
+      {
+        $set: {
           status: "deleted",
           deletedAt: new Date(),
           deletedBy: adminUser._id
-        } 
+        }
       }
     )
 
@@ -278,7 +278,7 @@ async function assignInstallationsToClient(clientId, installationIds, adminUser,
     }
 
     // Verificar que el cliente existe
-    const cliente = await cuentaCollection.findOne({ 
+    const cliente = await cuentaCollection.findOne({
       _id: new ObjectId(clientId),
       tenantId: tenantId,
       role: "cliente"
@@ -297,7 +297,7 @@ async function assignInstallationsToClient(clientId, installationIds, adminUser,
     })
 
     const instalaciones = await installationsCollection
-      .find({ 
+      .find({
         _id: { $in: installationObjectIds },
         tenantId: tenantId
       })
@@ -310,12 +310,12 @@ async function assignInstallationsToClient(clientId, installationIds, adminUser,
     // Asignar las instalaciones al cliente
     const result = await cuentaCollection.updateOne(
       { _id: new ObjectId(clientId) },
-      { 
-        $set: { 
+      {
+        $set: {
           instalacionesAsignadas: installationIds,
           updatedAt: new Date(),
           updatedBy: adminUser._id
-        } 
+        }
       }
     )
 
@@ -340,7 +340,7 @@ async function getClientInstallations(clientId, tenantId) {
       throw new Error("El ID del cliente no es válido")
     }
 
-    const cliente = await cuentaCollection.findOne({ 
+    const cliente = await cuentaCollection.findOne({
       _id: new ObjectId(clientId),
       tenantId: tenantId,
       role: "cliente"
@@ -360,7 +360,7 @@ async function getClientInstallations(clientId, tenantId) {
       .map(id => new ObjectId(id))
 
     const instalaciones = await installationsCollection
-      .find({ 
+      .find({
         _id: { $in: installationObjectIds },
         tenantId: tenantId
       })
