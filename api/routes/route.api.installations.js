@@ -77,7 +77,7 @@ route.get(
 )
 route.get(
   "/installations/:installationId/dispositivos/:deviceId/formulario",
-  [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient],
+  [validateToken, identifyTenantByHeader, isAdminOrTechnician],
   controllers.getDeviceForm,
 )
 

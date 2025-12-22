@@ -12,6 +12,7 @@ import ApiFormTemplatesRoutes from "../api/routes/route.api.formTemplates.js"
 import ApiCategoriesRoute from "../api/routes/route.api.categories.js"
 import ApiTypeInstallationRoute from "../api/routes/route.api.installationType.js"
 import ApiManualsRoutes from "../api/routes/route.api.manuals.js"
+import ApiContractsRoutes from "../api/routes/route.api.contracts.js"
 import ApiWorkOrdersRoutes from "../api/routes/route.api.workOders.js"
 import ApiTenantsRoutes from "../api/routes/route.api.tenants.js"
 import ApiSubscriptionPlansRoutes from "../api/routes/route.api.subscriptionPlans.js"
@@ -111,6 +112,7 @@ app.use("/api", ApiFormTemplatesRoutes)
 app.use("/api", ApiCategoriesRoute)
 app.use("/api", ApiTypeInstallationRoute)
 app.use("/api", ApiManualsRoutes)
+app.use("/api", ApiContractsRoutes)
 app.use("/api", ApiWorkOrdersRoutes)
 app.use("/api", ApiTenantsRoutes)
 app.use("/api/subscription-plans", ApiSubscriptionPlansRoutes)

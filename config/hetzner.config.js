@@ -43,25 +43,31 @@ export const FOLDER_STRUCTURE = {
   getReportPath: (tenantId, instalacionId, dispositivoId, fileName) => {
     return `${tenantId}/instalaciones/${instalacionId}/dispositivos/${dispositivoId}/reportes/${fileName}`;
   },
-  
+
   // Estructura: tenant/manuales/
   getManualPath: (tenantId, fileName) => {
     return `${tenantId}/manuales/${fileName}`;
   },
-  
+
+  // Estructura: tenant/instalaciones/[instalacionId]/contratos/
+  getContractPath: (tenantId, instalacionId, fileName) => {
+    return `${tenantId}/instalaciones/${instalacionId}/contratos/${fileName}`;
+  },
+
   // Crear carpetas base para un nuevo tenant
   getTenantFolders: (tenantId) => {
     return [
       `${tenantId}/instalaciones/`,
-      `${tenantId}/manuales/`
+      `${tenantId}/manuales/`,
+      `${tenantId}/contratos/`
     ];
   },
-  
+
   // Crear carpeta para nueva instalación
   getInstalacionFolder: (tenantId, instalacionId) => {
     return `${tenantId}/instalaciones/${instalacionId}/dispositivos/`;
   },
-  
+
   // Crear carpeta para nuevo dispositivo
   getDispositivoFolder: (tenantId, instalacionId, dispositivoId) => {
     return `${tenantId}/instalaciones/${instalacionId}/dispositivos/${dispositivoId}/reportes/`;
