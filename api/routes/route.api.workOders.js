@@ -50,6 +50,6 @@ route.post(
 route.patch("/ordenes-trabajo/:id/iniciar", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.startWorkOrder)
 
 // Obtener historial de órdenes completadas
-route.get("/ordenes-trabajo/:id/historial", [validateToken, identifyTenantByHeader, isAdminOrTechnician], controllers.getWorkOrderHistory)
+route.get("/ordenes-trabajo/:id/historial", [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient], controllers.getWorkOrderHistory)
 
 export default route

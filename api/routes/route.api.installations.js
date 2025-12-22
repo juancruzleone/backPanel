@@ -67,17 +67,17 @@ route.post(
 )
 route.get(
   "/installations/:installationId/dispositivos/:deviceId/ultimo-mantenimiento",
-  [validateToken, identifyTenantByHeader, isAdmin],
+  [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient],
   controllers.getLastMaintenanceForDevice,
 )
 route.get(
   "/installations/:installationId/dispositivos/:deviceId/mantenimientos",
-  [validateToken, identifyTenantByHeader, isAdmin],
+  [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient],
   controllers.getAllMaintenanceForDevice,
 )
 route.get(
   "/installations/:installationId/dispositivos/:deviceId/formulario",
-  [validateToken, identifyTenantByHeader, isAdminOrTechnician],
+  [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient],
   controllers.getDeviceForm,
 )
 
