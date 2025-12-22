@@ -20,7 +20,7 @@ import ApiWebhooksRoutes from "../api/routes/route.api.webhooks.js"
 import ApiPaymentsRoutes from "../api/routes/route.api.payments.js"
 // import ApiMonitoringRoutes from "../api/routes/route.api.monitoring.js" // Comentado temporalmente
 import ApiSubscriptionRoutes from "../api/routes/route.api.subscription.js"
-import publicRoutes from '../api/routes/route.api.public.js' 
+import publicRoutes from '../api/routes/route.api.public.js'
 import { connectDB } from "../db.js"
 import dotenv from "dotenv"
 import path from "path"
@@ -42,7 +42,7 @@ app.use(express.json())
 const corsOptions = {
   origin: [
     'http://localhost:4321',
-    'https://localhost:4321', 
+    'https://localhost:4321',
     'http://127.0.0.1:4321',
     'https://127.0.0.1:4321',
     'http://localhost:5173',
@@ -73,7 +73,7 @@ app.options('*', cors(corsOptions))
 
 // Middleware de debugging para ver headers
 app.use((req, res, next) => {
-  if (req.path.includes('/dispositivos')) {
+  if (req.path.includes('/dispositivos') || req.path.includes('/clientes-usuarios')) {
     console.log('\n🔍 [DEBUG] ==================== REQUEST RECIBIDO ====================');
     console.log('🔍 [DEBUG] Method:', req.method);
     console.log('🔍 [DEBUG] Path:', req.path);

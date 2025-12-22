@@ -87,12 +87,29 @@ const updateClientUser = yup.object({
 })
 
 // Schema para asignar instalaciones a un cliente
+// Acepta tanto 'installationIds' como 'instalaciones' para compatibilidad con el frontend
 const assignInstallations = yup.object({
   installationIds: yup
     .array()
     .of(yup.string().required("Cada ID de instalación debe ser una cadena válida"))
-    .min(1, "Debe proporcionar al menos una instalación")
-    .required("Las instalaciones son obligatorias"),
+    .when('instalaciones', {
+      is: (instalaciones) => !instalaciones || instalaciones.length === 0,
+      then: (schema) => schema.min(1, "Debe proporcionar al menos una instalación").required("Las instalaciones son obligatorias"),
+      otherwise: (schema) => schema.optional()
+    }),
+  instalaciones: yup
+    .array()
+    .of(yup.string().required("Cada ID de instalación debe ser una cadena válida"))
+    .optional()
+}).transform((value) => {
+  // Si viene 'instalaciones' pero no 'installationIds', copiar los valores
+  if (value.instalaciones && value.instalaciones.length > 0 && (!value.installationIds || value.installationIds.length === 0)) {
+    return {
+      ...value,
+      installationIds: value.instalaciones
+    }
+  }
+  return value
 })
 
 export { createClientUser, updateClientUser, assignInstallations }
