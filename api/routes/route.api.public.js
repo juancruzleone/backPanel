@@ -6,6 +6,9 @@ const route = Router()
 // ✅ Endpoint de registro público (sin autenticación)
 route.post("/register", controllers.registerPublic)
 route.post("/verify-email", controllers.verifyEmail)
+route.get("/verify-email", controllers.verifyEmailGet) // Soporte GET para query params
+route.post("/verify", controllers.verifyEmail)         // Alias para compatibilidad
+route.get("/verify", controllers.verifyEmailGet)       // Alias GET para compatibilidad
 route.post("/resend-verification", controllers.resendCode)
 
 // ✅ Planes públicos

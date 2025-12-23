@@ -22,6 +22,21 @@ async function verifyEmail(req, res) {
   }
 }
 
+// Verificación via GET (query params)
+async function verifyEmailGet(req, res) {
+  try {
+    const { email, code } = req.query
+    if (!email || !code) {
+      return res.status(400).json({ error: { message: "Se requieren email y code como query params" } })
+    }
+    const result = await publicServices.verifyPublicUser(email, code)
+    res.status(200).json(result)
+  } catch (err) {
+    console.error("Error en verificación de email (GET):", err)
+    res.status(400).json({ error: { message: err.message } })
+  }
+}
+
 async function resendCode(req, res) {
   try {
     const { email } = req.body
@@ -222,6 +237,7 @@ async function getPublicDeviceForm(req, res) {
 export {
   registerPublic,
   verifyEmail,
+  verifyEmailGet,
   resendCode,
   getPublicPlans,
   createPublicCheckout,
