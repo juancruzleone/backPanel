@@ -8,142 +8,59 @@ import { sendVerificationEmail } from "./email.services.js"
 const cuentaCollection = db.collection("cuentas")
 const tenantCollection = db.collection("tenants")
 const subscriptionPlansCollection = db.collection("subscriptionplans")
+const pendingCollection = db.collection("pendingRegistrations")
 
 async function registerPublicUser(userData) {
   const {
-    userName, password, email, tenantName, tenantAddress, country,
-    // Campos fiscales para Argentina
+    userName, password, email, country,
     razonSocial, tipoDocumento, numeroDocumento, condicionIVA,
     direccionFiscal, ciudad, provincia, codigoPostal,
-    // Campos fiscales para internacional
     taxIdType, taxIdNumber, addressIntl, cityIntl, postalCodeIntl
   } = userData
 
-  // Validaciones
+  // Validaciones básicas
   if (!userName || !password || !email) {
     throw new Error("Todos los campos obligatorios son requeridos")
   }
 
-  // Verificar si ya existe el userName globalmente
-  const existingUser = await cuentaCollection.findOne({ userName })
+  // Verificar si ya existe en cuentas definitivas
+  const existingUser = await cuentaCollection.findOne({
+    $or: [{ userName }, { email }]
+  })
   if (existingUser) {
+    if (existingUser.email === email) throw new Error("El email ya está registrado")
     throw new Error("El nombre de usuario ya existe")
   }
 
-  // Verificar si ya existe el email globalmente
-  const existingEmail = await cuentaCollection.findOne({ email })
-  if (existingEmail) {
-    throw new Error("El email ya está registrado")
-  }
-
-  // Generar tenantId único
-  const tenantId = uuidv4()
-
-  // Generar un subdomain único basado en el userName o razonSocial
-  const baseName = razonSocial || userName
-  const safeTenantName = baseName.toLowerCase().replace(/[^a-z0-9]/g, "-")
-  const subdomain = `${safeTenantName}-${Date.now()}`
-
-  // Crear el tenant primero usando razonSocial como nombre de la empresa
-  const newTenant = {
-    _id: new ObjectId(),
-    tenantId,
-    name: razonSocial || `Empresa de ${userName}`,
-    address: direccionFiscal || addressIntl || "",
-    subdomain, // 👈 agregado para evitar null duplicados
-    status: "active",
-    subscriptionStatus: "trial",
-    maxUsers: 5,
-    maxProjects: 3,
-    plan: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    stats: {
-      totalUsers: 0,
-      totalProjects: 0,
-      activeUsers: 0
-    }
-  }
-
-  const tenantResult = await tenantCollection.insertOne(newTenant)
-
-  // Hashear la contraseña
+  // Hashear la contraseña antes de guardar temporalmente
   const hashedPassword = await bcrypt.hash(password, 10)
 
-  // Crear el usuario admin con datos fiscales
-  // IMPORTANTE: Usar tenantId (UUID) en lugar de _id (ObjectId)
-  const newUser = {
-    userName,
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
+
+  // Guardar en colección temporal (si ya existe uno con ese email, lo actualizamos)
+  const pendingData = {
+    ...userData,
     password: hashedPassword,
-    email,
-    role: "admin",
-    tenantId: tenantId, // ✅ Usar el UUID generado, no el _id de MongoDB
-    country: country || 'AR',
-    // Datos fiscales según país
-    ...(country === 'AR' ? {
-      // Campos para Argentina
-      razonSocial,
-      tipoDocumento,
-      numeroDocumento,
-      condicionIVA,
-      direccionFiscal,
-      ciudad,
-      provincia,
-      codigoPostal
-    } : {
-      // Campos para internacional
-      razonSocial, // Usar razonSocial como nombre de empresa
-      taxIdType,
-      taxIdNumber,
-      addressIntl,
-      cityIntl,
-      postalCodeIntl
-    }),
-    isVerified: false, // 👈 Cambiado a false por defecto
-    verificationCode: Math.floor(100000 + Math.random() * 900000).toString(), // Código de 6 dígitos
-    verificationExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 minutos de validez
-    status: "pending", // 👈 Cambiado a pending hasta que verifique
-    createdAt: new Date(),
-    updatedAt: new Date()
+    verificationCode,
+    verificationExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 minutos
+    createdAt: new Date()
   }
 
-  const userResult = await cuentaCollection.insertOne(newUser)
+  await pendingCollection.updateOne(
+    { email },
+    { $set: pendingData },
+    { upsert: true }
+  )
 
-  // Enviar email de verificación (no bloqueante para no retrasar la respuesta)
-  sendVerificationEmail(email, newUser.verificationCode).catch(err =>
+  // Enviar email de verificación
+  sendVerificationEmail(email, verificationCode).catch(err =>
     console.error("Error enviando email de verificación en registro:", err)
   )
 
-  // Actualizar estadísticas del tenant usando el _id de MongoDB
-  await tenantCollection.updateOne(
-    { _id: tenantResult.insertedId },
-    {
-      $set: {
-        "stats.totalUsers": 1,
-        "stats.activeUsers": 1,
-        updatedAt: new Date()
-      }
-    }
-  )
-
   return {
-    message: "Registro exitoso",
-    tenant: {
-      _id: tenantResult.insertedId.toString(),
-      tenantId: tenantId, // ✅ Devolver el UUID correcto
-      name: razonSocial || `Empresa de ${userName}`,
-      address: direccionFiscal || addressIntl || "",
-      subdomain,
-      status: "active"
-    },
-    user: {
-      _id: userResult.insertedId,
-      userName,
-      email,
-      role: "admin",
-      tenantId: tenantId,
-      isVerified: false
-    }
+    message: "Código de verificación enviado a tu email",
+    email,
+    isPending: true
   }
 }
 
@@ -155,43 +72,98 @@ async function verifyPublicUser(email, code) {
     throw new Error("Email y código son requeridos")
   }
 
-  const user = await cuentaCollection.findOne({ email })
+  // Buscar en la colección temporal
+  const pendingUser = await pendingCollection.findOne({ email })
 
-  if (!user) {
-    throw new Error("Usuario no encontrado")
+  if (!pendingUser) {
+    // Verificar si ya existe en la definitiva (por si ya se verificó)
+    const alreadyExists = await cuentaCollection.findOne({ email })
+    if (alreadyExists) {
+      return { message: "El usuario ya está verificado", alreadyVerified: true }
+    }
+    throw new Error("No se encontró una solicitud de registro pendiente para este email")
   }
 
-  if (user.isVerified) {
-    return { message: "El usuario ya está verificado", alreadyVerified: true }
-  }
-
-  if (user.verificationCode !== code) {
+  if (pendingUser.verificationCode !== code) {
     throw new Error("Código de verificación inválido")
   }
 
-  if (new Date() > user.verificationExpires) {
+  if (new Date() > pendingUser.verificationExpires) {
     throw new Error("El código ha expirado. Por favor solicita uno nuevo.")
   }
 
-  // Marcar como verificado y activar
-  await cuentaCollection.updateOne(
-    { _id: user._id },
-    {
-      $set: {
-        isVerified: true,
-        status: "active",
-        updatedAt: new Date()
-      },
-      $unset: {
-        verificationCode: "",
-        verificationExpires: ""
-      }
+  // --- PROCESO DE CREACIÓN DEFINITIVA ---
+  const {
+    userName, password, country,
+    razonSocial, tipoDocumento, numeroDocumento, condicionIVA,
+    direccionFiscal, ciudad, provincia, codigoPostal,
+    taxIdType, taxIdNumber, addressIntl, cityIntl, postalCodeIntl
+  } = pendingUser
+
+  // 1. Generar tenantId único
+  const tenantId = uuidv4()
+  const baseName = razonSocial || userName
+  const safeTenantName = baseName.toLowerCase().replace(/[^a-z0-9]/g, "-")
+  const subdomain = `${safeTenantName}-${Date.now()}`
+
+  // 2. Crear el tenant
+  const newTenant = {
+    _id: new ObjectId(),
+    tenantId,
+    name: razonSocial || `Empresa de ${userName}`,
+    address: direccionFiscal || addressIntl || "",
+    subdomain,
+    status: "active",
+    subscriptionStatus: "trial",
+    maxUsers: 5,
+    maxProjects: 3,
+    plan: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    stats: {
+      totalUsers: 1,
+      totalProjects: 0,
+      activeUsers: 1
     }
-  )
+  }
+
+  const tenantResult = await tenantCollection.insertOne(newTenant)
+
+  // 3. Crear el usuario admin
+  const newUser = {
+    userName,
+    password, // Ya viene hasheado de la colección temporal
+    email,
+    role: "admin",
+    tenantId: tenantId,
+    country: country || 'AR',
+    ...(country === 'AR' ? {
+      razonSocial, tipoDocumento, numeroDocumento, condicionIVA,
+      direccionFiscal, ciudad, provincia, codigoPostal
+    } : {
+      razonSocial, taxIdType, taxIdNumber, addressIntl, cityIntl, postalCodeIntl
+    }),
+    isVerified: true,
+    status: "active",
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+
+  const userResult = await cuentaCollection.insertOne(newUser)
+
+  // 4. Eliminar de la colección temporal
+  await pendingCollection.deleteOne({ _id: pendingUser._id })
 
   return {
     success: true,
-    message: "Email verificado con éxito. Ya puedes iniciar sesión."
+    message: "Email verificado con éxito. Tu cuenta ha sido creada.",
+    user: {
+      _id: userResult.insertedId,
+      userName,
+      email,
+      role: "admin",
+      tenantId: tenantId
+    }
   }
 }
 
@@ -199,21 +171,22 @@ async function verifyPublicUser(email, code) {
  * Reenvía el código de verificación
  */
 async function resendVerificationCode(email) {
-  const user = await cuentaCollection.findOne({ email })
+  const pendingUser = await pendingCollection.findOne({ email })
 
-  if (!user) {
-    throw new Error("Usuario no encontrado")
-  }
-
-  if (user.isVerified) {
-    throw new Error("El usuario ya está verificado")
+  if (!pendingUser) {
+    // Verificar si ya existe en la definitiva
+    const alreadyExists = await cuentaCollection.findOne({ email })
+    if (alreadyExists) {
+      throw new Error("El usuario ya está verificado y activo")
+    }
+    throw new Error("No se encontró una solicitud de registro pendiente para este email")
   }
 
   const newCode = Math.floor(100000 + Math.random() * 900000).toString()
   const expires = new Date(Date.now() + 15 * 60 * 1000)
 
-  await cuentaCollection.updateOne(
-    { _id: user._id },
+  await pendingCollection.updateOne(
+    { _id: pendingUser._id },
     {
       $set: {
         verificationCode: newCode,
