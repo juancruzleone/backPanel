@@ -4,32 +4,66 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Usar API HTTP de Resend (puerto 443, nunca bloqueado)
-// La API key es la misma que usabas como SMTP_PASS
 const resend = new Resend(process.env.RESEND_API_KEY || process.env.SMTP_PASS);
 
 // Dominio verificado en Resend
 const FROM_EMAIL = process.env.FROM_EMAIL || 'no-reply@leonix.net.ar';
 const FROM_NAME = process.env.FROM_NAME || 'Leonix';
 
+// URL del logo (hosted en el sitio web de Leonix)
+const LOGO_URL = 'https://www.leonix.net.ar/logo%20leonix%205.svg';
+
 console.log('📧 Configuración Resend API:', {
   apiKey: (process.env.RESEND_API_KEY || process.env.SMTP_PASS) ? '✅ Configurado' : '❌ No configurado',
   from: `${FROM_NAME} <${FROM_EMAIL}>`,
 });
 
+// Colores de la marca Leonix (verde del frontend)
+const colors = {
+  primary: '#00a86b',      // Verde principal
+  primaryHover: '#00995a', // Verde hover
+  primaryLight: '#00ffae', // Verde claro (modo oscuro)
+  dark: '#1A1A1A',
+  text: '#4A4A4A',
+  textLight: '#9B9B9B',
+  background: '#f9f9f9',
+  white: '#ffffff',
+  warning: '#EF4444',
+};
+
 // Estilos comunes para los mails (Inline CSS para máxima compatibilidad)
 const emailStyles = {
-  container: 'font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #f9f9f9;',
-  card: 'background-color: #ffffff; padding: 40px; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); margin-top: 20px;',
-  header: 'text-align: center; padding-bottom: 30px;',
-  logo: 'font-size: 28px; font-weight: 800; color: #0066FF; letter-spacing: -1px; text-decoration: none;',
-  title: 'font-size: 24px; font-weight: 700; color: #1A1A1A; margin-bottom: 16px; text-align: center;',
-  text: 'font-size: 16px; line-height: 1.6; color: #4A4A4A; margin-bottom: 24px; text-align: center;',
-  codeContainer: 'background: linear-gradient(135deg, #0066FF 0%, #0044CC 100%); padding: 24px; text-align: center; border-radius: 12px; margin: 30px 0;',
-  codeText: 'font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #ffffff; margin: 0;',
-  footer: 'text-align: center; padding: 30px; font-size: 13px; color: #9B9B9B; line-height: 1.5;',
-  button: 'display: inline-block; background-color: #0066FF; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; margin-top: 10px;',
-  divider: 'border: 0; border-top: 1px solid #EEEEEE; margin: 30px 0;'
+  container: `font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: ${colors.background};`,
+  headerWrapper: `background-color: ${colors.primary}; padding: 24px 30px; text-align: center; border-radius: 16px 16px 0 0;`,
+  logo: 'height: 40px; width: auto; vertical-align: middle;',
+  logoText: `font-family: 'Montserrat', 'Segoe UI', Roboto, sans-serif; font-size: 28px; font-weight: 700; color: ${colors.white}; letter-spacing: -0.5px; vertical-align: middle; margin: 0;`,
+  card: `background-color: ${colors.white}; padding: 40px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.06);`,
+  title: `font-size: 24px; font-weight: 700; color: ${colors.dark}; margin-bottom: 16px; text-align: center;`,
+  text: `font-size: 16px; line-height: 1.6; color: ${colors.text}; margin-bottom: 24px; text-align: center;`,
+  codeContainer: `background: linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryHover} 100%); padding: 24px; text-align: center; border-radius: 12px; margin: 30px 0;`,
+  codeText: `font-size: 36px; font-weight: 800; letter-spacing: 8px; color: ${colors.white}; margin: 0;`,
+  footer: `text-align: center; padding: 30px; font-size: 13px; color: ${colors.textLight}; line-height: 1.5;`,
+  button: `display: inline-block; background-color: ${colors.primary}; color: ${colors.white}; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; margin-top: 10px;`,
+  credentialsBox: `background-color: #F8FAFC; padding: 24px; border-radius: 12px; border: 1px solid #E2E8F0; margin: 24px 0;`,
+  smallText: `font-size: 14px; color: #888; text-align: center; margin-top: 20px;`,
 };
+
+// Template del header con logo + texto "Leonix" con Montserrat (fondo verde)
+const emailHeader = `
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" rel="stylesheet">
+  <div style="${emailStyles.headerWrapper}">
+    <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+      <tr>
+        <td style="vertical-align: middle; padding-right: 12px;">
+          <img src="${LOGO_URL}" alt="Leonix Logo" style="${emailStyles.logo}" />
+        </td>
+        <td style="vertical-align: middle;">
+          <span style="${emailStyles.logoText}">Leonix</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+`;
 
 /**
  * Envía un email de verificación con un diseño premium.
@@ -43,9 +77,7 @@ export async function sendVerificationEmail(email, code) {
       html: `
       <div style="${emailStyles.container}">
         <div style="padding: 20px;">
-          <div style="${emailStyles.header}">
-            <a href="https://www.leonix.net.ar" style="${emailStyles.logo}">LEONIX</a>
-          </div>
+          ${emailHeader}
           
           <div style="${emailStyles.card}">
             <h1 style="${emailStyles.title}">Verifica tu cuenta</h1>
@@ -57,7 +89,7 @@ export async function sendVerificationEmail(email, code) {
               <h2 style="${emailStyles.codeText}">${code}</h2>
             </div>
             
-            <p style="font-size: 14px; color: #888; text-align: center; margin-top: 20px;">
+            <p style="${emailStyles.smallText}">
               Este código es válido por 15 minutos. Por tu seguridad, no compartas este código con nadie.
             </p>
           </div>
@@ -96,9 +128,7 @@ export async function sendPasswordChangeEmail(email, code) {
       html: `
       <div style="${emailStyles.container}">
         <div style="padding: 20px;">
-          <div style="${emailStyles.header}">
-            <a href="https://www.leonix.net.ar" style="${emailStyles.logo}">LEONIX</a>
-          </div>
+          ${emailHeader}
           
           <div style="${emailStyles.card}">
             <h1 style="${emailStyles.title}">Código de Seguridad</h1>
@@ -110,7 +140,7 @@ export async function sendPasswordChangeEmail(email, code) {
               <h2 style="${emailStyles.codeText}">${code}</h2>
             </div>
             
-            <p style="font-size: 14px; color: #888; text-align: center; margin-top: 20px;">
+            <p style="${emailStyles.smallText}">
               Si no solicitaste este cambio, puedes ignorar este correo y tu contraseña actual permanecerá igual.
             </p>
           </div>
@@ -147,9 +177,7 @@ export async function sendWelcomeEmail(email, userName, tempPassword) {
       html: `
       <div style="${emailStyles.container}">
         <div style="padding: 20px;">
-          <div style="${emailStyles.header}">
-            <a href="https://www.leonix.net.ar" style="${emailStyles.logo}">LEONIX</a>
-          </div>
+          ${emailHeader}
           
           <div style="${emailStyles.card}">
             <h1 style="${emailStyles.title}">¡Tu cuenta está lista!</h1>
@@ -157,13 +185,13 @@ export async function sendWelcomeEmail(email, userName, tempPassword) {
               Hola <strong>${userName}</strong>, tu suscripción ha sido activada correctamente. Ya puedes acceder a todas las herramientas de gestión de Leonix.
             </p>
             
-            <div style="background-color: #F8FAFC; padding: 24px; border-radius: 12px; border: 1px solid #E2E8F0; margin: 24px 0;">
+            <div style="${emailStyles.credentialsBox}">
               <p style="margin: 0 0 12px 0; color: #64748B; font-size: 14px; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Credenciales de acceso</p>
               <p style="margin: 8px 0; font-size: 16px; color: #1E293B;"><strong>Usuario:</strong> ${userName}</p>
               <p style="margin: 8px 0; font-size: 16px; color: #1E293B;"><strong>Contraseña:</strong> ${tempPassword}</p>
             </div>
             
-            <p style="font-size: 14px; color: #EF4444; font-weight: 600; text-align: center; margin-bottom: 24px;">
+            <p style="font-size: 14px; color: ${colors.warning}; font-weight: 600; text-align: center; margin-bottom: 24px;">
               ⚠️ Se te pedirá cambiar esta contraseña al ingresar por primera vez.
             </p>
             
