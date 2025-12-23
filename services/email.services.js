@@ -1,42 +1,46 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-    },
+// Usar API HTTP de Resend (puerto 443, nunca bloqueado)
+// La API key es la misma que usabas como SMTP_PASS
+const resend = new Resend(process.env.RESEND_API_KEY || process.env.SMTP_PASS);
+
+// Dominio verificado en Resend
+const FROM_EMAIL = process.env.FROM_EMAIL || 'no-reply@leonix.net.ar';
+const FROM_NAME = process.env.FROM_NAME || 'Leonix';
+
+console.log('📧 Configuración Resend API:', {
+  apiKey: (process.env.RESEND_API_KEY || process.env.SMTP_PASS) ? '✅ Configurado' : '❌ No configurado',
+  from: `${FROM_NAME} <${FROM_EMAIL}>`,
 });
 
 // Estilos comunes para los mails (Inline CSS para máxima compatibilidad)
 const emailStyles = {
-    container: 'font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #f9f9f9;',
-    card: 'background-color: #ffffff; padding: 40px; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); margin-top: 20px;',
-    header: 'text-align: center; padding-bottom: 30px;',
-    logo: 'font-size: 28px; font-weight: 800; color: #0066FF; letter-spacing: -1px; text-decoration: none;',
-    title: 'font-size: 24px; font-weight: 700; color: #1A1A1A; margin-bottom: 16px; text-align: center;',
-    text: 'font-size: 16px; line-height: 1.6; color: #4A4A4A; margin-bottom: 24px; text-align: center;',
-    codeContainer: 'background: linear-gradient(135deg, #0066FF 0%, #0044CC 100%); padding: 24px; text-align: center; border-radius: 12px; margin: 30px 0;',
-    codeText: 'font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #ffffff; margin: 0;',
-    footer: 'text-align: center; padding: 30px; font-size: 13px; color: #9B9B9B; line-height: 1.5;',
-    button: 'display: inline-block; background-color: #0066FF; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; margin-top: 10px;',
-    divider: 'border: 0; border-top: 1px solid #EEEEEE; margin: 30px 0;'
+  container: 'font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #f9f9f9;',
+  card: 'background-color: #ffffff; padding: 40px; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); margin-top: 20px;',
+  header: 'text-align: center; padding-bottom: 30px;',
+  logo: 'font-size: 28px; font-weight: 800; color: #0066FF; letter-spacing: -1px; text-decoration: none;',
+  title: 'font-size: 24px; font-weight: 700; color: #1A1A1A; margin-bottom: 16px; text-align: center;',
+  text: 'font-size: 16px; line-height: 1.6; color: #4A4A4A; margin-bottom: 24px; text-align: center;',
+  codeContainer: 'background: linear-gradient(135deg, #0066FF 0%, #0044CC 100%); padding: 24px; text-align: center; border-radius: 12px; margin: 30px 0;',
+  codeText: 'font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #ffffff; margin: 0;',
+  footer: 'text-align: center; padding: 30px; font-size: 13px; color: #9B9B9B; line-height: 1.5;',
+  button: 'display: inline-block; background-color: #0066FF; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; margin-top: 10px;',
+  divider: 'border: 0; border-top: 1px solid #EEEEEE; margin: 30px 0;'
 };
 
 /**
  * Envía un email de verificación con un diseño premium.
  */
 export async function sendVerificationEmail(email, code) {
-    const mailOptions = {
-        from: `"Leonix" <no-reply@leonix.net.ar>`,
-        to: email,
-        subject: `${code} es tu código de verificación de Leonix`,
-        html: `
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
+      to: email,
+      subject: `${code} es tu código de verificación de Leonix`,
+      html: `
       <div style="${emailStyles.container}">
         <div style="padding: 20px;">
           <div style="${emailStyles.header}">
@@ -65,29 +69,31 @@ export async function sendVerificationEmail(email, code) {
         </div>
       </div>
     `,
-    };
+    });
 
-    try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Email de verificación enviado:', info.messageId);
-        return { success: true, messageId: info.messageId };
-    } catch (error) {
-        console.error('❌ Error enviando email de verificación:', error);
-        return { success: false, error: error.message };
+    if (error) {
+      console.error('❌ Error enviando email de verificación:', error);
+      return { success: false, error: error.message };
     }
+
+    console.log('✅ Email de verificación enviado:', data.id);
+    return { success: true, messageId: data.id };
+  } catch (error) {
+    console.error('❌ Error enviando email de verificación:', error);
+    return { success: false, error: error.message };
+  }
 }
-
-
 
 /**
  * Envía un email con código de seguridad para cambio de contraseña.
  */
 export async function sendPasswordChangeEmail(email, code) {
-    const mailOptions = {
-        from: `"Leonix" <no-reply@leonix.net.ar>`,
-        to: email,
-        subject: `${code} es tu código de seguridad para cambiar la contraseña`,
-        html: `
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
+      to: email,
+      subject: `${code} es tu código de seguridad para cambiar la contraseña`,
+      html: `
       <div style="${emailStyles.container}">
         <div style="padding: 20px;">
           <div style="${emailStyles.header}">
@@ -115,26 +121,30 @@ export async function sendPasswordChangeEmail(email, code) {
         </div>
       </div>
     `,
-    };
+    });
 
-    try {
-        const info = await transporter.sendMail(mailOptions);
-        return { success: true, messageId: info.messageId };
-    } catch (error) {
-        console.error('❌ Error enviando email de cambio de contraseña:', error);
-        return { success: false, error: error.message };
+    if (error) {
+      console.error('❌ Error enviando email de cambio de contraseña:', error);
+      return { success: false, error: error.message };
     }
+
+    return { success: true, messageId: data.id };
+  } catch (error) {
+    console.error('❌ Error enviando email de cambio de contraseña:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 /**
  * Envía un email de bienvenida con diseño premium.
  */
 export async function sendWelcomeEmail(email, userName, tempPassword) {
-    const mailOptions = {
-        from: `"Leonix" <no-reply@leonix.net.ar>`,
-        to: email,
-        subject: '¡Bienvenido a la plataforma Leonix!',
-        html: `
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
+      to: email,
+      subject: '¡Bienvenido a la plataforma Leonix!',
+      html: `
       <div style="${emailStyles.container}">
         <div style="padding: 20px;">
           <div style="${emailStyles.header}">
@@ -169,14 +179,17 @@ export async function sendWelcomeEmail(email, userName, tempPassword) {
         </div>
       </div>
     `,
-    };
+    });
 
-    try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Email de bienvenida enviado:', info.messageId);
-        return { success: true, messageId: info.messageId };
-    } catch (error) {
-        console.error('❌ Error enviando email de bienvenida:', error);
-        return { success: false, error: error.message };
+    if (error) {
+      console.error('❌ Error enviando email de bienvenida:', error);
+      return { success: false, error: error.message };
     }
+
+    console.log('✅ Email de bienvenida enviado:', data.id);
+    return { success: true, messageId: data.id };
+  } catch (error) {
+    console.error('❌ Error enviando email de bienvenida:', error);
+    return { success: false, error: error.message };
+  }
 }

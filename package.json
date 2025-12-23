@@ -42,6 +42,7 @@
     "open": "^10.1.0",
     "pdfkit": "^0.15.1",
     "qrcode": "^1.5.4",
+    "resend": "^4.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "server-destroy": "^1.0.1",
