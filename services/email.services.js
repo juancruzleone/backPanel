@@ -10,20 +10,17 @@ const resend = new Resend(process.env.RESEND_API_KEY || process.env.SMTP_PASS);
 const FROM_EMAIL = process.env.FROM_EMAIL || 'no-reply@leonix.net.ar';
 const FROM_NAME = process.env.FROM_NAME || 'Leonix';
 
-// URL del logo (hosted en el sitio web de Leonix)
-const LOGO_URL = 'https://www.leonix.net.ar/logo%20leonix%205.svg';
-
 console.log('📧 Configuración Resend API:', {
   apiKey: (process.env.RESEND_API_KEY || process.env.SMTP_PASS) ? '✅ Configurado' : '❌ No configurado',
   from: `${FROM_NAME} <${FROM_EMAIL}>`,
 });
 
-// Colores de la marca Leonix (verde del frontend)
+// Colores de la marca Leonix
 const colors = {
-  primary: '#00a86b',      // Verde principal
-  primaryHover: '#00995a', // Verde hover
-  primaryLight: '#00ffae', // Verde claro (modo oscuro)
-  dark: '#1A1A1A',
+  primary: '#00a86b',        // Verde principal
+  primaryDark: '#007a4d',    // Verde oscuro para el código
+  primaryHover: '#00995a',   // Verde hover
+  dark: '#1A1A1A',           // Negro para texto
   text: '#4A4A4A',
   textLight: '#9B9B9B',
   background: '#f9f9f9',
@@ -34,13 +31,12 @@ const colors = {
 // Estilos comunes para los mails (Inline CSS para máxima compatibilidad)
 const emailStyles = {
   container: `font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: ${colors.background};`,
-  headerWrapper: `background-color: ${colors.primary}; padding: 24px 30px; text-align: center; border-radius: 16px 16px 0 0;`,
-  logo: 'height: 40px; width: auto; vertical-align: middle;',
-  logoText: `font-family: 'Montserrat', 'Segoe UI', Roboto, sans-serif; font-size: 28px; font-weight: 700; color: ${colors.white}; letter-spacing: -0.5px; vertical-align: middle; margin: 0;`,
-  card: `background-color: ${colors.white}; padding: 40px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.06);`,
+  header: `text-align: center; padding: 30px 20px 10px 20px;`,
+  logoText: `font-family: 'Montserrat', 'Segoe UI', Roboto, sans-serif; font-size: 32px; font-weight: 700; color: ${colors.dark}; letter-spacing: -0.5px; margin: 0; text-decoration: none;`,
+  card: `background-color: ${colors.white}; padding: 40px; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.06);`,
   title: `font-size: 24px; font-weight: 700; color: ${colors.dark}; margin-bottom: 16px; text-align: center;`,
   text: `font-size: 16px; line-height: 1.6; color: ${colors.text}; margin-bottom: 24px; text-align: center;`,
-  codeContainer: `background: linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryHover} 100%); padding: 24px; text-align: center; border-radius: 12px; margin: 30px 0;`,
+  codeContainer: `background: ${colors.primaryDark}; padding: 24px; text-align: center; border-radius: 12px; margin: 30px 0;`,
   codeText: `font-size: 36px; font-weight: 800; letter-spacing: 8px; color: ${colors.white}; margin: 0;`,
   footer: `text-align: center; padding: 30px; font-size: 13px; color: ${colors.textLight}; line-height: 1.5;`,
   button: `display: inline-block; background-color: ${colors.primary}; color: ${colors.white}; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; margin-top: 10px;`,
@@ -48,20 +44,11 @@ const emailStyles = {
   smallText: `font-size: 14px; color: #888; text-align: center; margin-top: 20px;`,
 };
 
-// Template del header con logo + texto "Leonix" con Montserrat (fondo verde)
+// Header simple: Solo "Leonix" en negro centrado
 const emailHeader = `
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" rel="stylesheet">
-  <div style="${emailStyles.headerWrapper}">
-    <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
-      <tr>
-        <td style="vertical-align: middle; padding-right: 12px;">
-          <img src="${LOGO_URL}" alt="Leonix Logo" style="${emailStyles.logo}" />
-        </td>
-        <td style="vertical-align: middle;">
-          <span style="${emailStyles.logoText}">Leonix</span>
-        </td>
-      </tr>
-    </table>
+  <div style="${emailStyles.header}">
+    <span style="${emailStyles.logoText}">Leonix</span>
   </div>
 `;
 
