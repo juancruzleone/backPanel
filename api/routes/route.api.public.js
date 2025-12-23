@@ -5,6 +5,8 @@ const route = Router()
 
 // ✅ Endpoint de registro público (sin autenticación)
 route.post("/register", controllers.registerPublic)
+route.post("/verify", controllers.verifyEmail)
+route.post("/resend-code", controllers.resendCode)
 
 // ✅ Planes públicos
 route.get("/subscription-plans", controllers.getPublicPlans)

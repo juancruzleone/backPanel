@@ -1,6 +1,7 @@
 import { db } from "../db.js"
 import bcrypt from "bcrypt"
 import { ObjectId } from "mongodb"
+import { sendPasswordChangeEmail } from "./email.services.js"
 
 const cuentaCollection = db.collection("cuentas")
 
@@ -123,7 +124,11 @@ async function login(cuenta, tenantId = null) {
   const existe = await cuentaCollection.findOne(query)
   if (!existe) throw new Error("Credenciales inválidas")
 
-  // Verificar que la cuenta esté activa
+  // Verificar que la cuenta esté activa y verificada
+  if (existe.status === "pending" || !existe.isVerified) {
+    throw new Error("Debes verificar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.")
+  }
+
   if (existe.status !== "active") {
     throw new Error("La cuenta no está activa. Contacte al administrador.")
   }
@@ -338,7 +343,11 @@ async function publicLogin(cuenta, tenantId = null) {
   const existe = await cuentaCollection.findOne(query)
   if (!existe) throw new Error("Credenciales inválidas")
 
-  // Verificar que la cuenta esté activa
+  // Verificar que la cuenta esté activa y verificada
+  if (existe.status === "pending" || !existe.isVerified) {
+    throw new Error("Debes verificar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.")
+  }
+
   if (existe.status !== "active") {
     throw new Error("La cuenta no está activa. Contacte al administrador.")
   }
@@ -751,6 +760,88 @@ async function updateUserPassword(userId, currentPassword, newPassword) {
   }
 }
 
+/**
+ * Solicita un cambio de contraseña enviando un código al email
+ */
+async function requestPasswordChange(userId) {
+  if (!ObjectId.isValid(userId)) {
+    throw new Error("ID de usuario inválido")
+  }
+
+  const user = await cuentaCollection.findOne({ _id: new ObjectId(userId) })
+  if (!user) {
+    throw new Error("Usuario no encontrado")
+  }
+
+  if (!user.email) {
+    throw new Error("El usuario no tiene un email asociado para recibir el código")
+  }
+
+  const code = Math.floor(100000 + Math.random() * 900000).toString()
+  const expires = new Date(Date.now() + 15 * 60 * 1000) // 15 minutos
+
+  await cuentaCollection.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        passwordChangeCode: code,
+        passwordChangeExpires: expires,
+        updatedAt: new Date()
+      }
+    }
+  )
+
+  await sendPasswordChangeEmail(user.email, code)
+
+  return {
+    success: true,
+    message: "Se ha enviado un código de seguridad a tu email"
+  }
+}
+
+/**
+ * Confirma el cambio de contraseña usando el código recibido
+ */
+async function confirmPasswordChange(userId, code, newPassword) {
+  if (!ObjectId.isValid(userId)) {
+    throw new Error("ID de usuario inválido")
+  }
+
+  const user = await cuentaCollection.findOne({ _id: new ObjectId(userId) })
+  if (!user) {
+    throw new Error("Usuario no encontrado")
+  }
+
+  if (!user.passwordChangeCode || user.passwordChangeCode !== code) {
+    throw new Error("Código de seguridad inválido")
+  }
+
+  if (new Date() > user.passwordChangeExpires) {
+    throw new Error("El código ha expirado. Solicita uno nuevo.")
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+  await cuentaCollection.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        password: hashedPassword,
+        updatedAt: new Date()
+      },
+      $unset: {
+        passwordChangeCode: "",
+        passwordChangeExpires: ""
+      }
+    }
+  )
+
+  return {
+    success: true,
+    message: "Contraseña actualizada con éxito"
+  }
+}
+
 // Función para que admin actualice datos de técnicos de su tenant
 async function updateTechnicianByAdmin(technicianId, updates, adminUser) {
   if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
@@ -832,6 +923,73 @@ async function updateTechnicianByAdmin(technicianId, updates, adminUser) {
   }
 }
 
+/**
+ * Función para que admin actualice datos de clientes de su tenant
+ */
+async function updateClientByAdmin(clientId, updates, adminUser) {
+  if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "super_admin")) {
+    throw new Error("No tienes permisos para actualizar clientes")
+  }
+
+  if (!ObjectId.isValid(clientId)) {
+    throw new Error("ID de cliente inválido")
+  }
+
+  const client = await cuentaCollection.findOne({ _id: new ObjectId(clientId) })
+  if (!client) {
+    throw new Error("Cliente no encontrado")
+  }
+
+  if (client.role !== "cliente") {
+    throw new Error("Solo se pueden editar usuarios con rol cliente")
+  }
+
+  if (adminUser.role !== "super_admin" && client.tenantId !== adminUser.tenantId) {
+    throw new Error("No tienes permisos para editar este cliente")
+  }
+
+  const allowedFields = ["userName", "password", "name", "email"]
+  const updateData = {}
+
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) {
+      if (field === "password") {
+        updateData.password = await bcrypt.hash(updates.password, 10)
+      } else if (field === "userName") {
+        const existingUser = await cuentaCollection.findOne({
+          userName: updates.userName,
+          tenantId: client.tenantId,
+          _id: { $ne: new ObjectId(clientId) }
+        })
+        if (existingUser) throw new Error("El nombre de usuario ya está en uso")
+        updateData.userName = updates.userName
+      } else if (field === "email") {
+        const existingUser = await cuentaCollection.findOne({
+          email: updates.email,
+          _id: { $ne: new ObjectId(clientId) }
+        })
+        if (existingUser) throw new Error("El email ya está en uso")
+        updateData.email = updates.email
+      } else {
+        updateData[field] = updates[field]
+      }
+    }
+  }
+
+  updateData.updatedAt = new Date()
+  updateData.updatedBy = adminUser._id
+
+  await cuentaCollection.updateOne(
+    { _id: new ObjectId(clientId) },
+    { $set: updateData }
+  )
+
+  return {
+    success: true,
+    message: "Cliente actualizado exitosamente"
+  }
+}
+
 // Función para actualizar datos de facturación del tenant (solo admin)
 async function updateTenantBillingInfo(tenantId, updates, adminUser) {
   if (!adminUser || adminUser.role !== "admin") {
@@ -900,6 +1058,9 @@ export {
   createDemoAccount,
   updateUserProfile,
   updateUserPassword,
+  requestPasswordChange,
+  confirmPasswordChange,
   updateTechnicianByAdmin,
+  updateClientByAdmin,
   updateTenantBillingInfo
 }

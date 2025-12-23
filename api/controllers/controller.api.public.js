@@ -11,6 +11,28 @@ async function registerPublic(req, res) {
   }
 }
 
+async function verifyEmail(req, res) {
+  try {
+    const { email, code } = req.body
+    const result = await publicServices.verifyPublicUser(email, code)
+    res.status(200).json(result)
+  } catch (err) {
+    console.error("Error en verificación de email:", err)
+    res.status(400).json({ error: { message: err.message } })
+  }
+}
+
+async function resendCode(req, res) {
+  try {
+    const { email } = req.body
+    const result = await publicServices.resendVerificationCode(email)
+    res.status(200).json(result)
+  } catch (err) {
+    console.error("Error en reenvío de código:", err)
+    res.status(400).json({ error: { message: err.message } })
+  }
+}
+
 async function getPublicPlans(req, res) {
   try {
     const { status } = req.query
@@ -34,7 +56,7 @@ async function getPublicPlans(req, res) {
 async function createPublicCheckout(req, res) {
   try {
     const { planId } = req.params;
-    
+
     // Obtener datos del body (POST) o query params (GET)
     const isGetRequest = req.method === 'GET';
     const data = isGetRequest ? req.query : req.body;
@@ -48,7 +70,7 @@ async function createPublicCheckout(req, res) {
           const token = req.headers.authorization.replace('Bearer ', '');
           const jwt = await import('jsonwebtoken');
           const decoded = jwt.default.decode(token);
-          
+
           if (decoded && decoded.email) {
             payerEmail = decoded.email;
             payerName = payerName || decoded.name || decoded.userName;
@@ -58,7 +80,7 @@ async function createPublicCheckout(req, res) {
           console.log('⚠️ No se pudo extraer email del JWT:', jwtError.message);
         }
       }
-      
+
       // Si aún no hay email, usar un email temporal para testing
       if (!payerEmail) {
         payerEmail = 'test@example.com';
@@ -103,11 +125,11 @@ async function getPublicMaintenanceHistory(req, res) {
   try {
     const { installationId, deviceId } = req.params
     console.log('📋 [PÚBLICO] Solicitud de historial completo:', { installationId, deviceId })
-    
+
     const maintenanceList = await installationsServices.getAllMaintenanceForDevice(installationId, deviceId)
-    
+
     console.log('✅ Mantenimientos encontrados:', maintenanceList.length)
-    
+
     // Log detallado de cada mantenimiento
     maintenanceList.forEach((m, index) => {
       console.log(`   [${index + 1}] _id:`, m._id)
@@ -115,13 +137,13 @@ async function getPublicMaintenanceHistory(req, res) {
       console.log(`   [${index + 1}] pdfUrl:`, m.pdfUrl || '❌ NO TIENE pdfUrl')
       console.log(`   [${index + 1}] formattedDate:`, m.formattedDate)
     })
-    
+
     // Advertencia si algún mantenimiento no tiene pdfUrl
     const sinPdf = maintenanceList.filter(m => !m.pdfUrl)
     if (sinPdf.length > 0) {
       console.error(`⚠️ ADVERTENCIA: ${sinPdf.length} mantenimientos SIN pdfUrl`)
     }
-    
+
     res.status(200).json({
       success: true,
       data: maintenanceList,
@@ -141,9 +163,9 @@ async function getPublicLastMaintenance(req, res) {
   try {
     const { installationId, deviceId } = req.params
     console.log('📋 Solicitud pública de último mantenimiento:', { installationId, deviceId })
-    
+
     const maintenance = await installationsServices.getLastMaintenanceForDevice(installationId, deviceId)
-    
+
     if (!maintenance) {
       console.log('⚠️ No se encontraron mantenimientos para este dispositivo')
       return res.status(404).json({
@@ -151,18 +173,18 @@ async function getPublicLastMaintenance(req, res) {
         message: 'No se encontraron registros de mantenimiento'
       })
     }
-    
+
     console.log('✅ Mantenimiento encontrado:')
     console.log('   - _id:', maintenance._id)
     console.log('   - date:', maintenance.date)
     console.log('   - pdfUrl:', maintenance.pdfUrl)
     console.log('   - Objeto completo:', JSON.stringify(maintenance, null, 2))
-    
+
     // Verificar que pdfUrl existe
     if (!maintenance.pdfUrl) {
       console.error('❌ ADVERTENCIA: El mantenimiento no tiene pdfUrl')
     }
-    
+
     res.status(200).json({
       success: true,
       data: maintenance
@@ -181,9 +203,9 @@ async function getPublicDeviceForm(req, res) {
   try {
     const { installationId, deviceId } = req.params
     console.log('📋 Solicitud pública de formulario de dispositivo:', { installationId, deviceId })
-    
+
     const formData = await installationsServices.getDeviceForm(installationId, deviceId)
-    
+
     res.status(200).json({
       success: true,
       data: formData
@@ -197,9 +219,11 @@ async function getPublicDeviceForm(req, res) {
   }
 }
 
-export { 
-  registerPublic, 
-  getPublicPlans, 
+export {
+  registerPublic,
+  verifyEmail,
+  resendCode,
+  getPublicPlans,
   createPublicCheckout,
   getPublicMaintenanceHistory,
   getPublicLastMaintenance,

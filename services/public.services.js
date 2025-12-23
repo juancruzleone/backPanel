@@ -3,16 +3,17 @@ import bcrypt from "bcrypt"
 import { ObjectId } from "mongodb"
 import { v4 as uuidv4 } from "uuid"
 import mercadoPagoService from "./mercadopago.services.js"
+import { sendVerificationEmail } from "./email.services.js"
 
 const cuentaCollection = db.collection("cuentas")
 const tenantCollection = db.collection("tenants")
 const subscriptionPlansCollection = db.collection("subscriptionplans")
 
 async function registerPublicUser(userData) {
-  const { 
+  const {
     userName, password, email, tenantName, tenantAddress, country,
     // Campos fiscales para Argentina
-    razonSocial, tipoDocumento, numeroDocumento, condicionIVA, 
+    razonSocial, tipoDocumento, numeroDocumento, condicionIVA,
     direccionFiscal, ciudad, provincia, codigoPostal,
     // Campos fiscales para internacional
     taxIdType, taxIdNumber, addressIntl, cityIntl, postalCodeIntl
@@ -98,13 +99,20 @@ async function registerPublicUser(userData) {
       cityIntl,
       postalCodeIntl
     }),
-    isVerified: true,
-    status: "active",
+    isVerified: false, // 👈 Cambiado a false por defecto
+    verificationCode: Math.floor(100000 + Math.random() * 900000).toString(), // Código de 6 dígitos
+    verificationExpires: new Date(Date.now() + 15 * 60 * 1000), // 15 minutos de validez
+    status: "pending", // 👈 Cambiado a pending hasta que verifique
     createdAt: new Date(),
     updatedAt: new Date()
   }
 
   const userResult = await cuentaCollection.insertOne(newUser)
+
+  // Enviar email de verificación (no bloqueante para no retrasar la respuesta)
+  sendVerificationEmail(email, newUser.verificationCode).catch(err =>
+    console.error("Error enviando email de verificación en registro:", err)
+  )
 
   // Actualizar estadísticas del tenant usando el _id de MongoDB
   await tenantCollection.updateOne(
@@ -133,9 +141,91 @@ async function registerPublicUser(userData) {
       userName,
       email,
       role: "admin",
-      tenantId: tenantId // ✅ Devolver el UUID correcto
+      tenantId: tenantId,
+      isVerified: false
     }
   }
+}
+
+/**
+ * Verifica el código enviado al email del usuario
+ */
+async function verifyPublicUser(email, code) {
+  if (!email || !code) {
+    throw new Error("Email y código son requeridos")
+  }
+
+  const user = await cuentaCollection.findOne({ email })
+
+  if (!user) {
+    throw new Error("Usuario no encontrado")
+  }
+
+  if (user.isVerified) {
+    return { message: "El usuario ya está verificado", alreadyVerified: true }
+  }
+
+  if (user.verificationCode !== code) {
+    throw new Error("Código de verificación inválido")
+  }
+
+  if (new Date() > user.verificationExpires) {
+    throw new Error("El código ha expirado. Por favor solicita uno nuevo.")
+  }
+
+  // Marcar como verificado y activar
+  await cuentaCollection.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        isVerified: true,
+        status: "active",
+        updatedAt: new Date()
+      },
+      $unset: {
+        verificationCode: "",
+        verificationExpires: ""
+      }
+    }
+  )
+
+  return {
+    success: true,
+    message: "Email verificado con éxito. Ya puedes iniciar sesión."
+  }
+}
+
+/**
+ * Reenvía el código de verificación
+ */
+async function resendVerificationCode(email) {
+  const user = await cuentaCollection.findOne({ email })
+
+  if (!user) {
+    throw new Error("Usuario no encontrado")
+  }
+
+  if (user.isVerified) {
+    throw new Error("El usuario ya está verificado")
+  }
+
+  const newCode = Math.floor(100000 + Math.random() * 900000).toString()
+  const expires = new Date(Date.now() + 15 * 60 * 1000)
+
+  await cuentaCollection.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        verificationCode: newCode,
+        verificationExpires: expires,
+        updatedAt: new Date()
+      }
+    }
+  )
+
+  await sendVerificationEmail(email, newCode)
+
+  return { success: true, message: "Nuevo código enviado a tu email" }
 }
 
 async function getPublicPlans(status = "active") {
@@ -275,7 +365,7 @@ async function ensureDefaultPlansExist() {
 async function createPublicCheckout(planId, userData) {
   try {
     const { payerEmail, payerName, backUrl, billingCycle } = userData;
-    
+
     // Buscar el plan directamente por ID (ya no necesitamos mapeo fallback)
     let plan;
     try {
@@ -297,9 +387,9 @@ async function createPublicCheckout(planId, userData) {
     if (!plan) {
       throw new Error(`Plan de suscripción no encontrado: ${planId}`);
     }
-    
+
     console.log(`✅ Plan encontrado: ${plan.name} (${plan._id})`);
-    
+
     // Asegurar que el plan tenga todos los planes por defecto si no existen
     await ensureDefaultPlansExist();
 
@@ -344,7 +434,7 @@ async function createPublicCheckout(planId, userData) {
     let frequencyType = 'months';
     let frequency = 1;
     let isAnnualPayment = false;
-    
+
     if (billingCycle === 'yearly') {
       // Aplicar descuento del 20% para planes anuales (equivalente a 10 meses)
       finalPrice = Math.round(plan.price * 10); // 10 meses de precio
@@ -355,40 +445,40 @@ async function createPublicCheckout(planId, userData) {
     // Determinar proveedor de pago basado en el país del usuario
     const userCountry = userData.country || 'AR'; // Default a Argentina si no se especifica
     console.log('🌍 País del usuario:', userCountry);
-    
+
     let checkoutUrl;
     let subscriptionResult;
-    
+
     // Determinar procesador de pago según país
     if (userCountry === 'AR') {
       console.log('🇦🇷 Usando MercadoPago para Argentina');
-      
+
       // VERIFICAR PAÍS REAL DE LAS CREDENCIALES MERCADOPAGO
       console.log('🔍 Verificando país real de las credenciales MercadoPago...');
       const accountInfo = await mercadoPagoService.getAccountInfo();
-      
+
       if (!accountInfo.success) {
         console.error('❌ Error obteniendo información de cuenta MercadoPago:', accountInfo.message);
         throw new Error('Error verificando credenciales de MercadoPago');
       }
-      
+
       const realCountry = accountInfo.data.country_id;
       const realCurrency = accountInfo.data.currency_id;
       const mercadoPagoAccountEmail = accountInfo.data.email; // Email de la cuenta MercadoPago
-      
+
       console.log('✅ País real de credenciales MercadoPago:', realCountry);
       console.log('✅ Moneda real de credenciales MercadoPago:', realCurrency);
       console.log('📧 Email de cuenta MercadoPago:', mercadoPagoAccountEmail);
-      
+
       let mpResult;
-      
+
       if (isAnnualPayment) {
         // PAGO ÚNICO ANUAL - Usar preference en lugar de suscripción
         console.log('💰 Creando PAGO ÚNICO ANUAL en MercadoPago para plan:', plan.name);
-        
+
         const checkoutData = {
           title: `${plan.name} - Plan Anual (12 meses)`,
-          description: `${plan.description} - Facturación anual con descuento. Precio mensual equivalente: $${Math.round(finalPrice/12)} ARS/mes`,
+          description: `${plan.description} - Facturación anual con descuento. Precio mensual equivalente: $${Math.round(finalPrice / 12)} ARS/mes`,
           price: finalPrice,
           currency_id: realCurrency,
           payer_email: payerEmail,
@@ -399,18 +489,18 @@ async function createPublicCheckout(planId, userData) {
             pending: `${process.env.FRONTEND_URL || 'https://panelmantenimiento.netlify.app'}/subscription/pending?lang=es`
           }
         };
-        
-        console.log('💳 Datos de pago único anual:', { 
-          amount: finalPrice, 
-          monthlyEquivalent: Math.round(finalPrice/12),
+
+        console.log('💳 Datos de pago único anual:', {
+          amount: finalPrice,
+          monthlyEquivalent: Math.round(finalPrice / 12),
           billingCycle: 'yearly',
           currency: realCurrency,
           country: realCountry,
           title: checkoutData.title
         });
-        
+
         mpResult = await mercadoPagoService.createDirectCheckout(checkoutData);
-        
+
       } else {
         // SUSCRIPCIÓN MENSUAL RECURRENTE
         const subscriptionData = {
@@ -428,8 +518,8 @@ async function createPublicCheckout(planId, userData) {
         };
 
         console.log('🔄 Creando SUSCRIPCIÓN MENSUAL RECURRENTE en MercadoPago para plan:', plan.name);
-        console.log('💳 Datos de suscripción recurrente:', { 
-          amount: finalPrice, 
+        console.log('💳 Datos de suscripción recurrente:', {
+          amount: finalPrice,
           billingCycle,
           frequency,
           frequencyType,
@@ -437,10 +527,10 @@ async function createPublicCheckout(planId, userData) {
           country: realCountry,
           reason: subscriptionData.reason
         });
-        
+
         mpResult = await mercadoPagoService.createSubscription(subscriptionData);
       }
-      
+
       if (!mpResult.success) {
         throw new Error(`Error en MercadoPago: ${mpResult.message}`);
       }
@@ -450,7 +540,7 @@ async function createPublicCheckout(planId, userData) {
         billingCycle: billingCycle,
         updatedAt: new Date()
       };
-      
+
       if (isAnnualPayment) {
         // Pago único anual
         updateData.mpPreferenceId = mpResult.data.id;
@@ -464,7 +554,7 @@ async function createPublicCheckout(planId, userData) {
         updateData.subscriptionType = 'recurring';
         console.log('💾 Guardando como suscripción recurrente');
       }
-      
+
       await db.collection('subscriptions').updateOne(
         { _id: subscription._id },
         { $set: updateData }
@@ -478,7 +568,7 @@ async function createPublicCheckout(planId, userData) {
         mpPreapprovalId: mpResult.data.id,
         subscriptionType: 'recurring'
       };
-      
+
     } else {
       // Para otros países, usar Polar.sh (por ahora retornar error informativo)
       console.log('🌍 País no soportado actualmente:', userCountry);
@@ -496,4 +586,10 @@ async function createPublicCheckout(planId, userData) {
   }
 }
 
-export { registerPublicUser, getPublicPlans, createPublicCheckout }
+export {
+  registerPublicUser,
+  getPublicPlans,
+  createPublicCheckout,
+  verifyPublicUser,
+  resendVerificationCode
+}

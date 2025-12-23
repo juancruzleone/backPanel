@@ -7,44 +7,45 @@ import tenantFoldersService from './tenantFolders.services.js';
 import * as subscriptionService from './subscriptions.services.js';
 import { MP_CONFIG } from '../config/mercadopago.config.js';
 import { getPlanConfig } from '../config/plans.config.js';
+import { sendWelcomeEmail } from './email.services.js';
 
 const tenantCollection = db.collection("tenants");
 const cuentaCollection = db.collection("cuentas");
 
 class PaymentProcessingService {
-    
+
     // Procesar pago exitoso de suscripción
     async processSuccessfulPayment(paymentData) {
         try {
             console.log('🎉 Procesando pago exitoso:', paymentData);
-            
+
             // Detectar si es MercadoPago o Polar.sh
             const processor = paymentData.processor || 'mercadopago';
-            
+
             if (processor === 'polar') {
                 return await this.processPolarPayment(paymentData);
             }
-            
+
             // 1. Obtener la suscripción desde MercadoPago
             const subscriptionId = paymentData.external_reference;
             if (!subscriptionId) {
                 throw new Error('No se encontró referencia externa en el pago');
             }
-            
+
             // 2. Buscar la suscripción en nuestra base de datos
             let subscription = await db.collection('subscriptions').findOne({
                 externalReference: subscriptionId
             });
-            
+
             // Si no existe la suscripción, crearla ahora (flujo legacy - no debería pasar)
             if (!subscription) {
                 console.log('📝 Suscripción no encontrada en BD - Creando desde webhook (flujo legacy)');
-                
+
                 // Extraer información del external_reference
                 const refParts = subscriptionId.split('_');
                 const tenantId = refParts[0];
                 const planId = refParts[1];
-                
+
                 // Crear suscripción desde el webhook
                 subscription = {
                     _id: new ObjectId(),
@@ -63,18 +64,18 @@ class PaymentProcessingService {
                     mercadoPagoId: paymentData.id,
                     preapprovalId: paymentData.preapproval_id || paymentData.subscription_id || null
                 };
-                
+
                 // Insertar en BD
                 await db.collection('subscriptions').insertOne(subscription);
                 console.log('✅ Suscripción creada desde webhook:', subscription._id);
             } else if (subscription.status === 'pending') {
                 // Si existe pero está pending, actualizarla a approved
                 console.log('🔄 Actualizando suscripción de pending a approved');
-                
+
                 await db.collection('subscriptions').updateOne(
                     { _id: subscription._id },
-                    { 
-                        $set: { 
+                    {
+                        $set: {
                             status: 'approved',
                             updatedAt: new Date(),
                             mercadoPagoId: paymentData.id,
@@ -85,17 +86,17 @@ class PaymentProcessingService {
                         }
                     }
                 );
-                
+
                 // Recargar la suscripción actualizada
                 subscription = await db.collection('subscriptions').findOne({
                     _id: subscription._id
                 });
-                
+
                 console.log('✅ Suscripción actualizada a approved:', subscription._id);
             } else {
                 console.log('ℹ️ Suscripción ya existe con status:', subscription.status);
             }
-            
+
             // Si es un test y no existe la suscripción, crear una simulada
             if (!subscription && subscriptionId.includes('test')) {
                 console.log('🧪 Creando suscripción simulada para testing');
@@ -110,21 +111,21 @@ class PaymentProcessingService {
                     amount: 100
                 };
             }
-            
+
             // 3. Obtener el plan de configuración (no de BD)
             const { getPlanConfig } = await import('../config/plans.config.js');
             let planName = subscription.planId;
-            
+
             // Mapear planId a nombre de plan
             if (planName.includes('starter') || planName.includes('basic')) planName = 'starter';
             if (planName.includes('professional')) planName = 'professional';
             if (planName.includes('enterprise')) planName = 'enterprise';
-            
+
             const plan = getPlanConfig(planName);
             if (!plan) {
                 throw new Error(`Plan no encontrado: ${planName}`);
             }
-            
+
             // 4. Crear datos del cliente desde la suscripción
             const client = {
                 name: subscription.payerEmail.split('@')[0],
@@ -132,43 +133,43 @@ class PaymentProcessingService {
                 phone: '',
                 address: ''
             };
-            
+
             // 5. VERIFICAR SI YA EXISTE UN USUARIO CON ESE EMAIL
             let existingUser = null;
-            
+
             // Si no es test, buscar usuario existente
             if (subscription._id !== 'test_subscription_id') {
                 existingUser = await cuentaCollection.findOne({
                     email: subscription.payerEmail
                 });
             }
-            
+
             let tenantData, adminUser;
-            
+
             if (existingUser) {
                 console.log('👤 Usuario existente encontrado:', existingUser.email);
                 console.log('🏢 TenantId del usuario existente:', existingUser.tenantId);
-                
+
                 // VERIFICAR SI YA TIENE UN PLAN ACTIVO
                 const { checkTenantActivePlan } = await import('./tenants.services.js');
                 const planCheck = await checkTenantActivePlan(subscription.payerEmail);
-                
+
                 if (planCheck.hasActivePlan) {
                     console.log('⚠️ Usuario ya tiene plan activo:', planCheck.currentPlan);
                     console.log('🔄 Procediendo con actualización/cambio de plan...');
                 }
-                
+
                 // 6A. ACTUALIZAR PLAN DEL TENANT EXISTENTE
                 tenantData = await this.updateExistingTenantPlan(existingUser.tenantId, plan);
                 adminUser = existingUser;
-                
+
                 console.log('✅ Plan actualizado para tenant existente:', {
                     tenantId: existingUser.tenantId,
                     oldPlan: planCheck.currentPlan || 'sin plan',
                     newPlan: plan.name,
                     userEmail: existingUser.email
                 });
-                
+
             } else {
                 // Si no existe usuario pero la suscripción trae tenantId, actualizar ese tenant existente
                 if (subscription.tenantId) {
@@ -183,21 +184,21 @@ class PaymentProcessingService {
                     }
                 } else {
                     console.log('🆕 Usuario nuevo, creando tenant y cuenta...');
-                    
+
                     // 6B. CREAR NUEVO TENANT Y USUARIO (flujo original)
                     tenantData = await this.createTenantForClient(client, plan, subscription._id === 'test_subscription_id');
                     adminUser = await this.createAdminUser(client, tenantData.tenantId, subscription.payerEmail, subscription._id === 'test_subscription_id');
-                    
+
                     console.log('✅ Nuevo tenant y usuario creados:', {
                         tenantId: tenantData.tenantId,
                         userEmail: adminUser.email
                     });
                 }
             }
-            
+
             // 7. Actualizar suscripción con información del tenant
             await this.linkSubscriptionToTenant(subscription._id, tenantData.tenantId, adminUser._id);
-            
+
             return {
                 success: true,
                 tenant: tenantData,
@@ -207,35 +208,35 @@ class PaymentProcessingService {
                 isExistingUser: !!existingUser,
                 planUpgrade: existingUser ? true : false
             };
-            
+
         } catch (error) {
             console.error('❌ Error procesando pago exitoso:', error);
             throw new Error(`Error procesando pago: ${error.message}`);
         }
     }
-    
+
     // Procesar pago exitoso de Polar.sh
     async processPolarPayment(paymentData) {
         try {
             console.log('🌐 Procesando pago de Polar.sh:', paymentData);
-            
+
             const { userEmail, planId, billingCycle, subscriptionId, checkoutId, orderId } = paymentData;
-            
+
             if (!userEmail || !planId) {
                 throw new Error('Datos insuficientes: se requiere userEmail y planId');
             }
-            
+
             // 1. Buscar el usuario por email
             const user = await cuentaCollection.findOne({ email: userEmail });
             if (!user) {
                 throw new Error(`Usuario no encontrado con email: ${userEmail}`);
             }
-            
+
             // 2. Buscar el tenant del usuario
             let tenant;
             // Validar si tenantId es un ObjectId válido antes de convertir
             if (user.tenantId && user.tenantId.length === 24 && /^[0-9a-fA-F]{24}$/.test(user.tenantId)) {
-                tenant = await tenantCollection.findOne({ 
+                tenant = await tenantCollection.findOne({
                     $or: [
                         { tenantId: user.tenantId },
                         { _id: new ObjectId(user.tenantId) }
@@ -245,18 +246,18 @@ class PaymentProcessingService {
                 // Si es UUID, buscar solo por tenantId
                 tenant = await tenantCollection.findOne({ tenantId: user.tenantId });
             }
-            
+
             if (!tenant) {
                 throw new Error(`Tenant no encontrado para el usuario: ${userEmail}`);
             }
-            
+
             // 3. Obtener información del plan
             const plansCollection = db.collection('subscriptionPlans');
             let plan;
-            
+
             // Intentar buscar por ObjectId solo si planId parece ser un ObjectId válido
             if (planId && planId.length === 24 && /^[0-9a-fA-F]{24}$/.test(planId)) {
-                plan = await plansCollection.findOne({ 
+                plan = await plansCollection.findOne({
                     $or: [
                         { _id: new ObjectId(planId) },
                         { name: planId.replace('-plan-fallback', '') }
@@ -264,11 +265,11 @@ class PaymentProcessingService {
                 });
             } else {
                 // Buscar solo por nombre si no es un ObjectId válido
-                plan = await plansCollection.findOne({ 
-                    name: planId.replace('-plan-fallback', '') 
+                plan = await plansCollection.findOne({
+                    name: planId.replace('-plan-fallback', '')
                 });
             }
-            
+
             if (!plan) {
                 // Plan fallback si no se encuentra
                 plan = {
@@ -279,10 +280,10 @@ class PaymentProcessingService {
                     frequency: billingCycle || 'monthly'
                 };
             }
-            
+
             // 4. Actualizar el tenant con el nuevo plan
             const subscriptionExpiresAt = new Date(Date.now() + (billingCycle === 'annual' ? 365 : 30) * 24 * 60 * 60 * 1000);
-            
+
             const updateData = {
                 plan: plan.name.toLowerCase().replace(' ', '_'),
                 maxUsers: plan.maxUsers || 10,
@@ -302,17 +303,17 @@ class PaymentProcessingService {
                 updatedAt: new Date(),
                 updatedBy: 'polar_payment_system'
             };
-            
+
             const tenantUpdateResult = await tenantCollection.updateOne(
                 { _id: tenant._id },
                 { $set: updateData }
             );
-            
+
             console.log('✅ Tenant actualizado:', tenantUpdateResult.modifiedCount);
-            
+
             // 5. Crear o actualizar suscripción en MongoDB (evitar duplicados)
             const subscriptionsCollection = db.collection('subscriptions');
-            
+
             // Construir filtro: buscar por múltiples campos para evitar duplicados
             const subscriptionFilter = {
                 $or: [
@@ -331,7 +332,7 @@ class PaymentProcessingService {
                     }
                 ]
             };
-            
+
             const subscriptionData = {
                 tenantId: tenant.tenantId || tenant._id.toString(),
                 userId: user._id,
@@ -349,30 +350,30 @@ class PaymentProcessingService {
                 metadata: paymentData.metadata || {},
                 updatedAt: new Date()
             };
-            
+
             // Usar updateOne con upsert para evitar duplicados
             const subscriptionResult = await subscriptionsCollection.updateOne(
                 subscriptionFilter,
-                { 
+                {
                     $set: subscriptionData,
                     $setOnInsert: { createdAt: new Date() }
                 },
                 { upsert: true }
             );
-            
+
             if (subscriptionResult.upsertedCount > 0) {
                 console.log('✅ Suscripción creada:', subscriptionResult.upsertedId);
             } else {
                 console.log('✅ Suscripción actualizada (evitado duplicado)');
             }
-            
+
             // 6. Crear carpetas del tenant si no existen
             try {
                 await tenantFoldersService.onTenantCreated(tenant.tenantId || tenant._id.toString());
             } catch (folderError) {
                 console.warn('⚠️ Error creando carpetas del tenant:', folderError.message);
             }
-            
+
             return {
                 success: true,
                 tenant: tenant,
@@ -381,50 +382,50 @@ class PaymentProcessingService {
                 plan: plan,
                 action: 'plan_activated'
             };
-            
+
         } catch (error) {
             console.error('❌ Error procesando pago de Polar.sh:', error);
             throw new Error(`Error procesando pago de Polar.sh: ${error.message}`);
         }
     }
-    
+
     // Actualizar plan del tenant existente
     async updateExistingTenantPlan(tenantId, newPlan) {
         try {
             console.log('🔄 Actualizando plan del tenant existente:', { tenantId, newPlan: newPlan.name });
-            
+
             // Buscar el tenant existente por tenantId o por _id
             let tenant = await tenantCollection.findOne({ tenantId });
             if (!tenant) {
                 // Buscar por _id si no se encuentra por tenantId
                 tenant = await tenantCollection.findOne({ _id: new ObjectId(tenantId) });
             }
-            
+
             if (!tenant) {
                 throw new Error(`Tenant no encontrado con ID: ${tenantId}`);
             }
-            
+
             console.log('🏢 Tenant encontrado:', {
                 _id: tenant._id,
                 tenantId: tenant.tenantId,
                 currentPlan: tenant.plan
             });
-            
+
             // Mapear características del nuevo plan
             const tenantFeatures = this.mapPlanToTenantFeatures(newPlan.name);
-            
+
             // Actualizar datos del tenant con el nuevo plan
             const updateData = {
                 plan: newPlan.name.toLowerCase().replace(' ', '_'),
-                
+
                 // Actualizar límites basados en el nuevo plan
                 maxUsers: newPlan.maxUsers || 10,
                 maxAssets: newPlan.maxProjects || 100,
                 maxWorkOrders: this.calculateWorkOrderLimit(newPlan),
-                
+
                 // Actualizar características del plan
                 features: tenantFeatures,
-                
+
                 // Actualizar información de la suscripción
                 subscriptionPlan: newPlan._id || newPlan.name,
                 subscriptionFrequency: newPlan.frequency,
@@ -432,23 +433,23 @@ class PaymentProcessingService {
                 subscriptionStatus: 'active', // ✅ Cambiar de "trial" a "active"
                 // Expiración de suscripción (30 días mensual, 365 días anual)
                 subscriptionExpiresAt: new Date(Date.now() + (newPlan.frequency === 'annual' ? 365 : 30) * 24 * 60 * 60 * 1000),
-                
+
                 // Mantener estado activo y actualizar timestamp
                 status: 'active',
                 updatedAt: new Date(),
                 updatedBy: 'payment_system'
             };
-            
+
             // Actualizar el tenant en la base de datos
             const result = await tenantCollection.updateOne(
                 { _id: tenant._id },
                 { $set: updateData }
             );
-            
+
             if (result.matchedCount === 0) {
                 throw new Error('No se pudo actualizar el tenant');
             }
-            
+
             console.log('✅ Tenant actualizado exitosamente:', {
                 tenantId: tenant.tenantId,
                 oldPlan: tenant.plan,
@@ -459,27 +460,27 @@ class PaymentProcessingService {
                     maxWorkOrders: updateData.maxWorkOrders
                 }
             });
-            
+
             // Devolver el tenant actualizado
             return {
                 ...tenant,
                 ...updateData
             };
-            
+
         } catch (error) {
             console.error('❌ Error actualizando plan del tenant:', error);
             throw error;
         }
     }
-    
+
     // Crear tenant para el cliente que pagó
     async createTenantForClient(client, plan, isTest = false) {
         try {
             const tenantId = uuidv4();
-            
+
             // Generar subdominio único basado en el nombre del cliente
             let subdomain = this.generateSubdomain(client.name || client.email);
-            
+
             // Si es test, usar subdomain fijo
             if (isTest) {
                 subdomain = 'test-tenant';
@@ -491,10 +492,10 @@ class PaymentProcessingService {
                     counter++;
                 }
             }
-            
+
             // Mapear características del plan a configuración del tenant
             const tenantFeatures = this.mapPlanToTenantFeatures(plan);
-            
+
             const newTenant = {
                 _id: isTest ? 'test_tenant_id' : new ObjectId(),
                 tenantId,
@@ -504,25 +505,25 @@ class PaymentProcessingService {
                 phone: client.phone || '',
                 address: client.address || '',
                 plan: plan.name.toLowerCase().replace(' ', '_'), // "Plan Premium" → "plan_premium"
-                
+
                 // Límites basados en el plan de suscripción
                 maxUsers: plan.maxUsers || 10,
                 maxAssets: plan.maxProjects || 100, // Usar maxProjects como maxAssets
                 maxWorkOrders: this.calculateWorkOrderLimit(plan),
-                
+
                 // Características del plan
                 features: tenantFeatures,
-                
+
                 // Información de la suscripción
                 subscriptionPlan: plan._id,
                 subscriptionFrequency: plan.frequency,
                 subscriptionAmount: plan.price,
-                
+
                 status: 'active',
                 createdAt: new Date(),
                 createdBy: 'payment_system',
                 updatedAt: new Date(),
-                
+
                 // Estadísticas iniciales
                 stats: {
                     totalUsers: 0,
@@ -531,7 +532,7 @@ class PaymentProcessingService {
                     lastActivity: new Date()
                 }
             };
-            
+
             // Si es test, no insertar en BD
             let result;
             if (isTest) {
@@ -540,7 +541,7 @@ class PaymentProcessingService {
             } else {
                 result = await tenantCollection.insertOne(newTenant);
             }
-            
+
             // Crear carpetas base en Hetzner Object Storage
             try {
                 await tenantFoldersService.onTenantCreated(tenantId);
@@ -548,34 +549,34 @@ class PaymentProcessingService {
             } catch (error) {
                 console.error('⚠️ Error al crear carpetas de Hetzner (continuando):', error);
             }
-            
+
             console.log('✅ Tenant creado exitosamente:', {
                 tenantId,
                 subdomain,
                 plan: plan.name
             });
-            
+
             return {
                 ...newTenant,
                 _id: result.insertedId
             };
-            
+
         } catch (error) {
             console.error('❌ Error creando tenant:', error);
             throw error;
         }
     }
-    
+
     // Crear usuario admin para el tenant
     async createAdminUser(client, tenantId, payerEmail, isTest = false) {
         try {
             // Generar contraseña temporal
             const tempPassword = this.generateTempPassword();
             const hashedPassword = await bcrypt.hash(tempPassword, 10);
-            
+
             // Generar username único
             let username = this.generateUsername(client.name || payerEmail);
-            
+
             // Si es test, usar username fijo
             if (isTest) {
                 username = 'test_admin';
@@ -586,7 +587,7 @@ class PaymentProcessingService {
                     counter++;
                 }
             }
-            
+
             const adminUser = {
                 _id: isTest ? 'test_admin_id' : new ObjectId(),
                 tenantId,
@@ -599,12 +600,12 @@ class PaymentProcessingService {
                 createdAt: new Date(),
                 createdBy: 'payment_system',
                 updatedAt: new Date(),
-                
+
                 // Datos del perfil
                 firstName: client.name ? client.name.split(' ')[0] : 'Admin',
                 lastName: client.name ? client.name.split(' ').slice(1).join(' ') : 'Usuario',
                 phone: client.phone || '',
-                
+
                 // Permisos completos de admin
                 permissions: {
                     canManageUsers: true,
@@ -614,12 +615,12 @@ class PaymentProcessingService {
                     canManageSettings: true,
                     canManageSubscription: true // Permiso adicional para manejar suscripción
                 },
-                
+
                 // Información de la cuenta
                 temporaryPassword: tempPassword, // Guardar para enviar por email
                 mustChangePassword: true
             };
-            
+
             // Si es test, no insertar en BD
             let result;
             if (isTest) {
@@ -627,36 +628,36 @@ class PaymentProcessingService {
                 result = { insertedId: 'test_admin_id' };
             } else {
                 result = await cuentaCollection.insertOne(adminUser);
-                
+
                 // Actualizar estadísticas del tenant
                 await tenantCollection.updateOne(
                     { tenantId },
                     { $inc: { "stats.totalUsers": 1 } }
                 );
             }
-            
+
             console.log('✅ Usuario admin creado:', {
                 username,
                 email: payerEmail,
                 role: 'admin',
                 tenantId
             });
-            
+
             // TODO: Enviar email con credenciales
             await this.sendWelcomeEmail(adminUser, tempPassword);
-            
+
             return {
                 ...adminUser,
                 _id: result.insertedId,
                 password: undefined // No devolver la contraseña hasheada
             };
-            
+
         } catch (error) {
             console.error('❌ Error creando usuario admin:', error);
             throw error;
         }
     }
-    
+
     // Vincular suscripción con tenant creado
     async linkSubscriptionToTenant(subscriptionId, tenantId, adminUserId) {
         try {
@@ -665,7 +666,7 @@ class PaymentProcessingService {
                 console.log('🧪 Simulando vinculación de suscripción de test:', { subscriptionId, tenantId });
                 return;
             }
-            
+
             await db.collection('subscriptions').updateOne(
                 { _id: subscriptionId },
                 {
@@ -678,28 +679,28 @@ class PaymentProcessingService {
                     }
                 }
             );
-            
+
             console.log('✅ Suscripción vinculada al tenant:', { subscriptionId, tenantId });
-            
+
         } catch (error) {
             console.error('❌ Error vinculando suscripción:', error);
             throw error;
         }
     }
-    
+
     // Mapear características del plan a configuración del tenant
     mapPlanToTenantFeatures(planName) {
         // Obtener la configuración completa del plan
         const planKey = planName.toLowerCase().replace(' ', '_').replace('-', '_');
         const plan = getPlanConfig(planKey) || getPlanConfig('starter');
-        
+
         const baseFeatures = {
             workOrders: true,
             assets: true,
             reports: true,
             pdfGeneration: true
         };
-        
+
         // Características avanzadas basadas en el plan
         const advancedFeatures = {
             apiAccess: plan.features?.apiAccess || false,
@@ -710,22 +711,22 @@ class PaymentProcessingService {
             whiteLabel: plan.features?.whiteLabel || false,
             analytics: plan.features?.analytics || false
         };
-        
+
         return { ...baseFeatures, ...advancedFeatures };
     }
-    
+
     // Calcular límite de órdenes de trabajo basado en el plan
     calculateWorkOrderLimit(plan) {
         const baseLimit = plan.maxProjects || 100;
-        
+
         // Multiplicadores basados en la frecuencia
         if (plan.frequency === 'annual') {
             return baseLimit * 12; // Más órdenes para planes anuales
         }
-        
+
         return baseLimit * 5; // Límite base para planes mensuales
     }
-    
+
     // Utilidades para generar datos únicos
     generateSubdomain(name) {
         return name
@@ -733,7 +734,7 @@ class PaymentProcessingService {
             .replace(/[^a-z0-9]/g, '')
             .substring(0, 15) || 'empresa';
     }
-    
+
     generateUsername(name) {
         const base = name
             .toLowerCase()
@@ -741,7 +742,7 @@ class PaymentProcessingService {
             .substring(0, 10) || 'admin';
         return `admin_${base}`;
     }
-    
+
     generateTempPassword() {
         const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
         let password = '';
@@ -750,7 +751,7 @@ class PaymentProcessingService {
         }
         return password;
     }
-    
+
     async isSubdomainTaken(subdomain) {
         // Si es test, siempre devolver false
         if (subdomain === 'test-tenant') {
@@ -759,7 +760,7 @@ class PaymentProcessingService {
         const existing = await tenantCollection.findOne({ subdomain });
         return !!existing;
     }
-    
+
     async isUsernameTaken(username, tenantId) {
         // Si es test, siempre devolver false
         if (username === 'test_admin') {
@@ -768,8 +769,8 @@ class PaymentProcessingService {
         const existing = await cuentaCollection.findOne({ userName: username, tenantId });
         return !!existing;
     }
-    
-    // Enviar email de bienvenida (placeholder)
+
+    // Enviar email de bienvenida real
     async sendWelcomeEmail(adminUser, tempPassword) {
         try {
             // Si es test, solo hacer log
@@ -777,28 +778,28 @@ class PaymentProcessingService {
                 console.log('🧪 Simulando envío de email de bienvenida para testing');
                 return;
             }
-            
-            // TODO: Implementar envío de email real
-            console.log('📧 Email de bienvenida enviado a:', adminUser.email);
-            console.log('🔑 Credenciales temporales:', {
-                username: adminUser.userName,
-                password: tempPassword,
-                changePasswordRequired: true
-            });
-            
-            // Aquí puedes integrar con tu servicio de email (nodemailer, etc.)
-            
+
+            console.log('📧 Enviando email de bienvenida real a:', adminUser.email);
+
+            await sendWelcomeEmail(
+                adminUser.email,
+                adminUser.userName,
+                tempPassword
+            );
+
+            console.log('✅ Email de bienvenida enviado con éxito');
+
         } catch (error) {
             console.error('❌ Error enviando email de bienvenida:', error);
             // No fallar el proceso completo por un error de email
         }
     }
-    
+
     // Procesar webhook de MercadoPago
     async processWebhook(webhookData) {
         try {
             console.log('🔔 Webhook recibido de MercadoPago:', JSON.stringify(webhookData, null, 2));
-            
+
             // Procesar diferentes tipos de webhooks
             if (webhookData.type === 'payment') {
                 return await this.processPaymentWebhook(webhookData);
@@ -811,7 +812,7 @@ class PaymentProcessingService {
                 console.log(`ℹ️ Webhook ignorado - tipo no soportado: ${webhookData.type}`);
                 return { processed: false, reason: `Unsupported webhook type: ${webhookData.type}` };
             }
-            
+
         } catch (error) {
             console.error('❌ Error procesando webhook:', error);
             throw error;
@@ -822,15 +823,15 @@ class PaymentProcessingService {
     async processAuthorizedPaymentWebhook(webhookData) {
         try {
             console.log('💳 Procesando webhook de pago autorizado de suscripción');
-            
+
             // Para subscription_authorized_payment, el ID es del pago autorizado
             const authorizedPaymentId = webhookData.data.id;
             console.log('🔍 ID del pago autorizado:', authorizedPaymentId);
-            
+
             try {
                 // Intentar obtener información del pago autorizado
                 const paymentInfo = await this.getAuthorizedPaymentInfo(authorizedPaymentId);
-                
+
                 if (paymentInfo && (paymentInfo.status === 'authorized' || paymentInfo.status === 'approved')) {
                     console.log('✅ Pago autorizado confirmado, procesando...');
                     const paymentId = paymentInfo.payment_id || authorizedPaymentId;
@@ -840,12 +841,12 @@ class PaymentProcessingService {
             } catch (error) {
                 console.log('⚠️ Error obteniendo pago autorizado, intentando como pago normal...');
             }
-            
+
             // Fallback: intentar procesar directamente como pago normal
             try {
                 console.log('🔄 Intentando procesar como pago normal...');
                 const result = await this.processSuccessfulPayment(authorizedPaymentId, 'mercadopago');
-                
+
                 if (result.success) {
                     console.log('✅ Pago procesado exitosamente como pago normal');
                     return { processed: true, result };
@@ -853,16 +854,16 @@ class PaymentProcessingService {
             } catch (fallbackError) {
                 console.log('❌ También falló como pago normal:', fallbackError.message);
             }
-            
+
             // Si todo falla, marcar como no procesado pero sin error
             console.log('⚠️ No se pudo procesar el pago autorizado automáticamente');
-            return { 
-                processed: false, 
+            return {
+                processed: false,
                 reason: 'Could not process authorized payment automatically',
                 authorizedPaymentId: authorizedPaymentId,
                 suggestion: 'Use manual processing script'
             };
-            
+
         } catch (error) {
             console.error('❌ Error procesando webhook de pago autorizado:', error);
             throw error;
@@ -873,11 +874,11 @@ class PaymentProcessingService {
     async processPaymentWebhook(webhookData) {
         try {
             console.log('💳 Procesando webhook de pago');
-            
+
             // Obtener información del pago desde MercadoPago
             const paymentId = webhookData.data.id;
             const paymentInfo = await this.getPaymentInfo(paymentId);
-            
+
             if (paymentInfo.status === 'approved') {
                 // Procesar pago exitoso
                 const result = await this.processSuccessfulPayment(paymentInfo);
@@ -886,7 +887,7 @@ class PaymentProcessingService {
                 console.log('⏳ Pago no aprobado aún:', paymentInfo.status);
                 return { processed: false, reason: `Payment status: ${paymentInfo.status}` };
             }
-            
+
         } catch (error) {
             console.error('❌ Error procesando webhook de pago:', error);
             throw error;
@@ -898,32 +899,32 @@ class PaymentProcessingService {
         try {
             console.log('📋 Procesando webhook de suscripción');
             console.log('📋 Datos del webhook:', JSON.stringify(webhookData, null, 2));
-            
+
             const subscriptionId = webhookData.data.id;
             const action = webhookData.action;
-            
+
             console.log(`🔔 Evento de suscripción: ${action} - ID: ${subscriptionId}`);
-            
+
             // Obtener información completa de la suscripción desde MercadoPago
             const subscriptionInfo = await this.getSubscriptionInfo(subscriptionId);
-            
+
             if (!subscriptionInfo) {
                 throw new Error('No se pudo obtener información de la suscripción');
             }
-            
+
             // Verificar si la suscripción tiene credenciales inválidas
             if (subscriptionInfo.status === 'invalid_credentials') {
                 console.log('⚠️ Webhook ignorado - suscripción no pertenece a estas credenciales');
-                return { 
-                    processed: false, 
+                return {
+                    processed: false,
                     reason: 'Subscription does not belong to current credentials',
                     subscriptionId: subscriptionId,
                     error: subscriptionInfo.error
                 };
             }
-            
+
             console.log('📋 Información de suscripción:', JSON.stringify(subscriptionInfo, null, 2));
-            
+
             // Procesar según la acción
             switch (action) {
                 case 'created':
@@ -936,7 +937,7 @@ class PaymentProcessingService {
                     console.log(`ℹ️ Acción de suscripción no procesada: ${action}`);
                     return { processed: false, reason: `Unhandled subscription action: ${action}` };
             }
-            
+
         } catch (error) {
             console.error('❌ Error procesando webhook de suscripción:', error);
             throw error;
@@ -947,11 +948,11 @@ class PaymentProcessingService {
     async processSubscriptionCreated(subscriptionInfo) {
         try {
             console.log('🎉 Procesando suscripción creada/activada');
-            
+
             // Si la suscripción está autorizada, procesar pago exitoso
             if (subscriptionInfo.status === 'authorized') {
                 console.log('✅ Suscripción autorizada, procesando pago exitoso');
-                
+
                 // Usar el external_reference para encontrar la suscripción en nuestra BD
                 const result = await this.processSuccessfulPayment({
                     external_reference: subscriptionInfo.external_reference,
@@ -960,24 +961,24 @@ class PaymentProcessingService {
                     subscription_id: subscriptionInfo.id,
                     preapproval_id: subscriptionInfo.id // GUARDAR PREAPPROVAL ID
                 });
-                
+
                 return { processed: true, result, action: 'subscription_activated' };
-            } 
+            }
             // Si está pending, guardar el preapprovalId para poder cancelar después
             else if (subscriptionInfo.status === 'pending') {
                 console.log('⏳ Suscripción pending - Guardando preapprovalId en BD');
-                
+
                 // Extraer información del external_reference
                 const refParts = subscriptionInfo.external_reference.split('_');
                 const tenantId = refParts[0];
                 const planId = refParts[1];
-                
+
                 // Obtener email del usuario logueado desde la colección cuentas
                 let payerEmail = subscriptionInfo.payer_email || 'unknown@example.com';
                 try {
                     const accountsCollection = db.collection('cuentas');
                     // Buscar usuario por tenantId (puede ser _id o tenantId del tenant)
-                    const user = await accountsCollection.findOne({ 
+                    const user = await accountsCollection.findOne({
                         $or: [
                             { tenantId: tenantId },
                             { tenantId: new ObjectId(tenantId) }
@@ -992,7 +993,7 @@ class PaymentProcessingService {
                 } catch (error) {
                     console.error('⚠️ Error obteniendo email del usuario:', error);
                 }
-                
+
                 // Crear suscripción en BD con status pending y preapprovalId
                 const newSubscription = {
                     externalReference: subscriptionInfo.external_reference,
@@ -1011,7 +1012,7 @@ class PaymentProcessingService {
                     preapprovalId: subscriptionInfo.id, // ✅ GUARDAR PREAPPROVAL ID
                     mpSubscriptionId: subscriptionInfo.id
                 };
-                
+
                 // Insertar en BD
                 await db.collection('subscriptions').insertOne(newSubscription);
                 console.log('✅ Suscripción pending guardada en BD con preapprovalId:', {
@@ -1020,13 +1021,13 @@ class PaymentProcessingService {
                     payerEmail: payerEmail,
                     status: 'pending'
                 });
-                
+
                 return { processed: true, action: 'subscription_pending_saved' };
             } else {
                 console.log(`⏳ Suscripción en estado: ${subscriptionInfo.status}`);
                 return { processed: false, reason: `Subscription status: ${subscriptionInfo.status}` };
             }
-            
+
         } catch (error) {
             console.error('❌ Error procesando suscripción creada:', error);
             throw error;
@@ -1037,42 +1038,42 @@ class PaymentProcessingService {
     async processSubscriptionUpdated(subscriptionInfo) {
         try {
             console.log('🔄 Procesando suscripción actualizada');
-            
+
             // Actualizar estado en nuestra base de datos
             await db.collection('subscriptions').updateOne(
                 { externalReference: subscriptionInfo.external_reference },
-                { 
-                    $set: { 
+                {
+                    $set: {
                         status: subscriptionInfo.status,
                         updatedAt: new Date()
                     }
                 }
             );
-            
+
             // Si la suscripción se autorizó, activar el plan del tenant
             if (subscriptionInfo.status === 'authorized') {
                 console.log('✅ Suscripción autorizada, activando plan del tenant');
-                
+
                 // Obtener la suscripción de nuestra BD para obtener tenantId y planId
                 const subscription = await db.collection('subscriptions').findOne({
                     externalReference: subscriptionInfo.external_reference
                 });
-                
+
                 if (subscription && subscription.tenantId && subscription.planId) {
                     console.log(`🎯 Activando plan ${subscription.planId} para tenant ${subscription.tenantId}`);
-                    
+
                     // Mapear planId a plan real
                     const planMapping = {
                         'starter-plan-fallback': 'starter',
-                        'professional-plan-fallback': 'professional', 
+                        'professional-plan-fallback': 'professional',
                         'enterprise-plan-fallback': 'enterprise',
                         'starter': 'starter',
                         'professional': 'professional',
                         'enterprise': 'enterprise'
                     };
-                    
+
                     const realPlan = planMapping[subscription.planId] || subscription.planId;
-                    
+
                     // Actualizar tenant con el plan correcto usando servicio centralizado (maneja tenantId o _id)
                     const { getPlanConfig } = await import('../config/plans.config.js');
                     const planObj = getPlanConfig(realPlan);
@@ -1087,8 +1088,8 @@ class PaymentProcessingService {
                             // Fallback: intentar por _id si tenantId no coincide (caso conocido)
                             const tenantUpdateResult = await tenantCollection.updateOne(
                                 { _id: new ObjectId(subscription.tenantId) },
-                                { 
-                                    $set: { 
+                                {
+                                    $set: {
                                         plan: realPlan,
                                         status: 'active',
                                         subscriptionStatus: 'active', // ✅ Cambiar de "trial" a "active"
@@ -1108,9 +1109,9 @@ class PaymentProcessingService {
                     console.log('⚠️ No se encontró suscripción o faltan datos (tenantId/planId)');
                 }
             }
-            
+
             return { processed: true, action: 'subscription_updated' };
-            
+
         } catch (error) {
             console.error('❌ Error procesando suscripción actualizada:', error);
             throw error;
@@ -1121,54 +1122,54 @@ class PaymentProcessingService {
     async processSubscriptionCancelled(subscriptionInfo) {
         try {
             console.log('🚫 Procesando suscripción cancelada');
-            
+
             // Actualizar estado y desactivar tenant
             await db.collection('subscriptions').updateOne(
                 { externalReference: subscriptionInfo.external_reference },
-                { 
-                    $set: { 
+                {
+                    $set: {
                         status: 'cancelled',
                         cancelledAt: new Date(),
                         updatedAt: new Date()
                     }
                 }
             );
-            
+
             // Desactivar tenant asociado
             const subscription = await db.collection('subscriptions').findOne({
                 externalReference: subscriptionInfo.external_reference
             });
-            
+
             if (subscription && subscription.tenantId) {
                 await tenantCollection.updateOne(
                     { tenantId: subscription.tenantId },
-                    { 
-                        $set: { 
+                    {
+                        $set: {
                             status: 'inactive',
                             plan: 'free',
                             updatedAt: new Date()
                         }
                     }
                 );
-                
+
                 console.log('🏢 Tenant desactivado:', subscription.tenantId);
             }
-            
+
             return { processed: true, action: 'subscription_cancelled' };
-            
+
         } catch (error) {
             console.error('❌ Error procesando suscripción cancelada:', error);
             throw error;
         }
     }
-    
+
     // Obtener información de pago desde MercadoPago
     async getPaymentInfo(paymentId) {
         try {
             console.log(`🔍 Obteniendo información del pago: ${paymentId}`);
             console.log(`🔗 URL: ${MP_CONFIG.BASE_URL}/v1/payments/${paymentId}`);
             console.log(`🔐 Access Token configurado: ${MP_CONFIG.ACCESS_TOKEN ? 'SÍ' : 'NO'}`);
-            
+
             // Si es un ID de test, devolver datos simulados
             if (paymentId.startsWith('TEST_')) {
                 console.log('🧪 Usando datos de pago simulados para testing');
@@ -1183,7 +1184,7 @@ class PaymentProcessingService {
                     currency_id: 'ARS'
                 };
             }
-            
+
             const response = await axios.get(
                 `${MP_CONFIG.BASE_URL}/v1/payments/${paymentId}`,
                 {
@@ -1193,18 +1194,18 @@ class PaymentProcessingService {
                     timeout: 10000 // 10 segundos timeout
                 }
             );
-            
+
             console.log('✅ Información del pago obtenida exitosamente');
             console.log('📋 Status del pago:', response.data.status);
             console.log('📋 External reference:', response.data.external_reference);
             console.log('📋 Payer email:', response.data.payer?.email);
-            
+
             return response.data;
         } catch (error) {
             console.error('❌ Error obteniendo información de pago:', error.response?.data || error.message);
             console.error('📋 Status code:', error.response?.status);
             console.error('📋 Payment ID que falló:', paymentId);
-            
+
             // Si es error 404 y es un test, devolver datos simulados
             if (error.response?.status === 404 && paymentId.includes('TEST')) {
                 console.log('🧪 Pago de test no encontrado, usando datos simulados');
@@ -1219,7 +1220,7 @@ class PaymentProcessingService {
                     currency_id: 'ARS'
                 };
             }
-            
+
             throw error;
         }
     }
@@ -1228,7 +1229,7 @@ class PaymentProcessingService {
     async getSubscriptionInfo(subscriptionId) {
         try {
             console.log(`🔍 Obteniendo información de suscripción: ${subscriptionId}`);
-            
+
             const response = await axios.get(
                 `${MP_CONFIG.BASE_URL}/preapproval/${subscriptionId}`,
                 {
@@ -1237,22 +1238,22 @@ class PaymentProcessingService {
                     }
                 }
             );
-            
+
             console.log('✅ Información de suscripción obtenida:', JSON.stringify(response.data, null, 2));
             return response.data;
-            
+
         } catch (error) {
             console.error('❌ Error obteniendo información de suscripción:', error.response?.data || error.message);
-            
+
             // Manejar casos específicos de error
-            if (error.response?.status === 400 && 
+            if (error.response?.status === 400 &&
                 error.response?.data?.message?.includes('preapprovalId is not valid for callerId')) {
                 console.log('⚠️ La suscripción no pertenece a estas credenciales de MercadoPago');
                 console.log('💡 Esto puede suceder si:');
                 console.log('   - La suscripción fue creada con otras credenciales');
                 console.log('   - Hay un mismatch entre TEST/PRODUCCIÓN');
                 console.log('   - La suscripción pertenece a otra cuenta');
-                
+
                 return {
                     id: subscriptionId,
                     status: 'invalid_credentials',
@@ -1260,7 +1261,7 @@ class PaymentProcessingService {
                     original_error: error.response.data
                 };
             }
-            
+
             throw error;
         }
     }
@@ -1269,7 +1270,7 @@ class PaymentProcessingService {
     async getAuthorizedPaymentInfo(authorizedPaymentId) {
         try {
             console.log('🔍 Obteniendo información del pago autorizado:', authorizedPaymentId);
-            
+
             const response = await axios.get(
                 `${MP_CONFIG.BASE_URL}/v1/authorized_payments/${authorizedPaymentId}`,
                 {
@@ -1279,17 +1280,17 @@ class PaymentProcessingService {
                     timeout: 10000 // 10 segundos timeout
                 }
             );
-            
+
             console.log('✅ Información del pago autorizado obtenida exitosamente');
             console.log('📋 Status del pago autorizado:', response.data.status);
             console.log('📋 Payment ID asociado:', response.data.payment_id);
-            
+
             return response.data;
         } catch (error) {
             console.error('❌ Error obteniendo información de pago autorizado:', error.response?.data || error.message);
             console.error('📋 Status code:', error.response?.status);
             console.error('📋 Authorized Payment ID que falló:', authorizedPaymentId);
-            
+
             // Si falla, intentar obtener directamente como pago normal
             console.log('🔄 Intentando obtener como pago normal...');
             try {

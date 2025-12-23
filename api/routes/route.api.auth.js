@@ -9,11 +9,11 @@ import {
 } from "../../middleware/auth.validate.middleware.js"
 
 import { isAdmin, isSuperAdmin } from "../../middleware/auth.role.middleware.js"
-import { 
-  identifyTenantByToken, 
+import {
+  identifyTenantByToken,
   identifyTenantByHeader,
-  verifyUserTenant, 
-  injectTenantId 
+  verifyUserTenant,
+  injectTenantId
 } from "../../middleware/tenant.middleware.js"
 
 const route = Router()
@@ -21,7 +21,7 @@ const route = Router()
 // Rutas que requieren identificación de tenant
 route.post("/cuenta", [
   validateToken,
-  isAdmin, 
+  isAdmin,
   identifyTenantByHeader,
   validateAccountRegistro
 ], controllers.createAccount)
@@ -79,16 +79,32 @@ route.put("/profile", [
   validateToken
 ], controllers.updateProfile)
 
-// Actualizar contraseña del usuario autenticado
+// Actualizar contraseña del usuario autenticado (con verificación de contraseña actual)
 route.put("/profile/password", [
   validateToken
 ], controllers.updatePassword)
+
+// Solicitar código para cambio de contraseña (vía email)
+route.post("/profile/password/request", [
+  validateToken
+], controllers.requestPasswordChange)
+
+// Confirmar cambio de contraseña con código
+route.post("/profile/password/confirm", [
+  validateToken
+], controllers.confirmPasswordChange)
 
 // Actualizar datos de un técnico (solo admin)
 route.put("/cuentas/:id/technician", [
   validateToken,
   isAdmin
 ], controllers.updateTechnician)
+
+// Actualizar datos de un cliente (solo admin)
+route.put("/cuentas/:id/client", [
+  validateToken,
+  isAdmin
+], controllers.updateClient)
 
 // Actualizar datos de facturación del tenant (solo admin)
 route.put("/tenant/billing", [
