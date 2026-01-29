@@ -11,6 +11,11 @@ import {
 } from "../../middleware/installations.validate.middleware.js"
 import { isAdmin, isAdminOrTechnician, isAdminOrTechnicianOrClient } from "../../middleware/auth.role.middleware.js"
 import { identifyTenantByHeader } from "../../middleware/tenant.middleware.js"
+import {
+  upload,
+  uploadInstallationDocumentToHetzner,
+  handleUploadError,
+} from "../../middleware/hetzner.upload.middleware.js"
 
 const route = Router()
 
@@ -25,6 +30,23 @@ route.delete("/installations/:id", [validateToken, identifyTenantByHeader, isAdm
 route.patch("/installations/:id/subscription",
   [validateToken, identifyTenantByHeader, isAdmin, validateSubscriptionUpdate],
   controllers.updateInstallationSubscription
+)
+
+// Ruta para subir documentos (Presupuestos, etc)
+route.post(
+  "/installations/:id/documentos",
+  [validateToken, identifyTenantByHeader, isAdmin],
+  upload.single("file"),
+  handleUploadError,
+  uploadInstallationDocumentToHetzner,
+  controllers.uploadInstallationDocument,
+)
+
+// Ruta para obtener todos los documentos de una instalación
+route.get(
+  "/installations/:id/documentos",
+  [validateToken, identifyTenantByHeader, isAdminOrTechnicianOrClient],
+  controllers.getInstallationDocuments,
 )
 
 // Rutas de dispositivos en instalaciones

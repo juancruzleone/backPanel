@@ -322,11 +322,11 @@ async function getAllMaintenanceForDevice(req, res) {
   try {
     const { installationId, deviceId } = req.params
     console.log('📋 [AUTENTICADO] Solicitud de historial completo:', { installationId, deviceId })
-    
+
     const maintenanceList = await service.getAllMaintenanceForDevice(installationId, deviceId)
-    
+
     console.log('✅ Mantenimientos encontrados:', maintenanceList.length)
-    
+
     // Log detallado de cada mantenimiento
     maintenanceList.forEach((m, index) => {
       console.log(`   [${index + 1}] _id:`, m._id)
@@ -334,7 +334,7 @@ async function getAllMaintenanceForDevice(req, res) {
       console.log(`   [${index + 1}] pdfUrl:`, m.pdfUrl || '❌ NO TIENE pdfUrl')
       console.log(`   [${index + 1}] formattedDate:`, m.formattedDate)
     })
-    
+
     // Advertencia si algún mantenimiento no tiene pdfUrl
     const sinPdf = maintenanceList.filter(m => !m.pdfUrl)
     if (sinPdf.length > 0) {
@@ -397,12 +397,96 @@ async function assignTemplateToDevice(req, res) {
   }
 }
 
+
+// Subir documento a instalación
+async function uploadInstallationDocument(req, res) {
+  try {
+    const { id } = req.params;
+
+    // Verificar si se subió el archivo (el middleware ya lo procesó)
+    if (!req.cloudinaryFile) {
+      return res.status(400).json({
+        success: false,
+        error: "No se proporcionó ningún archivo"
+      });
+    }
+
+    const documentData = {
+      name: req.body.name || req.cloudinaryFile.original_filename,
+      url: req.cloudinaryFile.secure_url,
+      type: req.cloudinaryFile.format,
+      size: req.cloudinaryFile.bytes,
+      public_id: req.cloudinaryFile.public_id,
+      uploadedBy: req.user._id,
+      metadata: req.cloudinaryFile
+    };
+
+    const newDocument = await service.addDocumentToInstallation(id, documentData);
+
+    res.status(201).json({
+      success: true,
+      message: "Documento subido exitosamente",
+      data: newDocument
+    });
+
+  } catch (error) {
+    console.error("Error al subir documento:", error);
+    res.status(400).json({
+      success: false,
+      error: error.message || "Error al subir el documento"
+    });
+  }
+}
+
+
+// Obtener todos los documentos de una instalación
+async function getInstallationDocuments(req, res) {
+  try {
+    const { id } = req.params;
+
+    // El middleware identifyTenantByHeader ya verifica el tenant
+    // Podríamos añadir validación extra de pertenencia si es necesario, 
+    // pero services.getDocumentsFromInstallation solo pide el ID por ahora.
+    // Lo ideal sería validar que la instalación pertenezca al Tenant.
+    // Sin embargo getInstallationById ya lo hace.
+    // Usaremos el servicio.
+
+    // Primero verificamos que la instalación pertenezca al tenant del usuario
+    // (Opcional si confiamos en que el ID difícilmente se adivina, pero mejor seguridad)
+    const tenantId = req.user.tenantId;
+    await service.getInstallationById(id, tenantId); // Esto lanzará error si no existe o no es del tenant
+
+    const documents = await service.getDocumentsFromInstallation(id);
+
+    res.status(200).json({
+      success: true,
+      data: documents,
+      count: documents.length
+    });
+
+  } catch (error) {
+    console.error("Error al obtener documentos:", error);
+    // Si es error de no encontrado, devolver 404
+    if (error.message === "Instalación no encontrada") {
+      return res.status(404).json({
+        success: false,
+        error: "Instalación no encontrada"
+      });
+    }
+
+    res.status(400).json({
+      success: false,
+      error: error.message || "Error al obtener los documentos"
+    });
+  }
+}
+
 export {
   getInstallations,
   getInstallationById,
   createInstallation,
   updateInstallation,
-  updateInstallationSubscription, // Nuevo export
+  updateInstallationSubscription,
   deleteInstallation,
   addDeviceToInstallation,
   updateDeviceInInstallation,
@@ -410,8 +494,10 @@ export {
   getDeviceForm,
   handleMaintenanceSubmission,
   getLastMaintenanceForDevice,
-  getAllMaintenanceForDevice, // Nuevo export
+  getAllMaintenanceForDevice,
   getDevicesFromInstallation,
-  assignAssetToInstallation, // FUNCIÓN PRINCIPA
+  assignAssetToInstallation,
   assignTemplateToDevice,
+  uploadInstallationDocument,
+  getInstallationDocuments, // New export
 }

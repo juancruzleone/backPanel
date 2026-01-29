@@ -37,7 +37,7 @@ const uploadPDFToHetzner = async (req, res, next) => {
 
     // Subir manual PDF a carpeta específica del tenant
     const result = await hetznerService.uploadManualPDF(
-      req.file, 
+      req.file,
       tenantId,
       req.file.originalname
     );
@@ -68,6 +68,58 @@ const uploadPDFToHetzner = async (req, res, next) => {
     console.error("Error al subir archivo a Hetzner Object Storage:", error);
     res.status(500).json({
       error: { message: "Error al subir el archivo a Hetzner Object Storage" },
+    });
+  }
+};
+
+// Middleware para subir documento de instalación a Hetzner
+const uploadInstallationDocumentToHetzner = async (req, res, next) => {
+  if (!req.file) {
+    return next();
+  }
+
+  try {
+    const tenantId = req.user?.tenantId;
+    const { id: installationId } = req.params;
+
+    if (!tenantId) {
+      return res.status(400).json({
+        error: { message: "No se pudo identificar el tenant del usuario" }
+      });
+    }
+
+    if (!installationId) {
+      return res.status(400).json({
+        error: { message: "No se proporcionó el ID de la instalación" }
+      });
+    }
+
+    // Subir documento PDF
+    const result = await hetznerService.uploadInstallationDocument(
+      req.file.buffer,
+      req.file.originalname,
+      tenantId,
+      installationId
+    );
+
+    // Agregar información al request
+    req.cloudinaryFile = {
+      ...result,
+      hetzner: {
+        bucket: result.bucket,
+        key: result.key,
+        etag: result.etag,
+        location: result.location
+      }
+    };
+
+    console.log(`✅ Documento subido a Hetzner: ${result.publicUrl}`);
+    next();
+
+  } catch (error) {
+    console.error("Error al subir documento a Hetzner:", error);
+    res.status(500).json({
+      error: { message: "Error al subir el documento a Hetzner Object Storage" },
     });
   }
 };
@@ -109,10 +161,11 @@ const deleteFromHetzner = async (publicId) => {
   }
 };
 
-export { 
-  upload, 
-  uploadPDFToHetzner, 
-  handleUploadError, 
+export {
+  upload,
+  uploadPDFToHetzner,
+  uploadInstallationDocumentToHetzner,
+  handleUploadError,
   deleteFromHetzner,
   // Alias para compatibilidad con código existente
   uploadPDFToHetzner as uploadPDFToCloudinary,

@@ -54,6 +54,11 @@ export const FOLDER_STRUCTURE = {
     return `${tenantId}/instalaciones/${instalacionId}/contratos/${fileName}`;
   },
 
+  // Estructura: tenant/instalaciones/[instalacionId]/documentos/
+  getDocumentPath: (tenantId, instalacionId, fileName) => {
+    return `${tenantId}/instalaciones/${instalacionId}/documentos/${fileName}`;
+  },
+
   // Crear carpetas base para un nuevo tenant
   getTenantFolders: (tenantId) => {
     return [

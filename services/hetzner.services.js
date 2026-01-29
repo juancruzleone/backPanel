@@ -5,7 +5,7 @@ import { Readable } from 'stream';
  * Servicio para manejar archivos en Hetzner Object Storage
  */
 class HetznerStorageService {
-  
+
   /**
    * Crear carpetas base para un nuevo tenant
    * @param {string} tenantId - ID del tenant
@@ -14,7 +14,7 @@ class HetznerStorageService {
   async createTenantFolders(tenantId) {
     try {
       const folders = FOLDER_STRUCTURE.getTenantFolders(tenantId);
-      
+
       for (const folder of folders) {
         // Crear un archivo .keep para mantener la carpeta
         const keepFile = `${folder}.keep`;
@@ -24,10 +24,10 @@ class HetznerStorageService {
           Body: 'This file keeps the folder structure',
           ContentType: 'text/plain'
         }).promise();
-        
+
         console.log(`✅ Carpeta creada: ${folder}`);
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error al crear carpetas de tenant:', error);
@@ -45,14 +45,14 @@ class HetznerStorageService {
     try {
       const folder = FOLDER_STRUCTURE.getInstalacionFolder(tenantId, instalacionId);
       const keepFile = `${folder}.keep`;
-      
+
       await s3Client.putObject({
         Bucket: HETZNER_CONFIG.bucket,
         Key: keepFile,
         Body: 'This file keeps the installation folder structure',
         ContentType: 'text/plain'
       }).promise();
-      
+
       console.log(`✅ Carpeta de instalación creada: ${folder}`);
       return true;
     } catch (error) {
@@ -72,14 +72,14 @@ class HetznerStorageService {
     try {
       const folder = FOLDER_STRUCTURE.getDispositivoFolder(tenantId, instalacionId, dispositivoId);
       const keepFile = `${folder}.keep`;
-      
+
       await s3Client.putObject({
         Bucket: HETZNER_CONFIG.bucket,
         Key: keepFile,
         Body: 'This file keeps the device folder structure',
         ContentType: 'text/plain'
       }).promise();
-      
+
       console.log(`✅ Carpeta de dispositivo creada: ${folder}`);
       return true;
     } catch (error) {
@@ -98,14 +98,14 @@ class HetznerStorageService {
   async uploadManualPDF(file, tenantId, filename) {
     try {
       console.log(`📤 Subiendo manual PDF para tenant: ${tenantId}`);
-      
+
       // En desarrollo sin credenciales, simular subida local
       if (!s3Client) {
         console.log('⚠️ Modo desarrollo: Simulando subida de manual');
-        
+
         const timestamp = Date.now();
         const simulatedKey = `tenants/${tenantId}/manuals/${timestamp}_${filename}`;
-        
+
         const fileData = {
           key: simulatedKey,
           location: `http://localhost:2023/uploads/${simulatedKey}`,
@@ -119,23 +119,23 @@ class HetznerStorageService {
           uploadedAt: new Date(),
           isDevelopment: true
         };
-        
+
         console.log(`✅ Manual PDF simulado exitosamente:`, {
           key: fileData.key,
           publicUrl: fileData.publicUrl,
           size: fileData.size
         });
-        
+
         return fileData;
       }
-      
+
       // Generar key único para el archivo
       const timestamp = Date.now();
       const key = FOLDER_STRUCTURE.getManualPath(tenantId, `${timestamp}_${filename}`);
-      
+
       // Convertir buffer a stream si es necesario
       let body = file.buffer;
-      
+
       // Manejar diferentes tipos de buffer
       if (file.buffer instanceof ArrayBuffer) {
         body = Buffer.from(file.buffer);
@@ -144,7 +144,7 @@ class HetznerStorageService {
       } else {
         body = Buffer.from(file.buffer);
       }
-      
+
       const uploadParams = {
         Bucket: HETZNER_CONFIG.bucket,
         Key: key,
@@ -158,16 +158,16 @@ class HetznerStorageService {
           'original-name': filename
         }
       };
-      
+
       console.log(`📋 Parámetros de subida:`, {
         bucket: uploadParams.Bucket,
         key: uploadParams.Key,
         contentType: uploadParams.ContentType,
         tenantId
       });
-      
+
       const result = await s3Client.upload(uploadParams).promise();
-      
+
       const fileData = {
         key: result.Key,
         location: result.Location,
@@ -182,15 +182,15 @@ class HetznerStorageService {
         tenantId: tenantId,
         uploadedAt: new Date()
       };
-      
+
       console.log(`✅ Manual PDF subido exitosamente:`, {
         key: fileData.key,
         publicUrl: fileData.publicUrl,
         size: fileData.size
       });
-      
+
       return fileData;
-      
+
     } catch (error) {
       console.error('❌ Error al subir manual PDF:', error);
       throw new Error(`Error al subir manual: ${error.message}`);
@@ -257,6 +257,66 @@ class HetznerStorageService {
     } catch (error) {
       console.error('Error al subir reporte PDF:', error);
       throw new Error(`Error al subir reporte: ${error.message}`);
+    }
+  }
+
+  /**
+   * Subir documento PDF a carpeta de instalación
+   * @param {Buffer} buffer - Buffer del archivo
+   * @param {string} originalName - Nombre original del archivo
+   * @param {string} tenantId - ID del tenant
+   * @param {string} instalacionId - ID de la instalación
+   * @returns {Promise<Object>} - Información del archivo subido
+   */
+  async uploadInstallationDocument(buffer, originalName, tenantId, instalacionId) {
+    try {
+      // Generar nombre único para el archivo
+      const timestamp = Date.now();
+      const fileName = originalName.split('.')[0];
+      const finalFileName = `doc_${fileName}_${timestamp}.pdf`;
+      const key = FOLDER_STRUCTURE.getDocumentPath(tenantId, instalacionId, finalFileName);
+
+      // Parámetros para la subida
+      const uploadParams = {
+        Bucket: HETZNER_CONFIG.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: 'application/pdf',
+        ContentDisposition: `inline; filename="${originalName}"`,
+        ACL: 'public-read',
+        Metadata: {
+          'original-name': originalName,
+          'upload-timestamp': timestamp.toString(),
+          'content-type': 'application/pdf',
+          'tenant-id': tenantId,
+          'instalacion-id': instalacionId,
+          'file-type': 'documento'
+        }
+      };
+
+      const result = await s3Client.upload(uploadParams).promise();
+      const publicUrl = `${HETZNER_CONFIG.publicUrl}/${key}`;
+
+      return {
+        secure_url: publicUrl,
+        public_id: key,
+        original_filename: originalName,
+        bytes: buffer.length,
+        format: 'pdf',
+        resource_type: 'raw',
+        created_at: new Date().toISOString(),
+        bucket: HETZNER_CONFIG.bucket,
+        key: key,
+        etag: result.ETag,
+        location: result.Location,
+        tenant_id: tenantId,
+        instalacion_id: instalacionId,
+        file_type: 'documento'
+      };
+
+    } catch (error) {
+      console.error('Error al subir documento PDF:', error);
+      throw new Error(`Error al subir documento: ${error.message}`);
     }
   }
 
@@ -331,7 +391,7 @@ class HetznerStorageService {
       };
 
       const result = await s3Client.deleteObject(deleteParams).promise();
-      
+
       return {
         result: 'ok',
         key: key,
@@ -357,7 +417,7 @@ class HetznerStorageService {
       };
 
       const result = await s3Client.headObject(params).promise();
-      
+
       return {
         key: key,
         size: result.ContentLength,
@@ -388,7 +448,7 @@ class HetznerStorageService {
       };
 
       const result = await s3Client.listObjectsV2(params).promise();
-      
+
       return result.Contents.map(file => ({
         key: file.Key,
         size: file.Size,
@@ -440,13 +500,13 @@ class HetznerStorageService {
       if (error.statusCode === 404) {
         // Bucket no existe, intentar crear
         try {
-          await s3Client.createBucket({ 
+          await s3Client.createBucket({
             Bucket: HETZNER_CONFIG.bucket,
             CreateBucketConfiguration: {
               LocationConstraint: HETZNER_CONFIG.region
             }
           }).promise();
-          
+
           console.log(`✅ Bucket ${HETZNER_CONFIG.bucket} creado exitosamente`);
           return true;
 
@@ -463,4 +523,3 @@ class HetznerStorageService {
 }
 
 export default new HetznerStorageService();
- 

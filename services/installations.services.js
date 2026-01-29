@@ -139,6 +139,7 @@ async function createInstallation(installationData, adminUser) {
       createdAt: new Date(),
       updatedAt: new Date(),
       devices: [],
+      documents: [],
     }
 
     const result = await installationsCollection.insertOne(newInstallation)
@@ -823,6 +824,66 @@ async function assignTemplateToDevice(installationId, deviceId, templateId) {
   }
 }
 
+// Agregar documento a la instalación
+async function addDocumentToInstallation(id, documentData) {
+  try {
+    if (!ObjectId.isValid(id)) {
+      throw new Error("El ID de la instalación no es válido")
+    }
+
+    const objectId = new ObjectId(id)
+
+    // Crear objeto de documento
+    const newDocument = {
+      _id: new ObjectId(),
+      ...documentData,
+      createdAt: new Date(),
+    }
+
+    const result = await installationsCollection.updateOne(
+      { _id: objectId },
+      { $push: { documents: newDocument } }
+    )
+
+    if (result.modifiedCount === 0) {
+      throw new Error("No se encontró la instalación o no se pudo agregar el documento")
+    }
+
+    return newDocument
+  } catch (error) {
+    console.error("Error en addDocumentToInstallation:", error)
+    throw error
+  }
+}
+
+// Obtener documentos de la instalación
+async function getDocumentsFromInstallation(id) {
+  try {
+    if (!ObjectId.isValid(id)) {
+      throw new Error("El ID de la instalación no es válido")
+    }
+
+    const objectId = new ObjectId(id)
+
+    const installation = await installationsCollection.findOne(
+      { _id: objectId },
+      { projection: { documents: 1 } }
+    )
+
+    if (!installation) {
+      throw new Error("No se encontró la instalación")
+    }
+
+    const documents = installation.documents || []
+
+    // Ordenar por fecha descendente (más reciente primero)
+    return documents.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  } catch (error) {
+    console.error("Error en getDocumentsFromInstallation:", error)
+    throw error
+  }
+}
+
 export {
   getInstallations,
   getInstallationById,
@@ -840,4 +901,6 @@ export {
   getDevicesFromInstallation,
   assignAssetToInstallation,
   assignTemplateToDevice,
+  addDocumentToInstallation, // New export
+  getDocumentsFromInstallation, // New export
 }
