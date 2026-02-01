@@ -69,9 +69,6 @@ const corsOptions = {
 
 app.use(cors(corsOptions))
 
-// Manejar preflight requests (OPTIONS) para todas las rutas
-app.options('/*', cors(corsOptions))
-
 // Middleware de debugging para ver headers
 app.use((req, res, next) => {
   if (req.path.includes('/dispositivos') || req.path.includes('/clientes-usuarios')) {
